@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>RPL Webhooks Dashboard</title>
+    <title>RPL HOME</title>
     <style>
       :root {
         color-scheme: light;
@@ -149,10 +149,11 @@
       <div class="shell">
         <header>
           <div>
-            <h1>RPL Webhooks Dashboard</h1>
+            <h1>RPL HOME</h1>
             <div class="status" id="status">Idle.</div>
           </div>
           <div class="controls">
+            <button id="rplTestTextBtn">RPL Test (Text)</button>
             <button id="refreshAllBtn">Refresh all</button>
           </div>
         </header>
@@ -193,6 +194,7 @@
         "https://default4f0de57b35694b51b8c8b1dadd7ba8.19.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/2345386e5471436db592d193991729d2/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=KHRx01bx0XK1sV5ktSOz52PjUL2p3xpFMcTQeeOMk7g";
 
       const statusEl = document.getElementById("status");
+      const rplTestTextBtn = document.getElementById("rplTestTextBtn");
       const questionsUrlEl = document.getElementById("questionsUrl");
       const questionsUrl2El = document.getElementById("questionsUrl2");
       const questionsStatusEl = document.getElementById("questionsStatus");
@@ -413,6 +415,9 @@
         }
       };
 
+      rplTestTextBtn.addEventListener("click", () => {
+        window.location.href = "RPL_Test_Text.html";
+      });
       questionsBtn.addEventListener("click", loadQuestions);
       questionsBtn2.addEventListener("click", loadQuestions2);
       refreshAllBtn.addEventListener("click", async () => {
