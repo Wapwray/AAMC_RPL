@@ -3,8 +3,13 @@
   "version": "1.0.0",
   "private": true,
   "description": "AAMC RPL",
+  "main": "server.js",
   "scripts": {
+    "start": "node server.js",
     "build": "echo \"No build step defined\"",
     "test": "echo \"No tests defined\""
+  },
+  "dependencies": {
+    "express": "^4.19.2"
   }
 }
