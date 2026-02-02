@@ -376,7 +376,7 @@
           } else {
             setPill(questionsStatusEl, "OK", "ok");
           }
-          renderQuestionsList(result.data, questionsTableWrap);
+          renderQuestionItem(result.data, questionsTableWrap);
         } catch (error) {
           setPill(questionsStatusEl, "Failed", "err");
           renderKeyValueTable({ error: error?.message || String(error) }, questionsTableWrap);
@@ -403,7 +403,7 @@
           } else {
             setPill(questionsStatus2El, "OK", "ok");
           }
-          renderQuestionItem(result.data, questionsTableWrap2);
+          renderQuestionsList(result.data, questionsTableWrap2);
         } catch (error) {
           setPill(questionsStatus2El, "Failed", "err");
           renderKeyValueTable({ error: error?.message || String(error) }, questionsTableWrap2);
