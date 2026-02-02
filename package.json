@@ -1,0 +1,10 @@
+{
+  "name": "aamc-rpl",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AAMC RPL",
+  "scripts": {
+    "build": "echo \"No build step defined\"",
+    "test": "echo \"No tests defined\""
+  }
+}
