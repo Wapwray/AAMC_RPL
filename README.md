@@ -1,2 +1,1 @@
-# AAMC_RPL
-Home of the AAMC RPL Bot
+# THIS IS A TEST - RPL 2026
