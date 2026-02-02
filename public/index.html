@@ -172,14 +172,14 @@
 
           <article class="card">
             <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
-              <h2>Webhook 2: Azure Endpoint</h2>
-              <span class="pill" id="azureStatus">Idle</span>
+              <h2>Webhook 2: Questions</h2>
+              <span class="pill" id="questionsStatus2">Idle</span>
             </div>
-            <div class="meta" id="azureUrl"></div>
+            <div class="meta" id="questionsUrl2"></div>
             <div class="controls">
-              <button id="azureBtn">Call endpoint</button>
+              <button id="questionsBtn2">Load questions</button>
             </div>
-            <div id="azureTableWrap"></div>
+            <div id="questionsTableWrap2"></div>
           </article>
         </section>
       </div>
@@ -189,21 +189,22 @@
       const questionsUrl =
         "https://default4f0de57b35694b51b8c8b1dadd7ba8.19.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/8feea7df352a455d9efde46977446910/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=AF-53thnNRJd9IxzY55POQzrW8owJ2SA6EhRycxtTEY";
 
-      const endpointOverride = "https://aamc-llnd-analysis.openai.azure.com/openai/v1";
+      const questionsUrl2 =
+        "https://default4f0de57b35694b51b8c8b1dadd7ba8.19.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/2345386e5471436db592d193991729d2/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=KHRx01bx0XK1sV5ktSOz52PjUL2p3xpFMcTQeeOMk7g";
 
       const statusEl = document.getElementById("status");
       const questionsUrlEl = document.getElementById("questionsUrl");
-      const azureUrlEl = document.getElementById("azureUrl");
+      const questionsUrl2El = document.getElementById("questionsUrl2");
       const questionsStatusEl = document.getElementById("questionsStatus");
-      const azureStatusEl = document.getElementById("azureStatus");
+      const questionsStatus2El = document.getElementById("questionsStatus2");
       const questionsTableWrap = document.getElementById("questionsTableWrap");
-      const azureTableWrap = document.getElementById("azureTableWrap");
+      const questionsTableWrap2 = document.getElementById("questionsTableWrap2");
       const questionsBtn = document.getElementById("questionsBtn");
-      const azureBtn = document.getElementById("azureBtn");
+      const questionsBtn2 = document.getElementById("questionsBtn2");
       const refreshAllBtn = document.getElementById("refreshAllBtn");
 
       questionsUrlEl.textContent = questionsUrl;
-      azureUrlEl.textContent = endpointOverride;
+      questionsUrl2El.textContent = questionsUrl2;
 
       const setStatus = (message) => {
         statusEl.textContent = message;
@@ -352,37 +353,38 @@
         }
       };
 
-      const loadAzureEndpoint = async () => {
-        azureBtn.disabled = true;
-        setPill(azureStatusEl, "Loading", null);
-        setStatus("Calling Azure endpoint...");
+      const loadQuestions2 = async () => {
+        questionsBtn2.disabled = true;
+        setPill(questionsStatus2El, "Loading", null);
+        setStatus("Fetching second webhook...");
         try {
           const result = await callWebhook({
-            url: endpointOverride,
+            url: questionsUrl2,
             options: {
-              method: "GET",
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
             },
           });
           if (!result.ok) {
-            setPill(azureStatusEl, `Error ${result.status}`, "err");
+            setPill(questionsStatus2El, `Error ${result.status}`, "err");
           } else {
-            setPill(azureStatusEl, "OK", "ok");
+            setPill(questionsStatus2El, "OK", "ok");
           }
-          renderKeyValueTable(result.data, azureTableWrap);
+          renderKeyValueTable(result.data, questionsTableWrap2);
         } catch (error) {
-          setPill(azureStatusEl, "Failed", "err");
-          renderKeyValueTable({ error: error?.message || String(error) }, azureTableWrap);
+          setPill(questionsStatus2El, "Failed", "err");
+          renderKeyValueTable({ error: error?.message || String(error) }, questionsTableWrap2);
         } finally {
-          azureBtn.disabled = false;
+          questionsBtn2.disabled = false;
           setStatus("Ready.");
         }
       };
 
       questionsBtn.addEventListener("click", loadQuestions);
-      azureBtn.addEventListener("click", loadAzureEndpoint);
+      questionsBtn2.addEventListener("click", loadQuestions2);
       refreshAllBtn.addEventListener("click", async () => {
         await loadQuestions();
-        await loadAzureEndpoint();
+        await loadQuestions2();
       });
     </script>
   </body>
