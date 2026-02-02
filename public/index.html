@@ -307,6 +307,39 @@
         wrapEl.appendChild(createEmpty(String(data)));
       };
 
+      const renderQuestionsList = (data, wrapEl) => {
+        wrapEl.textContent = "";
+        if (!data || typeof data.listitems !== "string") {
+          wrapEl.appendChild(createEmpty("Response missing listitems string."));
+          return;
+        }
+        try {
+          const listItems = JSON.parse(data.listitems);
+          if (!Array.isArray(listItems) || !listItems.length) {
+            wrapEl.appendChild(createEmpty("listitems did not contain any rows."));
+            return;
+          }
+          renderKeyValueTable(listItems, wrapEl);
+        } catch (error) {
+          renderKeyValueTable({ error: error?.message || String(error) }, wrapEl);
+        }
+      };
+
+      const renderQuestionItem = (data, wrapEl) => {
+        wrapEl.textContent = "";
+        if (!data || typeof data !== "object") {
+          wrapEl.appendChild(createEmpty("Response was not an object."));
+          return;
+        }
+        const fields = {
+          Title: data.Title ?? "",
+          field_5: data.field_5 ?? "",
+          field_3: data.field_3 ?? "",
+          Hints: data.Hints ?? "",
+        };
+        renderKeyValueTable(fields, wrapEl);
+      };
+
       const parseResponse = async (response) => {
         const contentType = response.headers.get("content-type") || "";
         if (contentType.includes("application/json")) {
@@ -343,7 +376,7 @@
           } else {
             setPill(questionsStatusEl, "OK", "ok");
           }
-          renderKeyValueTable(result.data, questionsTableWrap);
+          renderQuestionsList(result.data, questionsTableWrap);
         } catch (error) {
           setPill(questionsStatusEl, "Failed", "err");
           renderKeyValueTable({ error: error?.message || String(error) }, questionsTableWrap);
@@ -370,7 +403,7 @@
           } else {
             setPill(questionsStatus2El, "OK", "ok");
           }
-          renderKeyValueTable(result.data, questionsTableWrap2);
+          renderQuestionItem(result.data, questionsTableWrap2);
         } catch (error) {
           setPill(questionsStatus2El, "Failed", "err");
           renderKeyValueTable({ error: error?.message || String(error) }, questionsTableWrap2);
