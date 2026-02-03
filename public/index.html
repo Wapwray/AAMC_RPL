@@ -5,272 +5,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>RPL HOME</title>
     <style>
-      :root {
-        color-scheme: light;
-        --bg: #f4f6fb;
-        --card: #ffffff;
-        --text: #0f172a;
-        --muted: #5b6b82;
-        --border: #e2e8f0;
-        --primary: #1d4ed8;
-        --primary-strong: #1e40af;
-        --success: #10b981;
-        --error: #ef4444;
-      }
-      * {
-        box-sizing: border-box;
-      }
-      body {
-        margin: 0;
-        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-        background: var(--bg);
-        color: var(--text);
-      }
-      .page {
-        padding: 28px;
-      }
-      .shell {
-        max-width: 1200px;
-        margin: 0 auto;
-        display: grid;
-        gap: 20px;
-      }
-      header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 16px;
-      }
-      h1 {
-        margin: 0;
-        font-size: 22px;
-      }
-      .status {
-        font-size: 13px;
-        color: var(--muted);
-      }
-      .grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-        gap: 18px;
-      }
-      .card {
-        background: var(--card);
-        border: 1px solid var(--border);
-        border-radius: 16px;
-        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
-        padding: 18px;
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-      }
-      .card h2 {
-        margin: 0;
-        font-size: 16px;
-      }
-      .meta {
-        font-size: 12px;
-        color: var(--muted);
-        word-break: break-all;
-      }
-      .controls {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-      }
-      button {
-        appearance: none;
-        border: none;
-        border-radius: 999px;
-        padding: 9px 16px;
-        font-size: 13px;
-        font-weight: 600;
-        background: var(--primary);
-        color: #ffffff;
-        cursor: pointer;
-        transition: background 0.2s ease;
-      }
-      button:hover:not(:disabled) {
-        background: var(--primary-strong);
-      }
-      button:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-      }
-      .pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 4px 10px;
-        border-radius: 999px;
-        font-size: 12px;
-        font-weight: 600;
-        background: #eef2ff;
-        color: var(--primary);
-      }
-      .pill.ok {
-        background: #ecfdf5;
-        color: var(--success);
-      }
-      .pill.err {
-        background: #fef2f2;
-        color: var(--error);
-      }
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 13px;
-      }
-      th,
-      td {
-        border-bottom: 1px solid var(--border);
-        padding: 8px 10px;
-        text-align: left;
-        vertical-align: top;
-        word-break: break-word;
-      }
-      th {
-        background: #f8fafc;
-        color: var(--muted);
-        font-weight: 600;
-      }
-      .empty {
-        font-size: 13px;
-        color: var(--muted);
-        padding: 10px;
-        border: 1px dashed var(--border);
-        border-radius: 10px;
-        background: #f8fafc;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="page">
-      <div class="shell">
-        <header>
-          <div>
-            <h1>RPL HOME</h1>
-            <div class="status" id="status">Idle.</div>
+      <body>
+        <div class="page">
+          <div class="shell">
+            <header>
+              <div>
+                <h1>Welcome to AAMC TRAINING RPL TESTING</h1>
+                <div class="status">Launch the assessment when ready.</div>
+              </div>
+            </header>
+
+            <section class="grid">
+              <article class="card">
+                <h2>RPL Assessment</h2>
+                <div class="meta">Start the text-based RPL test experience.</div>
+                <div class="controls">
+                  <button id="rplTestTextBtn">Go to RPL Test (Text)</button>
+                </div>
+              </article>
+            </section>
           </div>
-          <div class="controls">
-            <button id="rplTestTextBtn">RPL Test (Text)</button>
-            <button id="refreshAllBtn">Refresh all</button>
-          </div>
-        </header>
+        </div>
 
-        <section class="grid">
-          <article class="card">
-            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
-              <h2>Webhook 1: Questions</h2>
-              <span class="pill" id="questionsStatus">Idle</span>
-            </div>
-            <div class="meta" id="questionsUrl"></div>
-            <div class="controls">
-              <button id="questionsBtn">Load questions</button>
-            </div>
-            <div id="questionsTableWrap"></div>
-          </article>
-
-          <article class="card">
-            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
-              <h2>Webhook 2: Questions</h2>
-              <span class="pill" id="questionsStatus2">Idle</span>
-            </div>
-            <div class="meta" id="questionsUrl2"></div>
-            <div class="controls">
-              <button id="questionsBtn2">Load questions</button>
-            </div>
-            <div id="questionsTableWrap2"></div>
-          </article>
-        </section>
-      </div>
-    </div>
-
-    <script>
-      const questionsUrl =
-        "https://default4f0de57b35694b51b8c8b1dadd7ba8.19.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/8feea7df352a455d9efde46977446910/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=AF-53thnNRJd9IxzY55POQzrW8owJ2SA6EhRycxtTEY";
-
-      const questionsUrl2 =
-        "https://default4f0de57b35694b51b8c8b1dadd7ba8.19.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/2345386e5471436db592d193991729d2/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=KHRx01bx0XK1sV5ktSOz52PjUL2p3xpFMcTQeeOMk7g";
-
-      const statusEl = document.getElementById("status");
-      const rplTestTextBtn = document.getElementById("rplTestTextBtn");
-      const questionsUrlEl = document.getElementById("questionsUrl");
-      const questionsUrl2El = document.getElementById("questionsUrl2");
-      const questionsStatusEl = document.getElementById("questionsStatus");
-      const questionsStatus2El = document.getElementById("questionsStatus2");
-      const questionsTableWrap = document.getElementById("questionsTableWrap");
-      const questionsTableWrap2 = document.getElementById("questionsTableWrap2");
-      const questionsBtn = document.getElementById("questionsBtn");
-      const questionsBtn2 = document.getElementById("questionsBtn2");
-      const refreshAllBtn = document.getElementById("refreshAllBtn");
-
-      questionsUrlEl.textContent = questionsUrl;
-      questionsUrl2El.textContent = questionsUrl2;
-
-      const setStatus = (message) => {
-        statusEl.textContent = message;
-      };
-
-      const setPill = (el, label, state) => {
-        el.textContent = label;
-        el.classList.remove("ok", "err");
-        if (state === "ok") el.classList.add("ok");
-        if (state === "err") el.classList.add("err");
-      };
-
-      const createEmpty = (message) => {
-        const empty = document.createElement("div");
-        empty.className = "empty";
-        empty.textContent = message;
-        return empty;
-      };
-
-      const renderKeyValueTable = (data, wrapEl) => {
-        wrapEl.textContent = "";
-        if (data == null) {
-          wrapEl.appendChild(createEmpty("No data returned."));
-          return;
-        }
-
-        if (Array.isArray(data)) {
-          if (!data.length) {
-            wrapEl.appendChild(createEmpty("Empty array returned."));
-            return;
-          }
-          const columns = Array.from(
-            data.reduce((set, item) => {
-              if (item && typeof item === "object") {
-                Object.keys(item).forEach((key) => set.add(key));
-              }
-              return set;
-            }, new Set())
-          );
-
-          const table = document.createElement("table");
-          const thead = document.createElement("thead");
-          const headRow = document.createElement("tr");
-          columns.forEach((col) => {
-            const th = document.createElement("th");
-            th.textContent = col;
-            headRow.appendChild(th);
+        <script>
+          const rplTestTextBtn = document.getElementById("rplTestTextBtn");
+          rplTestTextBtn.addEventListener("click", () => {
+            window.location.href = "RPL_Test_Text.html";
           });
-          thead.appendChild(headRow);
-          table.appendChild(thead);
-
-          const tbody = document.createElement("tbody");
-          data.forEach((item) => {
-            const row = document.createElement("tr");
-            columns.forEach((col) => {
-              const td = document.createElement("td");
-              const value = item && typeof item === "object" ? item[col] : "";
-              td.textContent = value == null ? "" : String(value);
-              row.appendChild(td);
-            });
-            tbody.appendChild(row);
-          });
-          table.appendChild(tbody);
-          wrapEl.appendChild(table);
+        </script>
+      </body>
           return;
         }
 
