@@ -24,6 +24,9 @@
       .header h1 { margin: 0; font-size: 20px; font-weight: 700; }
       .header .status { font-size: 13px; color: var(--muted); }
       .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 18px; box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08); }
+      .studentContext { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: baseline; justify-content: space-between; }
+      .studentContext__name { font-weight: 700; font-size: 15px; }
+      .studentContext__meta { font-size: 13px; color: var(--muted); }
       .formGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
       label { font-size: 13px; color: var(--muted); }
       input, select, textarea { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font: inherit; background: #ffffff; }
@@ -53,6 +56,14 @@
           <div style="font-weight:700; text-decoration:underline;">AAMC RPL QUIZ</div>
           <h1 id="headerTitle">Compliance - Question 1 of 0 - Attempt 1</h1>
           <div class="status" id="status">Idle.</div>
+        </div>
+
+        <div class="card" id="studentContextCard">
+          <div class="studentContext">
+            <div class="studentContext__name" id="studentFullName">Full Name: Billy Broker</div>
+            <div class="studentContext__meta" id="studentGivenName">Given Name: Billy</div>
+            <div class="studentContext__meta" id="studentContactId">Contact ID: 123456</div>
+          </div>
         </div>
 
         <div id="setupCard" class="card">
@@ -146,9 +157,103 @@
       let isDictating = false;
       let finalTranscript = "";
       let manualOverride = false;
+      const DEFAULT_FULL_NAME = "Billy Broker";
+      const DEFAULT_GIVEN_NAME = "Billy";
+      const DEFAULT_CONTACT_ID = "123456";
 
       const setStatus = (message) => {
         statusEl.textContent = message;
+      };
+
+      const pickFirstValue = (...candidates) => {
+        for (const candidate of candidates) {
+          if (candidate === undefined || candidate === null) continue;
+          const text = typeof candidate === "string" ? candidate : String(candidate);
+          if (text && text.trim()) return text.trim();
+        }
+        return "";
+      };
+
+      const applyUrlStudentContext = () => {
+        if (typeof window.URLSearchParams !== "function") return {};
+        try {
+          const params = new URLSearchParams(window.location?.search || "");
+          const fullName = params.get("fullName") ?? params.get("FullName") ?? params.get("studentName") ?? params.get("StudentName");
+          const givenName = params.get("givenName") ?? params.get("GivenName");
+          const contactId = params.get("contactId") ?? params.get("ContactID") ?? params.get("ContactId");
+
+          const nextInfo = {
+            ...(typeof window.RPLStudentInfo === "object" && window.RPLStudentInfo ? window.RPLStudentInfo : {}),
+          };
+          let mutated = false;
+
+          if (fullName && fullName.trim()) {
+            nextInfo.fullName = fullName.trim();
+            nextInfo.studentName = fullName.trim();
+            mutated = true;
+          }
+          if (givenName && givenName.trim()) {
+            nextInfo.givenName = givenName.trim();
+            mutated = true;
+          }
+          if (contactId && contactId.trim()) {
+            nextInfo.contactId = contactId.trim();
+            mutated = true;
+          }
+
+          if (mutated) {
+            window.RPLStudentInfo = nextInfo;
+            if (document.body?.dataset) {
+              if (nextInfo.fullName || nextInfo.studentName) {
+                document.body.dataset.fullName = nextInfo.fullName || nextInfo.studentName;
+              }
+              if (nextInfo.givenName) {
+                document.body.dataset.givenName = nextInfo.givenName;
+              }
+              if (nextInfo.contactId) {
+                document.body.dataset.contactId = nextInfo.contactId;
+              }
+            }
+          }
+          return nextInfo;
+        } catch (err) {
+          logDebug(`Unable to parse student URL params: ${err?.message || String(err)}`);
+          return {};
+        }
+      };
+
+      const getStudentContext = () => {
+        const bodyDataset = document.body?.dataset || {};
+        const studentInfo = window.RPLStudentInfo || window.rplStudentInfo || window.studentInfo || {};
+        const fullName = pickFirstValue(
+          studentInfo.fullName,
+          studentInfo.studentName,
+          bodyDataset.fullName,
+          bodyDataset.studentName
+        );
+        const givenName = pickFirstValue(
+          studentInfo.givenName,
+          bodyDataset.givenName
+        );
+        const contactId = pickFirstValue(
+          studentInfo.contactId,
+          bodyDataset.contactId
+        );
+        return {
+          fullName: fullName || DEFAULT_FULL_NAME,
+          givenName: givenName || DEFAULT_GIVEN_NAME,
+          contactId: contactId || DEFAULT_CONTACT_ID,
+        };
+      };
+
+      const updateStudentContextBanner = () => {
+        const fullNameEl = document.getElementById("studentFullName");
+        const givenNameEl = document.getElementById("studentGivenName");
+        const contactIdEl = document.getElementById("studentContactId");
+        const ctx = getStudentContext();
+        if (fullNameEl) fullNameEl.textContent = `Full Name: ${ctx.fullName}`;
+        if (givenNameEl) givenNameEl.textContent = `Given Name: ${ctx.givenName}`;
+        if (contactIdEl) contactIdEl.textContent = `Contact ID: ${ctx.contactId}`;
       };
 
       const logDebug = (message) => {
@@ -338,6 +443,9 @@
           beginBtn.disabled = false;
         }
       });
+
+      applyUrlStudentContext();
+      updateStudentContextBanner();
 
       dictateStartBtn?.addEventListener("click", () => startDictation());
       dictateStopBtn?.addEventListener("click", () => stopDictation());
