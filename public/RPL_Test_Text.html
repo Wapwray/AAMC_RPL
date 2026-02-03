@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>RPL Test (Text)</title>
+    <script src="https://cdn.jsdelivr.net/npm/microsoft-cognitiveservices-speech-sdk@1.41.0/distrib/browser/microsoft.cognitiveservices.speech.sdk.bundle-min.js"></script>
     <style>
       :root {
         color-scheme: light;
@@ -185,11 +186,19 @@
       let firstName = "";
       let industry = "";
       let jobTitle = "";
-      let recognition = null;
       let isDictating = false;
       let finalTranscript = "";
       let manualOverride = false;
       let aiMode = "router";
+      let audioCtx = null;
+      let micStream = null;
+      let micSourceNode = null;
+      let speechRecognizer = null;
+      let speechPushStream = null;
+      let speechTapNode = null;
+      let speechTapGain = null;
+      let speechSilentGain = null;
+      let speechTokenInfo = { token: "", region: "", expiresAt: 0 };
       const DEFAULT_FULL_NAME = "Billy Broker";
       const DEFAULT_GIVEN_NAME = "Billy";
       const DEFAULT_CONTACT_ID = "123456";
@@ -407,73 +416,247 @@
         if (dictateStopBtn) dictateStopBtn.disabled = !isDictating;
       };
 
-      const ensureRecognition = () => {
-        if (recognition) return recognition;
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) {
-          updateDictationUi("Dictation not supported in this browser.");
-          logDebug("SpeechRecognition API not available.");
-          return null;
+      const fetchAzureSpeechToken = async () => {
+        const now = Date.now();
+        if (speechTokenInfo.token && speechTokenInfo.region && speechTokenInfo.expiresAt - 60000 > now) {
+          return speechTokenInfo;
         }
-        recognition = new SpeechRecognition();
-        recognition.lang = "en-AU";
-        recognition.continuous = true;
-        recognition.interimResults = true;
+        const response = await fetch("/api/speech/token", { method: "POST" });
+        if (!response.ok) {
+          const text = await response.text().catch(() => "");
+          throw new Error(`Token request failed (${response.status}) ${text}`.trim());
+        }
+        const payload = await response.json().catch(() => ({}));
+        const token = payload.token || payload.accessToken || payload.authToken;
+        const region = payload.region || payload.serviceRegion;
+        if (!token || !region) {
+          throw new Error("Speech token response missing token or region.");
+        }
+        const expiresIn = typeof payload.expiresIn === "number" ? payload.expiresIn : 540;
+        speechTokenInfo = {
+          token,
+          region,
+          expiresAt: now + Math.max(300, expiresIn) * 1000,
+        };
+        logDebug("Fetched Azure speech token", { region, expiresIn });
+        return speechTokenInfo;
+      };
 
-        recognition.onstart = () => {
+      const downsampleTo16BitPCM = (buffer, inputSampleRate, outputSampleRate) => {
+        if (!buffer || !buffer.length) return null;
+        const ratio = inputSampleRate / outputSampleRate;
+        if (ratio <= 1) outputSampleRate = inputSampleRate;
+        const newLength = Math.floor(buffer.length / Math.max(1, ratio));
+        const pcmBuffer = new ArrayBuffer(newLength * 2);
+        const view = new DataView(pcmBuffer);
+        let offsetResult = 0;
+        let offsetBuffer = 0;
+        while (offsetResult < newLength) {
+          const nextOffsetBuffer = Math.min(buffer.length, Math.round((offsetResult + 1) * ratio));
+          let sum = 0;
+          let count = 0;
+          for (let i = offsetBuffer; i < nextOffsetBuffer; i += 1) {
+            sum += buffer[i];
+            count += 1;
+          }
+          const sample = count > 0 ? sum / count : 0;
+          const clamped = Math.max(-1, Math.min(1, sample));
+          view.setInt16(offsetResult * 2, clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff, true);
+          offsetResult += 1;
+          offsetBuffer = nextOffsetBuffer;
+        }
+        return pcmBuffer;
+      };
+
+      const attachAzureTap = (audioContext, sourceNode) => {
+        if (!audioContext || !sourceNode) return;
+        detachAzureTap();
+        speechTapGain = audioContext.createGain();
+        speechTapGain.gain.value = 1;
+        sourceNode.connect(speechTapGain);
+
+        speechTapNode = audioContext.createScriptProcessor(4096, 1, 1);
+        speechTapGain.connect(speechTapNode);
+
+        speechSilentGain = audioContext.createGain();
+        speechSilentGain.gain.value = 0;
+        speechTapNode.connect(speechSilentGain);
+        speechSilentGain.connect(audioContext.destination);
+
+        speechTapNode.onaudioprocess = (event) => {
+          if (!speechPushStream) return;
+          const input = event.inputBuffer.getChannelData(0);
+          const pcm = downsampleTo16BitPCM(input, event.inputBuffer.sampleRate, 16000);
+          if (!pcm) return;
+          try {
+            speechPushStream.write(pcm);
+          } catch (err) {
+            logDebug("Azure speech push failed", err instanceof Error ? err.message : err);
+          }
+        };
+      };
+
+      const detachAzureTap = () => {
+        if (speechTapNode) {
+          try { speechTapNode.disconnect(); } catch {}
+          speechTapNode.onaudioprocess = null;
+          speechTapNode = null;
+        }
+        if (speechTapGain) {
+          try { speechTapGain.disconnect(); } catch {}
+          speechTapGain = null;
+        }
+        if (speechSilentGain) {
+          try { speechSilentGain.disconnect(); } catch {}
+          speechSilentGain = null;
+        }
+      };
+
+      const startAzureRecognition = async (audioContext, sourceNode) => {
+        if (!window.SpeechSDK) {
+          throw new Error("Azure Speech SDK not available");
+        }
+        const SpeechSDK = window.SpeechSDK;
+        const { token, region } = await fetchAzureSpeechToken();
+        const language = "en-AU";
+
+        const format = SpeechSDK.AudioStreamFormat.getWaveFormatPCM(16000, 16, 1);
+        speechPushStream = SpeechSDK.AudioInputStream.createPushStream(format);
+        const audioConfig = SpeechSDK.AudioConfig.fromStreamInput(speechPushStream);
+        const speechConfig = SpeechSDK.SpeechConfig.fromAuthorizationToken(token, region);
+        speechConfig.speechRecognitionLanguage = language;
+
+        speechRecognizer = new SpeechSDK.SpeechRecognizer(speechConfig, audioConfig);
+        attachAzureTap(audioContext, sourceNode);
+
+        speechRecognizer.recognizing = (_sender, event) => {
+          if (!event?.result?.text || manualOverride) return;
+          const partial = event.result.text.trim();
+          if (!partial) return;
+          answerInputEl.value = `${finalTranscript}${partial}`.trim();
+        };
+
+        speechRecognizer.recognized = (_sender, event) => {
+          if (!event?.result) return;
+          if (event.result.reason === SpeechSDK.ResultReason.RecognizedSpeech) {
+            const transcript = event.result.text?.trim();
+            if (!transcript || manualOverride) return;
+            finalTranscript += `${transcript} `;
+            answerInputEl.value = `${finalTranscript}`.trim();
+            logDebug("Azure speech final segment", {
+              transcript: transcript.length > 160 ? `${transcript.slice(0, 160)}…` : transcript
+            });
+          }
+        };
+
+        speechRecognizer.canceled = (_sender, event) => {
+          const reason = event?.reason;
+          const details = event?.errorDetails || reason || "unknown";
+          logDebug("Azure speech cancelled", { details });
+          updateDictationUi("Dictation error: Azure speech cancelled");
+        };
+
+        speechRecognizer.sessionStarted = () => {
           isDictating = true;
           manualOverride = false;
           updateDictationUi("Listening...");
           logDebug("Dictation started.");
         };
-        recognition.onend = () => {
+
+        speechRecognizer.sessionStopped = () => {
           isDictating = false;
           updateDictationUi("Dictation stopped.");
           logDebug("Dictation stopped.");
         };
-        recognition.onerror = (event) => {
-          const message = event?.error ? `Dictation error: ${event.error}` : "Dictation error";
-          updateDictationUi(message);
-          logDebug(message);
-        };
-        recognition.onresult = (event) => {
-          if (manualOverride) return;
-          let interim = "";
-          for (let i = event.resultIndex; i < event.results.length; i += 1) {
-            const result = event.results[i];
-            const text = result[0]?.transcript || "";
-            if (result.isFinal) {
-              finalTranscript += `${text} `;
-            } else {
-              interim += text;
+
+        return new Promise((resolve, reject) => {
+          speechRecognizer.startContinuousRecognitionAsync(
+            () => {
+              logDebug("Azure speech recognizer started", { language, region });
+              resolve();
+            },
+            (error) => {
+              const message = error instanceof Error ? error.message : String(error || "Unknown error");
+              logDebug("Azure speech recognizer start failed", message);
+              updateDictationUi("Dictation error: Azure speech unavailable");
+              stopAzureRecognition();
+              reject(new Error(message));
             }
-          }
-          answerInputEl.value = `${finalTranscript}${interim}`.trim();
-        };
-        return recognition;
+          );
+        });
+      };
+
+      const stopAzureRecognition = () => {
+        const recognizer = speechRecognizer;
+        speechRecognizer = null;
+        if (speechPushStream) {
+          try { speechPushStream.close(); } catch {}
+          speechPushStream = null;
+        }
+        detachAzureTap();
+        if (!recognizer) return;
+        try {
+          recognizer.stopContinuousRecognitionAsync(
+            () => {
+              logDebug("Azure speech recognizer stopped");
+              try { recognizer.close?.(); } catch {}
+            },
+            (error) => {
+              logDebug("Azure speech recognizer stop failed", error instanceof Error ? error.message : error);
+              try { recognizer.close?.(); } catch {}
+            }
+          );
+        } catch (err) {
+          logDebug("Azure speech recognizer stop threw", err instanceof Error ? err.message : err);
+          try { recognizer.close?.(); } catch {}
+        }
       };
 
       const startDictation = () => {
-        const recog = ensureRecognition();
-        if (!recog || isDictating) return;
+        if (isDictating) return;
+        if (!window.SpeechSDK) {
+          updateDictationUi("Dictation not supported in this browser.");
+          logDebug("Azure Speech SDK not available.");
+          return;
+        }
         finalTranscript = answerInputEl.value.trim();
         if (finalTranscript) {
           finalTranscript = `${finalTranscript} `;
         }
-        try {
-          recog.start();
-        } catch (err) {
-          logDebug(`Dictation start failed: ${err?.message || String(err)}`);
-        }
+        const savedDeviceId = micSelectEl?.value || localStorage.getItem(MIC_STORAGE_KEY) || "";
+        const constraints = savedDeviceId
+          ? { audio: { deviceId: { exact: savedDeviceId } } }
+          : { audio: true };
+        navigator.mediaDevices
+          .getUserMedia(constraints)
+          .then((stream) => {
+            micStream = stream;
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            micSourceNode = audioCtx.createMediaStreamSource(stream);
+            return startAzureRecognition(audioCtx, micSourceNode);
+          })
+          .catch((err) => {
+            updateDictationUi("Dictation error: microphone unavailable");
+            logDebug(`Dictation start failed: ${err?.message || String(err)}`);
+          });
       };
 
       const stopDictation = () => {
-        if (!recognition || !isDictating) return;
+        if (!isDictating && !speechRecognizer) return;
         try {
-          recognition.stop();
+          stopAzureRecognition();
         } catch (err) {
           logDebug(`Dictation stop failed: ${err?.message || String(err)}`);
         }
+        if (micStream) {
+          micStream.getTracks().forEach((track) => track.stop());
+          micStream = null;
+        }
+        if (audioCtx) {
+          try { audioCtx.close(); } catch {}
+          audioCtx = null;
+        }
+        micSourceNode = null;
       };
 
       const parseListItems = (json) => {

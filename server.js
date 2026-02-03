@@ -7,6 +7,45 @@ const port = process.env.PORT || 3000;
 app.use(express.json({ limit: "1mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
+app.post("/api/speech/token", async (_req, res) => {
+  const speechKey = process.env.AZURE_SPEECH_KEY || process.env.SPEECH_KEY;
+  const speechRegion = process.env.AZURE_SPEECH_REGION || process.env.SPEECH_REGION;
+
+  if (!speechKey || !speechRegion) {
+    res.status(500).json({
+      error: "Missing AZURE_SPEECH_KEY or AZURE_SPEECH_REGION environment variables.",
+    });
+    return;
+  }
+
+  const tokenUrl = `https://${speechRegion}.api.cognitive.microsoft.com/sts/v1.0/issueToken`;
+
+  try {
+    const response = await fetch(tokenUrl, {
+      method: "POST",
+      headers: {
+        "Ocp-Apim-Subscription-Key": speechKey,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      res.status(response.status).send(text || "Azure Speech token error");
+      return;
+    }
+
+    const token = await response.text();
+    res.json({
+      token,
+      region: speechRegion,
+      expiresIn: 540,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error?.message || String(error) });
+  }
+});
+
 app.post("/api/analysis/chat", async (req, res) => {
   // const modeHeader = String(req.headers["x-rpl-mode"] || "").toLowerCase();
   // const useRouter = modeHeader === "router";
