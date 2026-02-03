@@ -190,6 +190,9 @@
       let finalTranscript = "";
       let manualOverride = false;
       let aiMode = "router";
+      const MAX_ATTEMPTS = 3;
+      let currentAttempts = 0;
+      let currentResponses = [];
       let audioCtx = null;
       let micStream = null;
       let micSourceNode = null;
@@ -689,14 +692,20 @@
         headerTitleEl.textContent = `Compliance - Question ${number} of ${total} - Attempt 1`;
         questionTextEl.textContent = question.field_5 || question.Title || "";
         answerInputEl.value = "";
+        currentAttempts = 0;
+        currentResponses = [];
+        evaluateBtn.disabled = false;
         nextBtn.disabled = true;
         chatHistoryEl.textContent = "";
       };
 
-      const buildPrompt = (question, answer) => {
+      const buildPrompt = (question, answers) => {
         const questionText = question.field_5 || question.Title || "";
         const objective = question.field_3 || "";
-        return `You are an expert in the Australian Financial industry and are acting as an assessor of ${fullName}'s responses to the question '${questionText}'. ${firstName} gave the following first answer.\n\n${firstName} - ${answer}\n\nTake into account ${fullName} works in the ${industry} Industry as a ${jobTitle} and assess using the objective '${objective}' if they have demonstrated the required understanding, even if key terms, concepts, or regulations are implied rather than explicitly stated.\n\nProvide a concise overview to ${firstName} that follows these rules:\n\n1) If the response has effectively answered the question and meets the intent of the Objective, do not ask for any further details. Acknowledge that the response is sufficient and tell them to move to the next question.\n\n2) If the response has not effectively answered the question or does not meet the Objective, do not give the answer. Advise ${firstName} to add more details by pressing the 'Start' button or typing in the Chat box below. Tell them that if they cannot add any more they can move to the next question.\n\n3) Do not say 'Hi' at the start of the response.`;
+        const answerBlock = answers
+          .map((response, index) => `Attempt ${index + 1}: ${response}`)
+          .join("\n");
+        return `You are an expert in the Australian Financial industry and are acting as an assessor of ${fullName}'s responses to the question '${questionText}'. ${firstName} has provided multiple attempts. Use all attempts together to judge completeness without requiring repetition.\n\n${answerBlock}\n\nTake into account ${fullName} works in the ${industry} Industry as a ${jobTitle} and assess using the objective '${objective}' if they have demonstrated the required understanding, even if key terms, concepts, or regulations are implied rather than explicitly stated.\n\nProvide a concise overview to ${firstName} that follows these rules:\n\n1) If the responses together effectively answer the question and meet the intent of the Objective, do not ask for any further details. Acknowledge that the response is sufficient and tell them to move to the next question.\n\n2) If the responses together have not effectively answered the question or do not meet the Objective, do not give the answer. Only ask for the missing information that has not been covered yet. Advise ${firstName} to add more details by pressing the 'Start' button or typing in the Chat box below. Tell them that if they cannot add any more they can move to the next question.\n\n3) Do not say 'Hi' at the start of the response.`;
       };
 
       const callTextModel = async (prompt) => {
@@ -811,22 +820,40 @@
           setStatus("Please enter an answer before evaluating.");
           return;
         }
+        if (currentAttempts >= MAX_ATTEMPTS) {
+          setStatus("Maximum attempts reached. Please move to the next question.");
+          evaluateBtn.disabled = true;
+          nextBtn.disabled = false;
+          return;
+        }
 
-        addChatEntry(`Answer: ${answer}`, "user");
-        setStatus("Evaluating response...");
+        currentAttempts += 1;
+        currentResponses.push(answer);
+        addChatEntry(`Attempt ${currentAttempts}: ${answer}`, "user");
+        answerInputEl.value = "";
+        setStatus(`Evaluating response (attempt ${currentAttempts} of ${MAX_ATTEMPTS})...`);
         evaluateBtn.disabled = true;
 
         try {
-          const prompt = buildPrompt(questions[currentIndex], answer);
+          const prompt = buildPrompt(questions[currentIndex], currentResponses);
           const feedback = await callTextModel(prompt);
           addChatEntry(feedback, "ai");
           nextBtn.disabled = false;
-          setStatus("Feedback ready.");
+          if (currentAttempts >= MAX_ATTEMPTS) {
+            evaluateBtn.disabled = true;
+            setStatus("Feedback ready. Maximum attempts reached.");
+          } else {
+            evaluateBtn.disabled = false;
+            setStatus(`Feedback ready. You have ${MAX_ATTEMPTS - currentAttempts} attempt(s) left.`);
+          }
         } catch (err) {
           addChatEntry(err?.message || String(err), "ai");
           setStatus("Evaluation failed.");
-        } finally {
           evaluateBtn.disabled = false;
+        } finally {
+          if (currentAttempts >= MAX_ATTEMPTS) {
+            evaluateBtn.disabled = true;
+          }
         }
       });
 
