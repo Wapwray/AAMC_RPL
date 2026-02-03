@@ -280,7 +280,7 @@
       const sendStudentContextOnLoad = async () => {
         const ctx = getStudentContext();
         const payload = {
-          StudentName: ctx.fullName,
+          FullName: ctx.fullName,
           ContactID: String(ctx.contactId),
           GivenName: ctx.givenName,
         };
