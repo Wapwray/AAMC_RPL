@@ -82,6 +82,11 @@
         padding: 10px;
         overflow-x: auto;
       }
+      .tableWrap .empty {
+        color: var(--muted);
+        font-size: 12px;
+        padding: 6px;
+      }
       table {
         width: 100%;
         border-collapse: collapse;
@@ -155,93 +160,58 @@
       const questionsBtn = document.getElementById("questionsBtn");
       const questionsTableWrap = document.getElementById("questionsTableWrap");
 
-      const renderTable = (data, wrapEl) => {
+      const renderQuestionsTable = (items, wrapEl) => {
         wrapEl.textContent = "";
-        if (data == null) {
-          wrapEl.textContent = "No data returned.";
+        if (!Array.isArray(items) || !items.length) {
+          const empty = document.createElement("div");
+          empty.className = "empty";
+          empty.textContent = "No questions returned.";
+          wrapEl.appendChild(empty);
           return;
         }
 
-        if (Array.isArray(data)) {
-          if (!data.length) {
-            wrapEl.textContent = "Empty array returned.";
-            return;
-          }
-          const columns = Array.from(
-            data.reduce((set, item) => {
-              if (item && typeof item === "object") {
-                Object.keys(item).forEach((key) => set.add(key));
-              }
-              return set;
-            }, new Set())
-          );
+        const columns = [
+          { key: "Title", label: "#" },
+          { key: "field_1", label: "Category" },
+          { key: "field_5", label: "Question" },
+          { key: "Hints", label: "Hints" },
+          { key: "field_3", label: "Objective" },
+          { key: "Group1", label: "Group 1" },
+          { key: "Group2", label: "Group 2" },
+          { key: "Modified", label: "Modified" },
+          { key: "Created", label: "Created" },
+        ];
 
-          const table = document.createElement("table");
-          const thead = document.createElement("thead");
-          const headRow = document.createElement("tr");
-          columns.forEach((column) => {
-            const th = document.createElement("th");
-            th.textContent = column;
-            headRow.appendChild(th);
-          });
-          thead.appendChild(headRow);
-          table.appendChild(thead);
+        const table = document.createElement("table");
+        const thead = document.createElement("thead");
+        const headRow = document.createElement("tr");
+        columns.forEach(({ label }) => {
+          const th = document.createElement("th");
+          th.textContent = label;
+          headRow.appendChild(th);
+        });
+        thead.appendChild(headRow);
+        table.appendChild(thead);
 
-          const tbody = document.createElement("tbody");
-          data.forEach((item) => {
-            const row = document.createElement("tr");
-            columns.forEach((column) => {
-              const td = document.createElement("td");
-              const value = item?.[column];
-              if (typeof value === "object") {
-                td.textContent = JSON.stringify(value);
-              } else if (value == null) {
-                td.textContent = "";
-              } else {
-                td.textContent = String(value);
-              }
-              row.appendChild(td);
-            });
-            tbody.appendChild(row);
+        const tbody = document.createElement("tbody");
+        items.forEach((item) => {
+          const row = document.createElement("tr");
+          columns.forEach(({ key }) => {
+            const td = document.createElement("td");
+            const value = item?.[key];
+            if (value == null) {
+              td.textContent = "";
+            } else if (typeof value === "object") {
+              td.textContent = JSON.stringify(value);
+            } else {
+              td.textContent = String(value).trim();
+            }
+            row.appendChild(td);
           });
-          table.appendChild(tbody);
-          wrapEl.appendChild(table);
-          return;
-        }
-
-        if (typeof data === "object") {
-          const entries = Object.entries(data);
-          if (!entries.length) {
-            wrapEl.textContent = "Empty object returned.";
-            return;
-          }
-          const table = document.createElement("table");
-          const thead = document.createElement("thead");
-          const headRow = document.createElement("tr");
-          ["Field", "Value"].forEach((label) => {
-            const th = document.createElement("th");
-            th.textContent = label;
-            headRow.appendChild(th);
-          });
-          thead.appendChild(headRow);
-          table.appendChild(thead);
-          const tbody = document.createElement("tbody");
-          entries.forEach(([key, value]) => {
-            const row = document.createElement("tr");
-            const keyCell = document.createElement("td");
-            keyCell.textContent = key;
-            const valueCell = document.createElement("td");
-            valueCell.textContent = value == null ? "" : String(value);
-            row.appendChild(keyCell);
-            row.appendChild(valueCell);
-            tbody.appendChild(row);
-          });
-          table.appendChild(tbody);
-          wrapEl.appendChild(table);
-          return;
-        }
-
-        wrapEl.textContent = String(data);
+          tbody.appendChild(row);
+        });
+        table.appendChild(tbody);
+        wrapEl.appendChild(table);
       };
 
       const loadQuestions = async () => {
@@ -252,9 +222,9 @@
             headers: { "Content-Type": "application/json" },
           });
           const data = await response.json();
-          renderTable(data, questionsTableWrap);
+          renderQuestionsTable(data, questionsTableWrap);
         } catch (error) {
-          renderTable({ error: error?.message || String(error) }, questionsTableWrap);
+          renderQuestionsTable([], questionsTableWrap);
         } finally {
           questionsBtn.disabled = false;
         }
