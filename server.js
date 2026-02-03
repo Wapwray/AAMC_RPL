@@ -42,10 +42,8 @@ app.post("/api/analysis/chat", async (req, res) => {
     messages: [{ role: "user", content: prompt }],
     temperature,
     max_tokens,
+    model: modelName || deployment,
   };
-  if (modelName) {
-    body.model = modelName;
-  }
 
   try {
     const response = await fetch(url, {
@@ -64,14 +62,33 @@ app.post("/api/analysis/chat", async (req, res) => {
     }
 
     const json = await response.json();
-    const content =
-      json?.choices?.[0]?.message?.content ||
-      json?.choices?.[0]?.text ||
-      json?.content ||
-      json?.response ||
-      json?.text ||
-      "";
 
+    const extractContent = (payload) => {
+      if (!payload) return "";
+      const direct =
+        payload?.choices?.[0]?.message?.content ||
+        payload?.choices?.[0]?.text ||
+        payload?.content ||
+        payload?.response ||
+        payload?.text;
+      if (typeof direct === "string") return direct;
+      if (Array.isArray(direct)) {
+        const parts = direct
+          .map((part) => (typeof part?.text === "string" ? part.text : ""))
+          .filter(Boolean);
+        if (parts.length) return parts.join("");
+      }
+      const contentArray = payload?.choices?.[0]?.message?.content;
+      if (Array.isArray(contentArray)) {
+        const parts = contentArray
+          .map((part) => (typeof part?.text === "string" ? part.text : ""))
+          .filter(Boolean);
+        if (parts.length) return parts.join("");
+      }
+      return "";
+    };
+
+    const content = extractContent(json);
     res.json({ content, raw: json });
   } catch (error) {
     res.status(500).json({ error: error?.message || String(error) });

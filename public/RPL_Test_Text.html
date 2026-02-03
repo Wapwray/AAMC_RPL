@@ -430,6 +430,14 @@
         logDebug("AI response received.");
         const content = json?.content || json?.response || json?.text;
         if (typeof content === "string" && content.trim()) return content.trim();
+        const raw = json?.raw || {};
+        const rawContent =
+          raw?.choices?.[0]?.message?.content ||
+          raw?.choices?.[0]?.text ||
+          raw?.content ||
+          raw?.response ||
+          raw?.text;
+        if (typeof rawContent === "string" && rawContent.trim()) return rawContent.trim();
         const messages = Array.isArray(json?.messages) ? json.messages : [];
         const last = messages.length ? messages[messages.length - 1] : null;
         const text = last?.text || last?.content || "";
