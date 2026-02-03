@@ -35,6 +35,8 @@
       .chatEntry.user { background: #eef6ff; border: 1px solid #d7e7ff; }
       .chatEntry.ai { background: #f8fafc; border: 1px solid var(--border); }
       .actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+      .dictationControls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+      .dictationStatus { font-size: 12px; color: var(--muted); }
       .debugBox { border: 1px dashed var(--border); border-radius: 12px; padding: 12px; background: #ffffff; font-size: 12px; color: var(--muted); white-space: pre-wrap; min-height: 80px; }
       button { appearance: none; border: none; border-radius: 999px; padding: 10px 16px; font-size: 14px; font-weight: 600; background: var(--primary); color: #ffffff; cursor: pointer; transition: background 0.2s ease; }
       button.secondary { background: #ffffff; color: var(--primary); border: 1px solid #c7d9e8; }
@@ -95,6 +97,11 @@
             </div>
             <div>
               <strong>Your answer</strong>
+              <div class="dictationControls" style="margin:8px 0 6px;">
+                <button id="dictateStartBtn" class="secondary">Start dictation</button>
+                <button id="dictateStopBtn" class="secondary" disabled>Stop dictation</button>
+                <span class="dictationStatus" id="dictationStatus">Dictation idle.</span>
+              </div>
               <textarea id="answerInput" placeholder="Type your answer here..."></textarea>
             </div>
             <div class="actions">
@@ -126,6 +133,9 @@
       const chatHistoryEl = document.getElementById("chatHistory");
       const debugLogEl = document.getElementById("debugLog");
       const answerInputEl = document.getElementById("answerInput");
+      const dictateStartBtn = document.getElementById("dictateStartBtn");
+      const dictateStopBtn = document.getElementById("dictateStopBtn");
+      const dictationStatusEl = document.getElementById("dictationStatus");
       const evaluateBtn = document.getElementById("evaluateBtn");
       const nextBtn = document.getElementById("nextBtn");
 
@@ -135,6 +145,10 @@
       let firstName = "";
       let industry = "";
       let jobTitle = "";
+      let recognition = null;
+      let isDictating = false;
+      let finalTranscript = "";
+      let manualOverride = false;
 
       const setStatus = (message) => {
         statusEl.textContent = message;
@@ -144,6 +158,83 @@
         if (!debugLogEl) return;
         const timestamp = new Date().toLocaleTimeString();
         debugLogEl.textContent = `[${timestamp}] ${message}\n` + debugLogEl.textContent;
+      };
+
+      const updateDictationUi = (stateText) => {
+        if (dictationStatusEl) {
+          dictationStatusEl.textContent = stateText;
+        }
+        if (dictateStartBtn) dictateStartBtn.disabled = isDictating;
+        if (dictateStopBtn) dictateStopBtn.disabled = !isDictating;
+      };
+
+      const ensureRecognition = () => {
+        if (recognition) return recognition;
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+          updateDictationUi("Dictation not supported in this browser.");
+          logDebug("SpeechRecognition API not available.");
+          return null;
+        }
+        recognition = new SpeechRecognition();
+        recognition.lang = "en-AU";
+        recognition.continuous = true;
+        recognition.interimResults = true;
+
+        recognition.onstart = () => {
+          isDictating = true;
+          manualOverride = false;
+          updateDictationUi("Listening...");
+          logDebug("Dictation started.");
+        };
+        recognition.onend = () => {
+          isDictating = false;
+          updateDictationUi("Dictation stopped.");
+          logDebug("Dictation stopped.");
+        };
+        recognition.onerror = (event) => {
+          const message = event?.error ? `Dictation error: ${event.error}` : "Dictation error";
+          updateDictationUi(message);
+          logDebug(message);
+        };
+        recognition.onresult = (event) => {
+          if (manualOverride) return;
+          let interim = "";
+          for (let i = event.resultIndex; i < event.results.length; i += 1) {
+            const result = event.results[i];
+            const text = result[0]?.transcript || "";
+            if (result.isFinal) {
+              finalTranscript += `${text} `;
+            } else {
+              interim += text;
+            }
+          }
+          answerInputEl.value = `${finalTranscript}${interim}`.trim();
+        };
+        return recognition;
+      };
+
+      const startDictation = () => {
+        const recog = ensureRecognition();
+        if (!recog || isDictating) return;
+        finalTranscript = answerInputEl.value.trim();
+        if (finalTranscript) {
+          finalTranscript = `${finalTranscript} `;
+        }
+        try {
+          recog.start();
+        } catch (err) {
+          logDebug(`Dictation start failed: ${err?.message || String(err)}`);
+        }
+      };
+
+      const stopDictation = () => {
+        if (!recognition || !isDictating) return;
+        try {
+          recognition.stop();
+        } catch (err) {
+          logDebug(`Dictation stop failed: ${err?.message || String(err)}`);
+        }
       };
 
       const parseListItems = (json) => {
@@ -250,6 +341,16 @@
         } catch (err) {
           setStatus(err?.message || String(err));
           beginBtn.disabled = false;
+        }
+      });
+
+      dictateStartBtn?.addEventListener("click", () => startDictation());
+      dictateStopBtn?.addEventListener("click", () => stopDictation());
+
+      answerInputEl.addEventListener("input", () => {
+        if (isDictating) {
+          manualOverride = true;
+          stopDictation();
         }
       });
 
