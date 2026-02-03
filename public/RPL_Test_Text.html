@@ -277,6 +277,33 @@
         if (contactIdEl) contactIdEl.textContent = `Contact ID: ${ctx.contactId}`;
       };
 
+      const sendStudentContextOnLoad = async () => {
+        const ctx = getStudentContext();
+        const payload = {
+          StudentName: ctx.fullName,
+          ContactID: String(ctx.contactId),
+          GivenName: ctx.givenName,
+        };
+        const url =
+          "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/d39da5be329d41849dd8148dadc64016/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=cJzfjCDuTI3kVJNFpiiZT2S47B8zS5XvDwTBIQRX6XE";
+
+        logDebug("Sending student context on load");
+        logDebugDetail("Student context payload", payload);
+
+        try {
+          const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          logDebugDetail("Student context HTTP status", `${response.status} ${response.statusText}`);
+          const text = await response.text();
+          logDebugDetail("Student context response", text || "(empty)");
+        } catch (error) {
+          logDebugDetail("Student context error", error?.message || String(error));
+        }
+      };
+
       const updateModeLabel = () => {
         if (!modeLabelEl) return;
         modeLabelEl.textContent = aiMode === "router" ? "RPL Router" : "RPL Base";
@@ -286,6 +313,18 @@
         if (!debugLogEl) return;
         const timestamp = new Date().toLocaleTimeString();
         debugLogEl.textContent = `[${timestamp}] ${message}\n` + debugLogEl.textContent;
+      };
+
+      const logDebugDetail = (label, detail) => {
+        try {
+          const formatted =
+            typeof detail === "string"
+              ? detail
+              : JSON.stringify(detail, null, 2);
+          logDebug(`${label}: ${formatted}`);
+        } catch (err) {
+          logDebug(`${label}: ${String(detail)}`);
+        }
       };
 
       const updateDictationUi = (stateText) => {
@@ -407,6 +446,8 @@
 
       const callTextModel = async (prompt) => {
         logDebug("Calling /api/analysis/chat");
+        logDebugDetail("AI mode", aiMode);
+        logDebugDetail("Prompt length", prompt?.length ?? 0);
         const response = await fetch("/api/analysis/chat", {
           method: "POST",
           headers: {
@@ -420,6 +461,9 @@
           }),
         });
 
+        logDebugDetail("HTTP status", `${response.status} ${response.statusText}`);
+        logDebugDetail("Response headers", Object.fromEntries(response.headers.entries()));
+
         if (!response.ok) {
           const text = await response.text();
           logDebug(`AI error ${response.status}: ${response.statusText} ${text}`);
@@ -428,9 +472,11 @@
 
         const json = await response.json();
         logDebug("AI response received.");
+        logDebugDetail("AI response JSON", json);
         const content = json?.content || json?.response || json?.text;
         if (typeof content === "string" && content.trim()) return content.trim();
         const raw = json?.raw || {};
+        logDebugDetail("AI response raw", raw);
         const rawContent =
           raw?.choices?.[0]?.message?.content ||
           raw?.choices?.[0]?.text ||
@@ -484,6 +530,7 @@
       applyUrlStudentContext();
       updateStudentContextBanner();
       updateModeLabel();
+      sendStudentContextOnLoad();
 
       modeToggleEl?.addEventListener("change", () => {
         aiMode = modeToggleEl.checked ? "router" : "base";
