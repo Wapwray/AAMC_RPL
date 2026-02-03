@@ -27,6 +27,8 @@
       .studentContext { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: baseline; justify-content: space-between; }
       .studentContext__name { font-weight: 700; font-size: 15px; }
       .studentContext__meta { font-size: 13px; color: var(--muted); }
+      .micSelectRow { margin-top: 12px; display: grid; gap: 6px; }
+      .micSelectHint { font-size: 12px; color: var(--muted); }
       /* .modeToggleRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
       .modeLabel { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
       .toggleWrap { display: inline-flex; align-items: center; gap: 10px; }
@@ -82,6 +84,13 @@
             <div class="studentContext__meta" id="studentGivenName">Given Name: Billy</div>
             <div class="studentContext__meta" id="studentContactId">Contact ID: 123456</div>
           </div>
+          <div class="micSelectRow">
+            <label for="micSelect">Microphone</label>
+            <select id="micSelect">
+              <option value="">Detecting microphones…</option>
+            </select>
+            <div class="micSelectHint" id="micStatus">Select the microphone to use for dictation.</div>
+          </div>
         </div>
 
         <div id="setupCard" class="card">
@@ -120,7 +129,7 @@
               <strong>Feedback</strong>
               <div class="chatHistory" id="chatHistory"></div>
             </div>
-            <div>
+            <div id="debugSection">
               <strong>Debug</strong>
               <div class="debugBox" id="debugLog"></div>
             </div>
@@ -157,7 +166,10 @@
 
       const questionTextEl = document.getElementById("questionText");
       const chatHistoryEl = document.getElementById("chatHistory");
+      const debugSectionEl = document.getElementById("debugSection");
       const debugLogEl = document.getElementById("debugLog");
+      const micSelectEl = document.getElementById("micSelect");
+      const micStatusEl = document.getElementById("micStatus");
       const answerInputEl = document.getElementById("answerInput");
       const dictateStartBtn = document.getElementById("dictateStartBtn");
       const dictateStopBtn = document.getElementById("dictateStopBtn");
@@ -181,9 +193,17 @@
       const DEFAULT_FULL_NAME = "Billy Broker";
       const DEFAULT_GIVEN_NAME = "Billy";
       const DEFAULT_CONTACT_ID = "123456";
+      const MIC_STORAGE_KEY = "rplMicDeviceId";
 
       const setStatus = (message) => {
         statusEl.textContent = message;
+      };
+
+      const isAdminDebugEnabled = () => window.location?.hash === "#admin";
+
+      const updateDebugVisibility = () => {
+        if (!debugSectionEl) return;
+        debugSectionEl.classList.toggle("hidden", !isAdminDebugEnabled());
       };
 
       const pickFirstValue = (...candidates) => {
@@ -193,6 +213,58 @@
           if (text && text.trim()) return text.trim();
         }
         return "";
+      };
+
+      const setMicStatus = (message) => {
+        if (micStatusEl) micStatusEl.textContent = message;
+      };
+
+      const populateMicrophones = async () => {
+        if (!micSelectEl) return;
+        if (!navigator?.mediaDevices?.enumerateDevices) {
+          micSelectEl.innerHTML = "<option value=\"\">Microphone list not supported</option>";
+          micSelectEl.disabled = true;
+          setMicStatus("Microphone selection is not supported in this browser.");
+          return;
+        }
+
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          stream.getTracks().forEach((track) => track.stop());
+        } catch (err) {
+          setMicStatus("Microphone access blocked. Allow access to list devices.");
+        }
+
+        try {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const mics = devices.filter((device) => device.kind === "audioinput");
+          const savedId = localStorage.getItem(MIC_STORAGE_KEY) || "";
+
+          if (!mics.length) {
+            micSelectEl.innerHTML = "<option value=\"\">No microphones found</option>";
+            micSelectEl.disabled = true;
+            setMicStatus("No microphone devices detected.");
+            return;
+          }
+
+          micSelectEl.disabled = false;
+          micSelectEl.innerHTML = "";
+          mics.forEach((mic, index) => {
+            const option = document.createElement("option");
+            option.value = mic.deviceId;
+            option.textContent = mic.label || `Microphone ${index + 1}`;
+            micSelectEl.appendChild(option);
+          });
+
+          const selectedId = mics.some((mic) => mic.deviceId === savedId) ? savedId : mics[0].deviceId;
+          micSelectEl.value = selectedId;
+          localStorage.setItem(MIC_STORAGE_KEY, selectedId);
+          setMicStatus("Microphone selection saved.");
+        } catch (err) {
+          micSelectEl.innerHTML = "<option value=\"\">Unable to load microphones</option>";
+          micSelectEl.disabled = true;
+          setMicStatus(err?.message || String(err));
+        }
       };
 
       const applyUrlStudentContext = () => {
@@ -531,9 +603,17 @@
       updateStudentContextBanner();
       // updateModeLabel();
       sendStudentContextOnLoad();
+      updateDebugVisibility();
+      populateMicrophones();
 
       dictateStartBtn?.addEventListener("click", () => startDictation());
       dictateStopBtn?.addEventListener("click", () => stopDictation());
+      micSelectEl?.addEventListener("change", (event) => {
+        const value = event.target?.value || "";
+        localStorage.setItem(MIC_STORAGE_KEY, value);
+        setMicStatus("Microphone selection saved.");
+      });
+      navigator?.mediaDevices?.addEventListener?.("devicechange", () => populateMicrophones());
 
       answerInputEl.addEventListener("input", () => {
         if (isDictating) {
