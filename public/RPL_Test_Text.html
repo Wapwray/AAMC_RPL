@@ -117,9 +117,6 @@
       const questionsUrl =
         "https://default4f0de57b35694b51b8c8b1dadd7ba8.19.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/8feea7df352a455d9efde46977446910/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=AF-53thnNRJd9IxzY55POQzrW8owJ2SA6EhRycxtTEY";
 
-      const endpointOverride = "https://aamc-llnd-analysis.openai.azure.com/openai/v1";
-      const deploymentName = "gpt-4.1-mini";
-
       const statusEl = document.getElementById("status");
       const headerTitleEl = document.getElementById("headerTitle");
       const setupCard = document.getElementById("setupCard");
@@ -283,9 +280,7 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            endpoint: endpointOverride,
             prompt,
-            deployment: deploymentName,
             temperature: 0.2,
             max_tokens: 300,
           }),
