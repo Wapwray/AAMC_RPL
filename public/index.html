@@ -141,6 +141,13 @@
             </div>
           </article>
           <article class="card">
+            <h2>Photo Test</h2>
+            <div class="meta">Capture a photo using a webcam.</div>
+            <div class="controls">
+              <button id="photoTestBtn">Go to Photo Test</button>
+            </div>
+          </article>
+          <article class="card">
             <h2>Questions</h2>
             <div class="meta">Fetch the latest questions payload.</div>
             <div class="controls">
@@ -157,6 +164,7 @@
         "https://default4f0de57b35694b51b8c8b1dadd7ba8.19.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/8feea7df352a455d9efde46977446910/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=AF-53thnNRJd9IxzY55POQzrW8owJ2SA6EhRycxtTEY";
 
       const rplTestTextBtn = document.getElementById("rplTestTextBtn");
+      const photoTestBtn = document.getElementById("photoTestBtn");
       const questionsBtn = document.getElementById("questionsBtn");
       const questionsTableWrap = document.getElementById("questionsTableWrap");
 
@@ -248,6 +256,9 @@
 
       rplTestTextBtn.addEventListener("click", () => {
         window.location.href = "RPL_Test_Text.html";
+      });
+      photoTestBtn.addEventListener("click", () => {
+        window.location.href = "Photo%20Test.html";
       });
       questionsBtn.addEventListener("click", loadQuestions);
     </script>

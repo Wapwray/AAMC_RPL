@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Photo Test</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f4f6fb;
+        --card: #ffffff;
+        --text: #0f172a;
+        --muted: #5b6b82;
+        --border: #e2e8f0;
+        --primary: #1d4ed8;
+        --primary-strong: #1e40af;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+      .page {
+        padding: 28px;
+      }
+      .shell {
+        max-width: 1100px;
+        margin: 0 auto;
+        display: grid;
+        gap: 20px;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      h1 {
+        margin: 0;
+        font-size: 22px;
+      }
+      .status {
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+        padding: 18px;
+        display: grid;
+        gap: 14px;
+      }
+      label {
+        font-size: 13px;
+        color: var(--muted);
+      }
+      input,
+      select {
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px 12px;
+        font: inherit;
+        background: #ffffff;
+      }
+      .controls {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      button {
+        appearance: none;
+        border: none;
+        border-radius: 999px;
+        padding: 9px 16px;
+        font-size: 13px;
+        font-weight: 600;
+        background: var(--primary);
+        color: #ffffff;
+        cursor: pointer;
+        transition: background 0.2s ease;
+      }
+      button.secondary {
+        background: #ffffff;
+        color: var(--primary);
+        border: 1px solid #c7d9e8;
+      }
+      button:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+      button:hover:not(:disabled) {
+        background: var(--primary-strong);
+      }
+      button.secondary:hover:not(:disabled) {
+        background: #eef2ff;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 16px;
+      }
+      .preview {
+        width: 100%;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: #0f172a;
+        aspect-ratio: 4 / 3;
+        object-fit: cover;
+      }
+      .hint {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .hidden {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="shell">
+        <header>
+          <div>
+            <h1>Photo Test</h1>
+            <div class="status" id="status">Select a webcam and start the camera.</div>
+          </div>
+          <div class="controls">
+            <button id="backBtn" class="secondary">Back to Home</button>
+          </div>
+        </header>
+
+        <section class="card">
+          <div class="grid">
+            <div>
+              <label for="cameraSelect">Webcam</label>
+              <select id="cameraSelect">
+                <option value="">Detecting webcams…</option>
+              </select>
+              <div class="hint">Pick the webcam to use for the capture.</div>
+            </div>
+            <div>
+              <label for="webhookUrl">Webhook URL (optional)</label>
+              <input id="webhookUrl" type="url" placeholder="https://example.com/webhook" />
+              <div class="hint">If provided, the captured photo will be sent as a base64 image.</div>
+            </div>
+          </div>
+
+          <div class="controls">
+            <button id="startBtn">Start Camera</button>
+            <button id="stopBtn" class="secondary" disabled>Stop Camera</button>
+            <button id="captureBtn" disabled>Take Photo</button>
+            <button id="saveBtn" class="secondary" disabled>Save via Webhook</button>
+          </div>
+
+          <div class="grid">
+            <video id="cameraPreview" class="preview" autoplay playsinline muted></video>
+            <img id="photoPreview" class="preview hidden" alt="Captured photo preview" />
+          </div>
+          <canvas id="photoCanvas" class="hidden"></canvas>
+        </section>
+      </div>
+    </div>
+
+    <script>
+      const statusEl = document.getElementById("status");
+      const backBtn = document.getElementById("backBtn");
+      const cameraSelectEl = document.getElementById("cameraSelect");
+      const webhookUrlEl = document.getElementById("webhookUrl");
+      const startBtn = document.getElementById("startBtn");
+      const stopBtn = document.getElementById("stopBtn");
+      const captureBtn = document.getElementById("captureBtn");
+      const saveBtn = document.getElementById("saveBtn");
+      const cameraPreviewEl = document.getElementById("cameraPreview");
+      const photoPreviewEl = document.getElementById("photoPreview");
+      const photoCanvasEl = document.getElementById("photoCanvas");
+
+      let stream = null;
+      let lastPhotoDataUrl = "";
+
+      const setStatus = (message) => {
+        statusEl.textContent = message;
+      };
+
+      const stopStream = () => {
+        if (!stream) return;
+        stream.getTracks().forEach((track) => track.stop());
+        stream = null;
+        cameraPreviewEl.srcObject = null;
+      };
+
+      const populateWebcams = async () => {
+        if (!navigator?.mediaDevices?.enumerateDevices) {
+          cameraSelectEl.innerHTML = "<option value=\"\">Webcam list not supported</option>";
+          cameraSelectEl.disabled = true;
+          setStatus("Webcam selection is not supported in this browser.");
+          return;
+        }
+
+        try {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const cams = devices.filter((device) => device.kind === "videoinput");
+
+          if (!cams.length) {
+            cameraSelectEl.innerHTML = "<option value=\"\">No webcams found</option>";
+            cameraSelectEl.disabled = true;
+            setStatus("No webcam devices detected.");
+            return;
+          }
+
+          cameraSelectEl.disabled = false;
+          const selectedValue = cameraSelectEl.value;
+          cameraSelectEl.innerHTML = "";
+          cams.forEach((cam, index) => {
+            const option = document.createElement("option");
+            option.value = cam.deviceId;
+            option.textContent = cam.label || `Webcam ${index + 1}`;
+            cameraSelectEl.appendChild(option);
+          });
+
+          if (selectedValue && cams.some((cam) => cam.deviceId === selectedValue)) {
+            cameraSelectEl.value = selectedValue;
+          } else {
+            cameraSelectEl.value = cams[0].deviceId;
+          }
+        } catch (error) {
+          setStatus(error?.message || String(error));
+        }
+      };
+
+      const startCamera = async () => {
+        if (!navigator?.mediaDevices?.getUserMedia) {
+          setStatus("Camera access is not supported in this browser.");
+          return;
+        }
+
+        const deviceId = cameraSelectEl?.value;
+        stopStream();
+
+        try {
+          const constraints = {
+            video: deviceId ? { deviceId: { exact: deviceId } } : true,
+            audio: false,
+          };
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
+          cameraPreviewEl.srcObject = stream;
+          photoPreviewEl.classList.add("hidden");
+          captureBtn.disabled = false;
+          stopBtn.disabled = false;
+          setStatus("Camera ready. Capture a photo when ready.");
+        } catch (error) {
+          setStatus(error?.message || String(error));
+        }
+      };
+
+      const capturePhoto = () => {
+        if (!stream) return;
+        const track = stream.getVideoTracks()[0];
+        const settings = track.getSettings();
+        const width = settings.width || cameraPreviewEl.videoWidth || 1280;
+        const height = settings.height || cameraPreviewEl.videoHeight || 720;
+
+        photoCanvasEl.width = width;
+        photoCanvasEl.height = height;
+        const context = photoCanvasEl.getContext("2d");
+        context.drawImage(cameraPreviewEl, 0, 0, width, height);
+        lastPhotoDataUrl = photoCanvasEl.toDataURL("image/jpeg", 0.9);
+
+        photoPreviewEl.src = lastPhotoDataUrl;
+        photoPreviewEl.classList.remove("hidden");
+        saveBtn.disabled = false;
+        setStatus("Photo captured. You can save it via the webhook.");
+      };
+
+      const savePhoto = async () => {
+        const webhookUrl = webhookUrlEl.value.trim();
+        if (!webhookUrl) {
+          setStatus("Enter a webhook URL to save the photo.");
+          return;
+        }
+        if (!lastPhotoDataUrl) {
+          setStatus("Capture a photo before saving.");
+          return;
+        }
+
+        saveBtn.disabled = true;
+        setStatus("Sending photo to webhook...");
+        try {
+          const payload = {
+            imageDataUrl: lastPhotoDataUrl,
+            timestamp: new Date().toISOString(),
+          };
+          const response = await fetch(webhookUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          if (!response.ok) {
+            const text = await response.text();
+            throw new Error(`Webhook error ${response.status}: ${text}`);
+          }
+          setStatus("Photo saved successfully.");
+        } catch (error) {
+          setStatus(error?.message || String(error));
+        } finally {
+          saveBtn.disabled = false;
+        }
+      };
+
+      backBtn.addEventListener("click", () => {
+        window.location.href = "index.html";
+      });
+      startBtn.addEventListener("click", startCamera);
+      stopBtn.addEventListener("click", () => {
+        stopStream();
+        captureBtn.disabled = true;
+        stopBtn.disabled = true;
+        setStatus("Camera stopped.");
+      });
+      captureBtn.addEventListener("click", capturePhoto);
+      saveBtn.addEventListener("click", savePhoto);
+      cameraSelectEl.addEventListener("change", () => {
+        if (stream) startCamera();
+      });
+      navigator?.mediaDevices?.addEventListener?.("devicechange", populateWebcams);
+
+      populateWebcams();
+    </script>
+  </body>
+</html>
