@@ -3,44 +3,216 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>RPL HOME</title>
+    <title>AAMC TRAINING RPL TESTING</title>
     <style>
-      <body>
-        <div class="page">
-          <div class="shell">
-            <header>
-              <div>
-                <h1>Welcome to AAMC TRAINING RPL TESTING</h1>
-                <div class="status">Launch the assessment when ready.</div>
-              </div>
-            </header>
-
-            <section class="grid">
-              <article class="card">
-                <h2>RPL Assessment</h2>
-                <div class="meta">Start the text-based RPL test experience.</div>
-                <div class="controls">
-                  <button id="rplTestTextBtn">Go to RPL Test (Text)</button>
-                </div>
-              </article>
-            </section>
+      :root {
+        color-scheme: light;
+        --bg: #f4f6fb;
+        --card: #ffffff;
+        --text: #0f172a;
+        --muted: #5b6b82;
+        --border: #e2e8f0;
+        --primary: #1d4ed8;
+        --primary-strong: #1e40af;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+      .page {
+        padding: 28px;
+      }
+      .shell {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: grid;
+        gap: 20px;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      h1 {
+        margin: 0;
+        font-size: 22px;
+      }
+      .status {
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 18px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+        padding: 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .card h2 {
+        margin: 0;
+        font-size: 16px;
+      }
+      .meta {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .controls {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .tableWrap {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: #ffffff;
+        padding: 10px;
+        overflow-x: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      th,
+      td {
+        border-bottom: 1px solid var(--border);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+        word-break: break-word;
+      }
+      th {
+        background: #f8fafc;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      button {
+        appearance: none;
+        border: none;
+        border-radius: 999px;
+        padding: 9px 16px;
+        font-size: 13px;
+        font-weight: 600;
+        background: var(--primary);
+        color: #ffffff;
+        cursor: pointer;
+        transition: background 0.2s ease;
+      }
+      button:hover:not(:disabled) {
+        background: var(--primary-strong);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="shell">
+        <header>
+          <div>
+            <h1>Welcome to AAMC TRAINING RPL TESTING</h1>
+            <div class="status">Launch the assessment when ready.</div>
           </div>
-        </div>
+        </header>
 
-        <script>
-          const rplTestTextBtn = document.getElementById("rplTestTextBtn");
-          rplTestTextBtn.addEventListener("click", () => {
-            window.location.href = "RPL_Test_Text.html";
+        <section class="grid">
+          <article class="card">
+            <h2>RPL Assessment</h2>
+            <div class="meta">Start the text-based RPL test experience.</div>
+            <div class="controls">
+              <button id="rplTestTextBtn">Go to RPL Test (Text)</button>
+            </div>
+          </article>
+          <article class="card">
+            <h2>Questions</h2>
+            <div class="meta">Fetch the latest questions payload.</div>
+            <div class="controls">
+              <button id="questionsBtn">Questions</button>
+            </div>
+            <div class="tableWrap" id="questionsTableWrap"></div>
+          </article>
+        </section>
+      </div>
+    </div>
+
+    <script>
+      const questionsUrl =
+        "https://default4f0de57b35694b51b8c8b1dadd7ba8.19.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/8feea7df352a455d9efde46977446910/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=AF-53thnNRJd9IxzY55POQzrW8owJ2SA6EhRycxtTEY";
+
+      const rplTestTextBtn = document.getElementById("rplTestTextBtn");
+      const questionsBtn = document.getElementById("questionsBtn");
+      const questionsTableWrap = document.getElementById("questionsTableWrap");
+
+      const renderTable = (data, wrapEl) => {
+        wrapEl.textContent = "";
+        if (data == null) {
+          wrapEl.textContent = "No data returned.";
+          return;
+        }
+
+        if (Array.isArray(data)) {
+          if (!data.length) {
+            wrapEl.textContent = "Empty array returned.";
+            return;
+          }
+          const columns = Array.from(
+            data.reduce((set, item) => {
+              if (item && typeof item === "object") {
+                Object.keys(item).forEach((key) => set.add(key));
+              }
+              return set;
+            }, new Set())
+          );
+
+          const table = document.createElement("table");
+          const thead = document.createElement("thead");
+          const headRow = document.createElement("tr");
+          columns.forEach((column) => {
+            const th = document.createElement("th");
+            th.textContent = column;
+            headRow.appendChild(th);
           });
-        </script>
-      </body>
+          thead.appendChild(headRow);
+          table.appendChild(thead);
+
+          const tbody = document.createElement("tbody");
+          data.forEach((item) => {
+            const row = document.createElement("tr");
+            columns.forEach((column) => {
+              const td = document.createElement("td");
+              const value = item?.[column];
+              if (typeof value === "object") {
+                td.textContent = JSON.stringify(value);
+              } else if (value == null) {
+                td.textContent = "";
+              } else {
+                td.textContent = String(value);
+              }
+              row.appendChild(td);
+            });
+            tbody.appendChild(row);
+          });
+          table.appendChild(tbody);
+          wrapEl.appendChild(table);
           return;
         }
 
         if (typeof data === "object") {
           const entries = Object.entries(data);
           if (!entries.length) {
-            wrapEl.appendChild(createEmpty("Empty object returned."));
+            wrapEl.textContent = "Empty object returned.";
             return;
           }
           const table = document.createElement("table");
@@ -69,112 +241,22 @@
           return;
         }
 
-        wrapEl.appendChild(createEmpty(String(data)));
-      };
-
-      const renderQuestionsList = (data, wrapEl) => {
-        wrapEl.textContent = "";
-        if (!data || typeof data.listitems !== "string") {
-          wrapEl.appendChild(createEmpty("Response missing listitems string."));
-          return;
-        }
-        try {
-          const listItems = JSON.parse(data.listitems);
-          if (!Array.isArray(listItems) || !listItems.length) {
-            wrapEl.appendChild(createEmpty("listitems did not contain any rows."));
-            return;
-          }
-          renderKeyValueTable(listItems, wrapEl);
-        } catch (error) {
-          renderKeyValueTable({ error: error?.message || String(error) }, wrapEl);
-        }
-      };
-
-      const renderQuestionItem = (data, wrapEl) => {
-        wrapEl.textContent = "";
-        if (!data || typeof data !== "object") {
-          wrapEl.appendChild(createEmpty("Response was not an object."));
-          return;
-        }
-        const fields = {
-          Title: data.Title ?? "",
-          field_5: data.field_5 ?? "",
-          field_3: data.field_3 ?? "",
-          Hints: data.Hints ?? "",
-        };
-        renderKeyValueTable(fields, wrapEl);
-      };
-
-      const parseResponse = async (response) => {
-        const contentType = response.headers.get("content-type") || "";
-        if (contentType.includes("application/json")) {
-          return response.json();
-        }
-        const text = await response.text();
-        try {
-          return JSON.parse(text);
-        } catch {
-          return { raw: text };
-        }
-      };
-
-      const callWebhook = async ({ url, options }) => {
-        const response = await fetch(url, options);
-        const data = await parseResponse(response);
-        return { ok: response.ok, status: response.status, data };
+        wrapEl.textContent = String(data);
       };
 
       const loadQuestions = async () => {
         questionsBtn.disabled = true;
-        setPill(questionsStatusEl, "Loading", null);
-        setStatus("Fetching questions webhook...");
         try {
-          const result = await callWebhook({
-            url: questionsUrl,
-            options: {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-            },
+          const response = await fetch(questionsUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
           });
-          if (!result.ok) {
-            setPill(questionsStatusEl, `Error ${result.status}`, "err");
-          } else {
-            setPill(questionsStatusEl, "OK", "ok");
-          }
-          renderQuestionItem(result.data, questionsTableWrap);
+          const data = await response.json();
+          renderTable(data, questionsTableWrap);
         } catch (error) {
-          setPill(questionsStatusEl, "Failed", "err");
-          renderKeyValueTable({ error: error?.message || String(error) }, questionsTableWrap);
+          renderTable({ error: error?.message || String(error) }, questionsTableWrap);
         } finally {
           questionsBtn.disabled = false;
-          setStatus("Ready.");
-        }
-      };
-
-      const loadQuestions2 = async () => {
-        questionsBtn2.disabled = true;
-        setPill(questionsStatus2El, "Loading", null);
-        setStatus("Fetching second webhook...");
-        try {
-          const result = await callWebhook({
-            url: questionsUrl2,
-            options: {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-            },
-          });
-          if (!result.ok) {
-            setPill(questionsStatus2El, `Error ${result.status}`, "err");
-          } else {
-            setPill(questionsStatus2El, "OK", "ok");
-          }
-          renderQuestionsList(result.data, questionsTableWrap2);
-        } catch (error) {
-          setPill(questionsStatus2El, "Failed", "err");
-          renderKeyValueTable({ error: error?.message || String(error) }, questionsTableWrap2);
-        } finally {
-          questionsBtn2.disabled = false;
-          setStatus("Ready.");
         }
       };
 
@@ -182,11 +264,6 @@
         window.location.href = "RPL_Test_Text.html";
       });
       questionsBtn.addEventListener("click", loadQuestions);
-      questionsBtn2.addEventListener("click", loadQuestions2);
-      refreshAllBtn.addEventListener("click", async () => {
-        await loadQuestions();
-        await loadQuestions2();
-      });
     </script>
   </body>
 </html>
