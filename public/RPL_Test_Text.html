@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RPL Test (Text)</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        --bg: #f4f6f9;
+        --card: #ffffff;
+        --text: #0f172a;
+        --muted: #64748b;
+        --border: #e2e8f0;
+        --primary: #0b6ea9;
+        --primary-dark: #095c8b;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--text); }
+      .page { padding: 24px; }
+      .shell { max-width: 1100px; margin: 0 auto; display: grid; gap: 18px; }
+      .header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+      .header h1 { margin: 0; font-size: 20px; font-weight: 700; }
+      .header .status { font-size: 13px; color: var(--muted); }
+      .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 18px; box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08); }
+      .formGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+      label { font-size: 13px; color: var(--muted); }
+      input, select, textarea { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font: inherit; background: #ffffff; }
+      textarea { resize: vertical; min-height: 80px; }
+      .questionBox { border: 1px solid var(--border); border-radius: 12px; padding: 12px; min-height: 64px; background: #ffffff; }
+      .chatHistory { border: 1px solid var(--border); border-radius: 12px; padding: 12px; min-height: 140px; background: #ffffff; }
+      .chatEntry { padding: 10px 12px; border-radius: 10px; margin-bottom: 10px; font-size: 14px; line-height: 1.45; }
+      .chatEntry:last-child { margin-bottom: 0; }
+      .chatEntry.user { background: #eef6ff; border: 1px solid #d7e7ff; }
+      .chatEntry.ai { background: #f8fafc; border: 1px solid var(--border); }
+      .actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+      button { appearance: none; border: none; border-radius: 999px; padding: 10px 16px; font-size: 14px; font-weight: 600; background: var(--primary); color: #ffffff; cursor: pointer; transition: background 0.2s ease; }
+      button.secondary { background: #ffffff; color: var(--primary); border: 1px solid #c7d9e8; }
+      button:disabled { opacity: 0.55; cursor: not-allowed; }
+      button:hover:not(:disabled) { background: var(--primary-dark); }
+      button.secondary:hover:not(:disabled) { background: #eef6ff; }
+      .hidden { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="shell">
+        <div class="header">
+          <div style="font-weight:700; text-decoration:underline;">AAMC RPL QUIZ</div>
+          <h1 id="headerTitle">Compliance - Question 1 of 0 - Attempt 1</h1>
+          <div class="status" id="status">Idle.</div>
+        </div>
+
+        <div id="setupCard" class="card">
+          <h2 style="margin-top:0;">RPL Test Setup</h2>
+          <div class="formGrid">
+            <div>
+              <label for="fullName">Full name</label>
+              <input id="fullName" type="text" placeholder="Enter full name" />
+            </div>
+            <div>
+              <label for="industry">Industry</label>
+              <select id="industry">
+                <option value="">Select industry</option>
+                <option>Banking</option>
+                <option>Lending</option>
+                <option>Mortgage Broking</option>
+                <option>Finance Broking</option>
+              </select>
+            </div>
+            <div>
+              <label for="jobTitle">Job title</label>
+              <input id="jobTitle" type="text" placeholder="Enter job title" />
+            </div>
+          </div>
+          <div class="actions" style="margin-top:16px;">
+            <button id="beginBtn">Begin</button>
+          </div>
+        </div>
+
+        <div id="quizCard" class="card hidden">
+          <div style="display:flex; flex-direction:column; gap:14px;">
+            <div>
+              <div class="questionBox" id="questionText"></div>
+            </div>
+            <div>
+              <strong>Feedback</strong>
+              <div class="chatHistory" id="chatHistory"></div>
+            </div>
+            <div>
+              <strong>Your answer</strong>
+              <textarea id="answerInput" placeholder="Type your answer here..."></textarea>
+            </div>
+            <div class="actions">
+              <button id="evaluateBtn">Evaluate</button>
+              <button id="nextBtn" class="secondary" disabled>Next</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const questionsUrl =
+        "https://default4f0de57b35694b51b8c8b1dadd7ba8.19.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/8feea7df352a455d9efde46977446910/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=AF-53thnNRJd9IxzY55POQzrW8owJ2SA6EhRycxtTEY";
+
+      const endpointOverride = "https://aamc-llnd-analysis.openai.azure.com/openai/v1";
+      const deploymentName = "gpt-4.1-mini";
+
+      const statusEl = document.getElementById("status");
+      const headerTitleEl = document.getElementById("headerTitle");
+      const setupCard = document.getElementById("setupCard");
+      const quizCard = document.getElementById("quizCard");
+      const fullNameEl = document.getElementById("fullName");
+      const industryEl = document.getElementById("industry");
+      const jobTitleEl = document.getElementById("jobTitle");
+      const beginBtn = document.getElementById("beginBtn");
+
+      const questionTextEl = document.getElementById("questionText");
+      const chatHistoryEl = document.getElementById("chatHistory");
+      const answerInputEl = document.getElementById("answerInput");
+      const evaluateBtn = document.getElementById("evaluateBtn");
+      const nextBtn = document.getElementById("nextBtn");
+
+      let questions = [];
+      let currentIndex = 0;
+      let fullName = "";
+      let firstName = "";
+      let industry = "";
+      let jobTitle = "";
+
+      const setStatus = (message) => {
+        statusEl.textContent = message;
+      };
+
+      const parseListItems = (json) => {
+        if (!json || typeof json.listitems !== "string") {
+          return { items: [], error: "Response does not include listitems." };
+        }
+        try {
+          const listItems = JSON.parse(json.listitems);
+          if (!Array.isArray(listItems)) {
+            return { items: [], error: "listitems is not an array." };
+          }
+          return { items: listItems, error: null };
+        } catch (parseError) {
+          return { items: [], error: parseError?.message || String(parseError) };
+        }
+      };
+
+      const addChatEntry = (text, role) => {
+        const entry = document.createElement("div");
+        entry.className = `chatEntry ${role}`;
+        entry.textContent = text;
+        chatHistoryEl.appendChild(entry);
+        chatHistoryEl.scrollTop = chatHistoryEl.scrollHeight;
+      };
+
+      const renderQuestion = () => {
+        const question = questions[currentIndex] || {};
+        const total = questions.length;
+        const number = currentIndex + 1;
+        headerTitleEl.textContent = `Compliance - Question ${number} of ${total} - Attempt 1`;
+        questionTextEl.textContent = question.field_5 || question.Title || "";
+        answerInputEl.value = "";
+        nextBtn.disabled = true;
+        chatHistoryEl.textContent = "";
+      };
+
+      const buildPrompt = (question, answer) => {
+        const questionText = question.field_5 || question.Title || "";
+        const objective = question.field_3 || "";
+        return `You are an expert in the Australian Financial industry and are acting as an assessor of ${fullName}'s responses to the question '${questionText}'. ${firstName} gave the following first answer.\n\n${firstName} - ${answer}\n\nTake into account ${fullName} works in the ${industry} Industry as a ${jobTitle} and assess using the objective '${objective}' if they have demonstrated the required understanding, even if key terms, concepts, or regulations are implied rather than explicitly stated.\n\nProvide a concise overview to ${firstName} that follows these rules:\n\n1) If the response has effectively answered the question and meets the intent of the Objective, do not ask for any further details. Acknowledge that the response is sufficient and tell them to move to the next question.\n\n2) If the response has not effectively answered the question or does not meet the Objective, do not give the answer. Advise ${firstName} to add more details by pressing the 'Start' button or typing in the Chat box below. Tell them that if they cannot add any more they can move to the next question.\n\n3) Do not say 'Hi' at the start of the response.`;
+      };
+
+      const callTextModel = async (prompt) => {
+        const response = await fetch("/api/analysis/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            endpoint: endpointOverride,
+            prompt,
+            deployment: deploymentName,
+            temperature: 0.2,
+            max_tokens: 300,
+          }),
+        });
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(`Azure OpenAI error: ${response.status} ${response.statusText} ${text}`);
+        }
+
+        const json = await response.json();
+        const content = json?.content || json?.response || json?.text;
+        if (typeof content === "string" && content.trim()) return content.trim();
+        const messages = Array.isArray(json?.messages) ? json.messages : [];
+        const last = messages.length ? messages[messages.length - 1] : null;
+        const text = last?.text || last?.content || "";
+        if (!text) throw new Error("No response content returned.");
+        return String(text).trim();
+      };
+
+      beginBtn.addEventListener("click", async () => {
+        fullName = fullNameEl.value.trim();
+        industry = industryEl.value.trim();
+        jobTitle = jobTitleEl.value.trim();
+
+        if (!fullName || !industry || !jobTitle) {
+          setStatus("Please complete all fields.");
+          return;
+        }
+
+        firstName = fullName.split(" ").filter(Boolean)[0] || fullName;
+        setStatus("Loading questions...");
+        beginBtn.disabled = true;
+
+        try {
+          const response = await fetch(questionsUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+          });
+          const json = await response.json();
+          const { items, error } = parseListItems(json);
+          if (error || !items.length) {
+            throw new Error(error || "No questions returned.");
+          }
+          questions = items;
+          currentIndex = 0;
+          setupCard.classList.add("hidden");
+          quizCard.classList.remove("hidden");
+          renderQuestion();
+          setStatus("Ready.");
+        } catch (err) {
+          setStatus(err?.message || String(err));
+          beginBtn.disabled = false;
+        }
+      });
+
+      evaluateBtn.addEventListener("click", async () => {
+        const answer = answerInputEl.value.trim();
+        if (!answer) {
+          setStatus("Please enter an answer before evaluating.");
+          return;
+        }
+
+        addChatEntry(`Answer: ${answer}`, "user");
+        setStatus("Evaluating response...");
+        evaluateBtn.disabled = true;
+
+        try {
+          const prompt = buildPrompt(questions[currentIndex], answer);
+          const feedback = await callTextModel(prompt);
+          addChatEntry(feedback, "ai");
+          nextBtn.disabled = false;
+          setStatus("Feedback ready.");
+        } catch (err) {
+          addChatEntry(err?.message || String(err), "ai");
+          setStatus("Evaluation failed.");
+        } finally {
+          evaluateBtn.disabled = false;
+        }
+      });
+
+      nextBtn.addEventListener("click", () => {
+        if (currentIndex + 1 >= questions.length) {
+          setStatus("All questions completed.");
+          headerTitleEl.textContent = "Compliance - Completed";
+          questionTextEl.textContent = "You have completed all questions.";
+          answerInputEl.value = "";
+          nextBtn.disabled = true;
+          return;
+        }
+        currentIndex += 1;
+        renderQuestion();
+        setStatus("Ready.");
+      });
+    </script>
+  </body>
+</html>
