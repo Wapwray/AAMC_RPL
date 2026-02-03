@@ -214,6 +214,21 @@
         wrapEl.appendChild(table);
       };
 
+      const parseListItems = (json) => {
+        if (!json || typeof json.listitems !== "string") {
+          return { items: [], error: "Response does not include listitems." };
+        }
+        try {
+          const listItems = JSON.parse(json.listitems);
+          if (!Array.isArray(listItems)) {
+            return { items: [], error: "listitems is not an array." };
+          }
+          return { items: listItems, error: null };
+        } catch (parseError) {
+          return { items: [], error: parseError?.message || String(parseError) };
+        }
+      };
+
       const loadQuestions = async () => {
         questionsBtn.disabled = true;
         try {
@@ -222,7 +237,8 @@
             headers: { "Content-Type": "application/json" },
           });
           const data = await response.json();
-          renderQuestionsTable(data, questionsTableWrap);
+          const { items } = parseListItems(data);
+          renderQuestionsTable(items, questionsTableWrap);
         } catch (error) {
           renderQuestionsTable([], questionsTableWrap);
         } finally {
