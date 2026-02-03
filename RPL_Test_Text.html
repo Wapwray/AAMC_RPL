@@ -35,6 +35,7 @@
       .chatEntry.user { background: #eef6ff; border: 1px solid #d7e7ff; }
       .chatEntry.ai { background: #f8fafc; border: 1px solid var(--border); }
       .actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+      .debugBox { border: 1px dashed var(--border); border-radius: 12px; padding: 12px; background: #ffffff; font-size: 12px; color: var(--muted); white-space: pre-wrap; min-height: 80px; }
       button { appearance: none; border: none; border-radius: 999px; padding: 10px 16px; font-size: 14px; font-weight: 600; background: var(--primary); color: #ffffff; cursor: pointer; transition: background 0.2s ease; }
       button.secondary { background: #ffffff; color: var(--primary); border: 1px solid #c7d9e8; }
       button:disabled { opacity: 0.55; cursor: not-allowed; }
@@ -89,6 +90,10 @@
               <div class="chatHistory" id="chatHistory"></div>
             </div>
             <div>
+              <strong>Debug</strong>
+              <div class="debugBox" id="debugLog"></div>
+            </div>
+            <div>
               <strong>Your answer</strong>
               <textarea id="answerInput" placeholder="Type your answer here..."></textarea>
             </div>
@@ -119,6 +124,7 @@
 
       const questionTextEl = document.getElementById("questionText");
       const chatHistoryEl = document.getElementById("chatHistory");
+      const debugLogEl = document.getElementById("debugLog");
       const answerInputEl = document.getElementById("answerInput");
       const evaluateBtn = document.getElementById("evaluateBtn");
       const nextBtn = document.getElementById("nextBtn");
@@ -132,6 +138,12 @@
 
       const setStatus = (message) => {
         statusEl.textContent = message;
+      };
+
+      const logDebug = (message) => {
+        if (!debugLogEl) return;
+        const timestamp = new Date().toLocaleTimeString();
+        debugLogEl.textContent = `[${timestamp}] ${message}\n` + debugLogEl.textContent;
       };
 
       const parseListItems = (json) => {
@@ -175,6 +187,7 @@
       };
 
       const callTextModel = async (prompt) => {
+        logDebug("Calling /api/analysis/chat");
         const response = await fetch("/api/analysis/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -189,10 +202,12 @@
 
         if (!response.ok) {
           const text = await response.text();
+          logDebug(`AI error ${response.status}: ${response.statusText} ${text}`);
           throw new Error(`Azure OpenAI error: ${response.status} ${response.statusText} ${text}`);
         }
 
         const json = await response.json();
+        logDebug("AI response received.");
         const content = json?.content || json?.response || json?.text;
         if (typeof content === "string" && content.trim()) return content.trim();
         const messages = Array.isArray(json?.messages) ? json.messages : [];
