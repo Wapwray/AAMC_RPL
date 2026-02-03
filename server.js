@@ -38,10 +38,20 @@ app.post("/api/analysis/chat", async (req, res) => {
     deployment
   )}/chat/completions?api-version=${encodeURIComponent(apiVersion)}`;
 
+  const messages = useRouter
+    ? [
+        { role: "system", content: "You are a helpful assistant." },
+        { role: "user", content: prompt },
+      ]
+    : [{ role: "user", content: prompt }];
+
+  const requestedMaxTokens = Number.isFinite(Number(max_tokens)) ? Number(max_tokens) : 300;
+  const resolvedMaxTokens = useRouter ? Math.max(800, requestedMaxTokens) : requestedMaxTokens;
+
   const body = {
-    messages: [{ role: "user", content: prompt }],
+    messages,
     temperature,
-    max_tokens,
+    max_tokens: resolvedMaxTokens,
     model: modelName || deployment,
   };
 
