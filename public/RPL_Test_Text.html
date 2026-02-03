@@ -202,6 +202,7 @@
       let speechTapGain = null;
       let speechSilentGain = null;
       let speechTokenInfo = { token: "", region: "", expiresAt: 0 };
+      let fullTranscript = "";
       const DEFAULT_FULL_NAME = "Billy Broker";
       const DEFAULT_GIVEN_NAME = "Billy";
       const DEFAULT_CONTACT_ID = "123456";
@@ -359,6 +360,48 @@
         if (fullNameEl) fullNameEl.textContent = `Full Name: ${ctx.fullName}`;
         if (givenNameEl) givenNameEl.textContent = `Given Name: ${ctx.givenName}`;
         if (contactIdEl) contactIdEl.textContent = `Contact ID: ${ctx.contactId}`;
+      };
+
+      const initFullTranscript = () => {
+        const ctx = getStudentContext();
+        const stamp = new Date().toLocaleString();
+        fullTranscript = `${ctx.fullName}- ${ctx.contactId} - RPL Full Transcript\n\nDate : ${stamp}\n\n`;
+        window.RPLFullTranscript = fullTranscript;
+      };
+
+      const appendToTranscript = (role, text) => {
+        if (!text) return;
+        if (!fullTranscript) initFullTranscript();
+        fullTranscript += `[${role}] ${text}\n`;
+        window.RPLFullTranscript = fullTranscript;
+      };
+
+      const sendTranscriptOnNext = async () => {
+        const ctx = getStudentContext();
+        if (!fullTranscript) initFullTranscript();
+        const payload = {
+          FullName: ctx.fullName,
+          ContactID: String(ctx.contactId),
+          GivenName: ctx.givenName,
+          FullTranscript: fullTranscript,
+        };
+        const url =
+          "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/903538467bfb426fb4b074ef9cc3caa4/triggers/manual/paths/invoke?api-version=1";
+
+        try {
+          const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          logDebugDetail("Transcript HTTP status", `${response.status} ${response.statusText}`);
+          const text = await response.text();
+          if (text) {
+            logDebugDetail("Transcript response", text);
+          }
+        } catch (error) {
+          logDebugDetail("Transcript error", error?.message || String(error));
+        }
       };
 
       const sendStudentContextOnLoad = async () => {
@@ -683,6 +726,7 @@
         entry.textContent = text;
         chatHistoryEl.appendChild(entry);
         chatHistoryEl.scrollTop = chatHistoryEl.scrollHeight;
+        appendToTranscript(role === "user" ? "User" : "System", text);
       };
 
       const renderQuestion = () => {
@@ -793,6 +837,7 @@
 
       applyUrlStudentContext();
       updateStudentContextBanner();
+      initFullTranscript();
       // updateModeLabel();
       sendStudentContextOnLoad();
       updateDebugVisibility();
@@ -858,6 +903,7 @@
       });
 
       nextBtn.addEventListener("click", () => {
+        sendTranscriptOnNext();
         if (currentIndex + 1 >= questions.length) {
           setStatus("All questions completed.");
           headerTitleEl.textContent = "Compliance - Completed";
