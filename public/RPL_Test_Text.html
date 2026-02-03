@@ -27,14 +27,14 @@
       .studentContext { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: baseline; justify-content: space-between; }
       .studentContext__name { font-weight: 700; font-size: 15px; }
       .studentContext__meta { font-size: 13px; color: var(--muted); }
-      .modeToggleRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+      /* .modeToggleRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
       .modeLabel { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
       .toggleWrap { display: inline-flex; align-items: center; gap: 10px; }
       .toggleSwitch { position: relative; width: 52px; height: 28px; background: #dbe7f2; border-radius: 999px; cursor: pointer; border: 1px solid #c7d9e8; }
       .toggleSwitch input { position: absolute; opacity: 0; width: 0; height: 0; }
       .toggleKnob { position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; background: #ffffff; border-radius: 50%; box-shadow: 0 2px 6px rgba(15, 23, 42, 0.2); transition: transform 0.2s ease; }
       .toggleSwitch input:checked + .toggleKnob { transform: translateX(24px); }
-      .modeValue { font-weight: 600; font-size: 13px; color: var(--text); }
+      .modeValue { font-weight: 600; font-size: 13px; color: var(--text); } */
       .formGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
       label { font-size: 13px; color: var(--muted); }
       input, select, textarea { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font: inherit; background: #ffffff; }
@@ -67,7 +67,7 @@
         </div>
 
         <div class="card" id="studentContextCard">
-          <div class="modeToggleRow" style="margin-bottom:10px;">
+          <!-- <div class="modeToggleRow" style="margin-bottom:10px;">
             <div class="modeLabel">Environment</div>
             <div class="toggleWrap">
               <span class="modeValue" id="modeLabel">RPL Base</span>
@@ -76,7 +76,7 @@
                 <span class="toggleKnob"></span>
               </label>
             </div>
-          </div>
+          </div> -->
           <div class="studentContext">
             <div class="studentContext__name" id="studentFullName">Full Name: Billy Broker</div>
             <div class="studentContext__meta" id="studentGivenName">Given Name: Billy</div>
@@ -164,8 +164,8 @@
       const dictationStatusEl = document.getElementById("dictationStatus");
       const evaluateBtn = document.getElementById("evaluateBtn");
       const nextBtn = document.getElementById("nextBtn");
-      const modeToggleEl = document.getElementById("modeToggle");
-      const modeLabelEl = document.getElementById("modeLabel");
+      // const modeToggleEl = document.getElementById("modeToggle");
+      // const modeLabelEl = document.getElementById("modeLabel");
 
       let questions = [];
       let currentIndex = 0;
@@ -177,7 +177,7 @@
       let isDictating = false;
       let finalTranscript = "";
       let manualOverride = false;
-      let aiMode = "base";
+      let aiMode = "router";
       const DEFAULT_FULL_NAME = "Billy Broker";
       const DEFAULT_GIVEN_NAME = "Billy";
       const DEFAULT_CONTACT_ID = "123456";
@@ -304,10 +304,10 @@
         }
       };
 
-      const updateModeLabel = () => {
-        if (!modeLabelEl) return;
-        modeLabelEl.textContent = aiMode === "router" ? "RPL Router" : "RPL Base";
-      };
+      // const updateModeLabel = () => {
+      //   if (!modeLabelEl) return;
+      //   modeLabelEl.textContent = aiMode === "router" ? "RPL Router" : "RPL Base";
+      // };
 
       const logDebug = (message) => {
         if (!debugLogEl) return;
@@ -529,14 +529,8 @@
 
       applyUrlStudentContext();
       updateStudentContextBanner();
-      updateModeLabel();
+      // updateModeLabel();
       sendStudentContextOnLoad();
-
-      modeToggleEl?.addEventListener("change", () => {
-        aiMode = modeToggleEl.checked ? "router" : "base";
-        updateModeLabel();
-        logDebug(`AI mode set to ${aiMode}.`);
-      });
 
       dictateStartBtn?.addEventListener("click", () => startDictation());
       dictateStopBtn?.addEventListener("click", () => stopDictation());
