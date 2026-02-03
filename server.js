@@ -8,16 +8,19 @@ app.use(express.json({ limit: "1mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
 app.post("/api/analysis/chat", async (req, res) => {
-  const apiKey = process.env.RPL_API_KEY;
-  const apiVersion = process.env.RPL_API_VERSION;
-  const endpoint = process.env.RPL_AZURE_ENDPOINT;
-  const deployment = process.env.RPL_DEPLOYMENT;
-  const modelName = process.env.RPL_MODEL_NAME;
+  const modeHeader = String(req.headers["x-rpl-mode"] || "").toLowerCase();
+  const useRouter = modeHeader === "router";
+
+  const apiKey = useRouter ? process.env.RPL_ROUTER_API_KEY : process.env.RPL_API_KEY;
+  const apiVersion = useRouter ? process.env.RPL_ROUTER_API_VERSION : process.env.RPL_API_VERSION;
+  const endpoint = useRouter ? process.env.RPL_ROUTER_AZURE_ENDPOINT : process.env.RPL_AZURE_ENDPOINT;
+  const deployment = useRouter ? process.env.RPL_ROUTER_DEPLOYMENT : process.env.RPL_DEPLOYMENT;
+  const modelName = useRouter ? process.env.RPL_ROUTER_MODEL_NAME : process.env.RPL_MODEL_NAME;
 
   if (!apiKey || !apiVersion || !endpoint || !deployment) {
     res.status(500).json({
       error:
-        "Missing required environment variables: RPL_API_KEY, RPL_API_VERSION, RPL_AZURE_ENDPOINT, RPL_DEPLOYMENT.",
+        "Missing required environment variables for selected mode.",
     });
     return;
   }
