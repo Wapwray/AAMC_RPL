@@ -552,7 +552,7 @@
         const normalized = String(titleText).trim().toLowerCase();
         if (!normalized) return null;
         const candidates = questions.map((question) =>
-          (question?.Title || question?.field_5 || "").toString().trim().toLowerCase()
+          (question?.Title || "").toString().trim().toLowerCase()
         );
 
         let index = candidates.findIndex((candidate) => candidate === normalized);
@@ -561,6 +561,18 @@
         index = candidates.findIndex((candidate) =>
           candidate && (candidate.includes(normalized) || normalized.includes(candidate))
         );
+        return index >= 0 ? index : null;
+      };
+
+      const findQuestionIndexByTitleNumber = (numberText) => {
+        if (!numberText || !questions.length) return null;
+        const normalized = String(numberText).trim();
+        if (!normalized) return null;
+        const index = questions.findIndex((question) => {
+          const titleValue = question?.Title ?? "";
+          const titleNumber = extractQuestionNumberFromText(titleValue);
+          return titleNumber === normalized;
+        });
         return index >= 0 ? index : null;
       };
 
@@ -727,14 +739,16 @@ Job Title: ${jobTitleValue || "N/A"}
         }
         try {
           await fetchCurrentQuestionFromWebhook();
-          const titleValue = parseCurrentQuestionValue(lastQuestionResponseText);
+          const titleValue = typeof lastQuestionResponseText === "string"
+            ? lastQuestionResponseText
+            : String(lastQuestionResponseText || "");
           const titleMatchIndex = findQuestionIndexByTitle(titleValue);
           if (titleMatchIndex !== null) {
             currentIndex = titleMatchIndex;
             return true;
           }
-          const numberText = extractQuestionNumberFromText(titleValue);
-          const numberMatchIndex = findQuestionIndexByNumber(numberText || "1");
+          const numberText = extractQuestionNumberFromText(titleValue || "1");
+          const numberMatchIndex = findQuestionIndexByTitleNumber(numberText || "1");
           if (numberMatchIndex !== null) {
             currentIndex = numberMatchIndex;
             return true;
