@@ -63,7 +63,16 @@
   </head>
   <body>
     <div class="page">
-      <div class="shell">
+      <div id="initScreen" class="card" style="max-width:1100px; margin:0 auto 18px;">
+        <div style="font-weight:700; margin-bottom:6px;">Initialising</div>
+        <div class="status" id="initStatus">Please wait while we prepare your assessment.</div>
+        <div id="initDebugSection" class="hidden" style="margin-top:12px;">
+          <strong>Debug</strong>
+          <div class="debugBox" id="initDebugLog"></div>
+        </div>
+      </div>
+
+      <div class="shell hidden" id="appShell">
         <div class="header">
           <div style="font-weight:700; text-decoration:underline;">AAMC RPL QUIZ</div>
           <h1 id="headerTitle">Compliance - Question 1 of 0 - Attempt 1</h1>
@@ -176,6 +185,11 @@
       const chatHistoryEl = document.getElementById("chatHistory");
       const debugSectionEl = document.getElementById("debugSection");
       const debugLogEl = document.getElementById("debugLog");
+      const initScreenEl = document.getElementById("initScreen");
+      const initStatusEl = document.getElementById("initStatus");
+      const initDebugSectionEl = document.getElementById("initDebugSection");
+      const initDebugLogEl = document.getElementById("initDebugLog");
+      const appShellEl = document.getElementById("appShell");
       const micSelectEl = document.getElementById("micSelect");
       const micStatusEl = document.getElementById("micStatus");
       const answerInputEl = document.getElementById("answerInput");
@@ -230,8 +244,9 @@
       const isAdminDebugEnabled = () => window.location?.hash === "#admin";
 
       const updateDebugVisibility = () => {
-        if (!debugSectionEl) return;
-        debugSectionEl.classList.toggle("hidden", !isAdminDebugEnabled());
+        const isAdmin = isAdminDebugEnabled();
+        if (debugSectionEl) debugSectionEl.classList.toggle("hidden", !isAdmin);
+        if (initDebugSectionEl) initDebugSectionEl.classList.toggle("hidden", !isAdmin);
       };
 
       const pickFirstValue = (...candidates) => {
@@ -665,9 +680,13 @@ Job Title: ${jobTitleValue || "N/A"}
       // };
 
       const logDebug = (message) => {
-        if (!debugLogEl) return;
         const timestamp = new Date().toLocaleTimeString();
-        debugLogEl.textContent = `[${timestamp}] ${message}\n` + debugLogEl.textContent;
+        if (debugLogEl) {
+          debugLogEl.textContent = `[${timestamp}] ${message}\n` + debugLogEl.textContent;
+        }
+        if (initDebugLogEl) {
+          initDebugLogEl.textContent = `[${timestamp}] ${message}\n` + initDebugLogEl.textContent;
+        }
       };
 
       const logDebugDetail = (label, detail) => {
@@ -680,6 +699,42 @@ Job Title: ${jobTitleValue || "N/A"}
         } catch (err) {
           logDebug(`${label}: ${String(detail)}`);
         }
+      };
+
+      const sendStudentContextOnLoad = async () => {
+        const ctx = getStudentContext();
+        if (responseBtn) responseBtn.disabled = true;
+        const payload = {
+          FullName: ctx.fullName,
+          ContactID: String(ctx.contactId),
+          GivenName: ctx.givenName,
+        };
+        const url =
+          "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/d39da5be329d41849dd8148dadc64016/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=cJzfjCDuTI3kVJNFpiiZT2S47B8zS5XvDwTBIQRX6XE";
+
+        logDebug("Sending student context on load");
+        logDebugDetail("Student context payload", payload);
+
+        try {
+          const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          logDebugDetail("Student context HTTP status", `${response.status} ${response.statusText}`);
+          const rawText = await response.text();
+          lastStudentContextResponseText = rawText || "";
+          logDebugDetail("Student context response", rawText || "(empty)");
+          if (responseBtn) responseBtn.disabled = false;
+        } catch (error) {
+          logDebugDetail("Student context error", error?.message || String(error));
+          if (responseBtn) responseBtn.disabled = false;
+        }
+      };
+
+      const finishInitialisation = () => {
+        if (initScreenEl) initScreenEl.classList.add("hidden");
+        if (appShellEl) appShellEl.classList.remove("hidden");
       };
 
       const updateDictationUi = (stateText) => {
@@ -1145,12 +1200,17 @@ END_REVIEW>>>`;
         }
       });
 
-      applyUrlStudentContext();
-      updateStudentContextBanner();
-      initFullTranscript();
-      // updateModeLabel();
-      updateDebugVisibility();
-      populateMicrophones();
+      (async () => {
+        if (initStatusEl) initStatusEl.textContent = "Initialising…";
+        applyUrlStudentContext();
+        updateStudentContextBanner();
+        initFullTranscript();
+        updateDebugVisibility();
+        await sendStudentContextOnLoad();
+        await populateMicrophones();
+        if (initStatusEl) initStatusEl.textContent = "Ready.";
+        finishInitialisation();
+      })();
 
       dictateStartBtn?.addEventListener("click", () => startDictation());
       dictateStopBtn?.addEventListener("click", () => stopDictation());
