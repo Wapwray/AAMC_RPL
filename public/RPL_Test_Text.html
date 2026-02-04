@@ -247,6 +247,12 @@
         if (micStatusEl) micStatusEl.textContent = message;
       };
 
+      const isNoTranscriptResponse = (value) => {
+        if (!value) return false;
+        if (typeof value !== "string") return false;
+        return value.trim().toLowerCase() === "no transcript";
+      };
+
       const populateMicrophones = async () => {
         if (!micSelectEl) return;
         if (!navigator?.mediaDevices?.enumerateDevices) {
@@ -620,6 +626,10 @@ Job Title: ${jobTitleValue || "N/A"}
             transcriptText = text || "";
             lastStudentContextResponseText = text || "";
             logDebugDetail("Student context response", text || "(empty)");
+          }
+          if (isNoTranscriptResponse(transcriptText)) {
+            logDebug("Student context returned 'No Transcript'");
+            return;
           }
           if (transcriptText) {
             resumeTranscriptText = transcriptText;
@@ -1121,11 +1131,11 @@ END_REVIEW>>>`;
         }
       });
 
+      sendStudentContextOnLoad();
       applyUrlStudentContext();
       updateStudentContextBanner();
       initFullTranscript();
       // updateModeLabel();
-      sendStudentContextOnLoad();
       updateDebugVisibility();
       populateMicrophones();
 
