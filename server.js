@@ -47,25 +47,21 @@ app.post("/api/speech/token", async (_req, res) => {
 });
 
 app.post("/api/analysis/chat", async (req, res) => {
-  // const modeHeader = String(req.headers["x-rpl-mode"] || "").toLowerCase();
-  // const useRouter = modeHeader === "router";
-  const useRouter = true;
+  const modeHeader = String(req.headers["x-rpl-mode"] || "").toLowerCase();
+  const isFinal = modeHeader === "final";
+  const useRouter = !isFinal;
 
-  const apiKey = useRouter ? process.env.RPL_ROUTER_API_KEY : process.env.RPL_API_KEY;
-  const apiVersion = useRouter ? process.env.RPL_ROUTER_API_VERSION : process.env.RPL_API_VERSION;
-  const endpoint = useRouter ? process.env.RPL_ROUTER_AZURE_ENDPOINT : process.env.RPL_AZURE_ENDPOINT;
-  const deployment = useRouter ? process.env.RPL_ROUTER_DEPLOYMENT : process.env.RPL_DEPLOYMENT;
-  const modelName = useRouter ? process.env.RPL_ROUTER_MODEL_NAME : process.env.RPL_MODEL_NAME;
-  // const apiKey = process.env.RPL_API_KEY;
-  // const apiVersion = process.env.RPL_API_VERSION;
-  // const endpoint = process.env.RPL_AZURE_ENDPOINT;
-  // const deployment = process.env.RPL_DEPLOYMENT;
-  // const modelName = process.env.RPL_MODEL_NAME;
+  const apiKey = isFinal ? process.env.RPL_FINAL_API_KEY : process.env.RPL_ROUTER_API_KEY;
+  const apiVersion = isFinal ? process.env.RPL_FINAL_API_VERSION : process.env.RPL_ROUTER_API_VERSION;
+  const endpoint = isFinal ? process.env.RPL_FINAL_AZURE_ENDPOINT : process.env.RPL_ROUTER_AZURE_ENDPOINT;
+  const deployment = isFinal ? process.env.RPL_FINAL_DEPLOYMENT : process.env.RPL_ROUTER_DEPLOYMENT;
+  const modelName = isFinal ? process.env.RPL_FINAL_MODEL_NAME : process.env.RPL_ROUTER_MODEL_NAME;
 
   if (!apiKey || !apiVersion || !endpoint || !deployment) {
     res.status(500).json({
-      error:
-        "Missing required environment variables for selected mode.",
+      error: isFinal
+        ? "Missing required RPL_FINAL_* environment variables."
+        : "Missing required RPL_ROUTER_* environment variables.",
     });
     return;
   }
@@ -83,7 +79,7 @@ app.post("/api/analysis/chat", async (req, res) => {
     deployment
   )}/chat/completions?api-version=${encodeURIComponent(apiVersion)}`;
 
-  const messages = useRouter
+  const messages = useRouter || isFinal
     ? [
         { role: "system", content: "You are a helpful assistant." },
         { role: "user", content: prompt },
@@ -91,7 +87,11 @@ app.post("/api/analysis/chat", async (req, res) => {
     : [{ role: "user", content: prompt }];
 
   const requestedMaxTokens = Number.isFinite(Number(max_tokens)) ? Number(max_tokens) : 300;
-  const resolvedMaxTokens = useRouter ? Math.max(800, requestedMaxTokens) : requestedMaxTokens;
+  const resolvedMaxTokens = isFinal
+    ? Math.max(1200, requestedMaxTokens)
+    : useRouter
+      ? Math.max(800, requestedMaxTokens)
+      : requestedMaxTokens;
 
   const body = {
     messages,
