@@ -726,21 +726,24 @@ Job Title: ${jobTitleValue || "N/A"}
           return false;
         }
         try {
-          const value = await fetchCurrentQuestionFromWebhook();
-          const numberText = extractQuestionNumberFromText(value);
-          const numberMatchIndex = findQuestionIndexByNumber(numberText);
-          if (numberMatchIndex !== null) {
-            currentIndex = numberMatchIndex;
-            return true;
-          }
-          const titleMatchIndex = findQuestionIndexByTitle(value);
+          await fetchCurrentQuestionFromWebhook();
+          const titleValue = parseCurrentQuestionValue(lastQuestionResponseText);
+          const titleMatchIndex = findQuestionIndexByTitle(titleValue);
           if (titleMatchIndex !== null) {
             currentIndex = titleMatchIndex;
             return true;
           }
+          const numberText = extractQuestionNumberFromText(titleValue);
+          const numberMatchIndex = findQuestionIndexByNumber(numberText || "1");
+          if (numberMatchIndex !== null) {
+            currentIndex = numberMatchIndex;
+            return true;
+          }
+          currentIndex = 0;
           return false;
         } catch (error) {
           logDebugDetail("Current question error", error?.message || String(error));
+          currentIndex = 0;
           return false;
         }
       };
