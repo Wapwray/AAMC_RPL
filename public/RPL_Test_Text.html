@@ -146,6 +146,7 @@
             <div class="actions">
               <button id="evaluateBtn">Evaluate</button>
               <button id="nextBtn" class="secondary" disabled>Next</button>
+              <button id="finalBtn" class="secondary">Final</button>
             </div>
           </div>
         </div>
@@ -177,6 +178,7 @@
       const dictationStatusEl = document.getElementById("dictationStatus");
       const evaluateBtn = document.getElementById("evaluateBtn");
       const nextBtn = document.getElementById("nextBtn");
+      const finalBtn = document.getElementById("finalBtn");
       // const modeToggleEl = document.getElementById("modeToggle");
       // const modeLabelEl = document.getElementById("modeLabel");
 
@@ -439,7 +441,7 @@ Job Title: ${jobTitleValue || "N/A"}
           }
           output += `-----------------------------\n${entry.questionText}\n\n`;
           entry.attempts.forEach((attempt, attemptIndex) => {
-            output += `${givenName} (Attempt ${attemptIndex + 1}):\n${attempt.answer}\n`;
+            output += `${givenName} (Attempt ${attemptIndex + 1}):\n${attempt.answer}\n\n`;
             if (attempt.feedback) {
               output += `AssessorBot:\n${attempt.feedback}\n`;
             }
@@ -831,6 +833,78 @@ Job Title: ${jobTitleValue || "N/A"}
         return `You are an expert in the Australian Financial industry and are acting as an assessor of ${fullName}'s responses to the question '${questionText}'. ${firstName} has provided multiple attempts. Use all attempts together to judge completeness without requiring repetition.\n\n${answerBlock}\n\nTake into account ${fullName} works in the ${industry} Industry as a ${jobTitle} and assess using the objective '${objective}' if they have demonstrated the required understanding, even if key terms, concepts, or regulations are implied rather than explicitly stated.\n\nProvide a concise overview to ${firstName} that follows these rules:\n\n1) If the responses together effectively answer the question and meet the intent of the Objective, do not ask for any further details. Acknowledge that the response is sufficient and tell them to move to the next question.\n\n2) If the responses together have not effectively answered the question or do not meet the Objective, do not give the answer. Only ask for the missing information that has not been covered yet. Advise ${firstName} to add more details by pressing the 'Start' button or typing in the Chat box below. Tell them that if they cannot add any more they can move to the next question.\n\n3) Do not say 'Hi' at the start of the response.`;
       };
 
+      const buildFinalReviewPrompt = (reviewText) => {
+        const industryValue = industry || industryEl?.value?.trim() || "";
+        return `You are an expert reviewer in Australia for the ${industryValue || "Not stated in the Review"} industry. Use Australian English and spelling.
+
+SOURCE OF TRUTH
+Use ONLY the content inside the REVIEW block below. Do not use outside knowledge.
+If a detail is missing, write exactly: Not stated in the Review.
+
+STATUS RULE
+- Satisfactory = every question is ultimately satisfactory (including after follow-ups recorded in the source).
+- Discussion Required = at least one question remains unsatisfactory or unanswered in the final state.
+
+OUTPUT RULES
+- Produce valid HTML only (no code fences/CSS/JS).
+- Follow the structure EXACTLY as below; do not add other sections.
+- Keep tone factual and neutral.
+- Do NOT include recommendations, next steps, guidance, or action items.
+
+CONDITIONALS (do NOT render these lines in the output; they are just instructions)
+- If there are NO initially-unsatisfactory questions, in the “Questions Where the Student Did Not Give a Satisfactory Answer” section output ONLY:
+  “All questions were ultimately answered satisfactorily.” and do NOT include any <article> blocks.
+- If there ARE any initially-unsatisfactory questions, output one <article> block per such question (as shown), then proceed to the satisfactory list.
+
+HTML STRUCTURE (fill placeholders ONLY from the REVIEW; comments below are invisible in browsers)
+
+<u><strong>RPL Assessment Review Report</strong></u>
+
+<section>
+  <p><strong>Name:</strong>  Student Name </p>
+  <p><strong>Industry:</strong>  Industry </p>
+  <p><strong>Job Title:</strong>  Job Title </p>
+</section>
+
+<u><strong>Executive Summary — [Satisfactory | Discussion Required]</strong></u>
+<p>
+  2–5 sentences stating this is an RPL assessment review; summarising what was
+  evaluated at a high level (e.g., regulatory knowledge, ethics, client service,
+  workload management, professional development) using Australian terminology;
+  and giving a neutral overall appraisal consistent with the selected status.
+  Only include details present in the REVIEW; if a required detail is missing,
+  write: Not stated in the Review.
+</p>
+
+<u><strong>Questions Where the Student Did Not Give a Satisfactory Answer</strong></u>
+<!-- If none: output only the next paragraph line; omit all <article> blocks. -->
+<p>All questions were ultimately answered satisfactorily.</p>
+
+<!-- If there were initially-unsatisfactory questions, DELETE the single line above
+     and output one <article> block per question using this pattern: -->
+<!--
+<article>
+  <u><strong>Question [#]: [Short question text]</strong></u>
+  <p><strong>Why listed here:</strong> Initially required further detail before being deemed satisfactory, or remains unsatisfactory.</p>
+  <p><strong>Student’s Initial Response:</strong> [Concise paraphrase of the student’s first answer]</p>
+  <p><strong>AssessorBot Feedback:</strong> [Key feedback requesting additions/clarifications]</p>
+  <p><strong>Student’s Follow-up Response:</strong> [Concise paraphrase of the follow-up; if none, write: Not stated in the Review]</p>
+  <p><strong>AssessorBot Final Comment/Outcome:</strong> [Outcome summary; note whether the answer became satisfactory or still needs discussion]</p>
+</article>
+-->
+
+<u><strong>Questions Where the Student Gave a Satisfactory Answer</strong></u>
+<ul>
+  <!-- List each question that was satisfactory in the final state -->
+  <li><strong>Question [#]:</strong> [One-line description of what the student demonstrated or identified]</li>
+</ul>
+
+REVIEW
+<<<BEGIN_REVIEW
+${reviewText}
+END_REVIEW>>>`;
+      };
+
       const callTextModel = async (prompt) => {
         logDebug("Calling /api/analysis/chat");
         logDebugDetail("AI mode", aiMode);
@@ -1006,6 +1080,30 @@ Job Title: ${jobTitleValue || "N/A"}
         currentIndex += 1;
         renderQuestion();
         setStatus("Ready.");
+      });
+
+      finalBtn?.addEventListener("click", async () => {
+        try {
+          const reviewText = buildFullTranscript();
+          const prompt = buildFinalReviewPrompt(reviewText);
+          setStatus("Generating final review...");
+          finalBtn.disabled = true;
+          const html = await callTextModel(prompt);
+          const reportWindow = window.open("", "RPLFinalReview", "width=900,height=700,scrollbars=yes");
+          if (!reportWindow) {
+            setStatus("Popup blocked. Please allow pop-ups to view the report.");
+            finalBtn.disabled = false;
+            return;
+          }
+          reportWindow.document.open();
+          reportWindow.document.write(html);
+          reportWindow.document.close();
+          setStatus("Final review ready.");
+        } catch (err) {
+          setStatus(err?.message || "Unable to generate final review.");
+        } finally {
+          finalBtn.disabled = false;
+        }
       });
     </script>
   </body>
