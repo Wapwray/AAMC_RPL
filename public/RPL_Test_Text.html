@@ -203,6 +203,8 @@
       let speechSilentGain = null;
       let speechTokenInfo = { token: "", region: "", expiresAt: 0 };
       let fullTranscript = "";
+      let assessmentStartAt = null;
+      let transcriptQuestions = [];
       const DEFAULT_FULL_NAME = "Billy Broker";
       const DEFAULT_GIVEN_NAME = "Billy";
       const DEFAULT_CONTACT_ID = "123456";
@@ -376,9 +378,86 @@
         window.RPLFullTranscript = fullTranscript;
       };
 
+      const formatDate = (value) => value.toLocaleDateString();
+      const formatDateTime = (value) => value.toLocaleString();
+
+      const getOverallAssessment = (feedback) => {
+        if (!feedback) return "";
+        const normalized = feedback.toLowerCase();
+        if (normalized.includes("proceed to the next question") || normalized.includes("sufficient")) {
+          return "SATISFACTORY";
+        }
+        if (normalized.includes("add more") || normalized.includes("more details") || normalized.includes("not effectively")) {
+          return "NEEDS MORE INFO";
+        }
+        return "SATISFACTORY";
+      };
+
+      const ensureTranscriptQuestion = (index, questionText) => {
+        if (!transcriptQuestions[index]) {
+          transcriptQuestions[index] = {
+            questionText: questionText || "",
+            attempts: [],
+            summary: "",
+          };
+        }
+        return transcriptQuestions[index];
+      };
+
+      const buildFullTranscript = () => {
+        const ctx = getStudentContext();
+        const now = new Date();
+        const startStamp = assessmentStartAt ? formatDateTime(assessmentStartAt) : formatDateTime(now);
+        const industryValue = industry || industryEl?.value?.trim() || "";
+        const jobTitleValue = jobTitle || jobTitleEl?.value?.trim() || "";
+        let output =
+`=============================
+Assessment Transcript
+=============================
+Name: ${ctx.fullName}
+Contact ID: ${ctx.contactId}
+Assessment: RPL
+Date: ${formatDate(now)}
+Initial Start Date: ${startStamp}
+Industry: ${industryValue || "N/A"}
+Job Title: ${jobTitleValue || "N/A"}
+=============================
+
+`;
+
+        const givenName = ctx.givenName || ctx.fullName;
+        transcriptQuestions.forEach((entry, index) => {
+          if (!entry) return;
+          const summaryText = entry.summary || "";
+          const overallAssessment = getOverallAssessment(summaryText);
+          output += `Question ${index + 1}: ${entry.questionText}\n\n`;
+          if (summaryText) {
+            output += `Summary: ${summaryText}\n\n`;
+          }
+          if (overallAssessment) {
+            output += `Overall assessment: ${overallAssessment}.\n\n`;
+          }
+          output += `-----------------------------\n${entry.questionText}\n\n`;
+          entry.attempts.forEach((attempt, attemptIndex) => {
+            output += `${givenName} (Attempt ${attemptIndex + 1}):\n${attempt.answer}\n`;
+            if (attempt.feedback) {
+              output += `AssessorBot:\n${attempt.feedback}\n`;
+            }
+            if (attempt.submittedAt) {
+              output += `Submitted: ${formatDateTime(attempt.submittedAt)}\n`;
+            }
+            output += "\n";
+          });
+          output += "-----------------------------\n";
+        });
+
+        return output;
+      };
+
       const sendTranscriptOnNext = async () => {
         const ctx = getStudentContext();
-        if (!fullTranscript) initFullTranscript();
+        fullTranscript = buildFullTranscript();
+        window.RPLFullTranscript = fullTranscript;
         const payload = {
           FullName: ctx.fullName,
           ContactID: String(ctx.contactId),
@@ -810,6 +889,7 @@
         }
 
         firstName = fullName.split(" ").filter(Boolean)[0] || fullName;
+        assessmentStartAt = new Date();
         setStatus("Loading questions...");
         beginBtn.disabled = true;
 
@@ -874,6 +954,12 @@
 
         currentAttempts += 1;
         currentResponses.push(answer);
+        const questionText = questions[currentIndex]?.field_5 || questions[currentIndex]?.Title || "";
+        const attemptRecord = {
+          answer,
+          submittedAt: new Date(),
+          feedback: "",
+        };
         addChatEntry(`Attempt ${currentAttempts}: ${answer}`, "user");
         answerInputEl.value = "";
         setStatus(`Evaluating response (attempt ${currentAttempts} of ${MAX_ATTEMPTS})...`);
@@ -883,6 +969,11 @@
           const prompt = buildPrompt(questions[currentIndex], currentResponses);
           const feedback = await callTextModel(prompt);
           addChatEntry(feedback, "ai");
+          attemptRecord.feedback = feedback;
+          const entry = ensureTranscriptQuestion(currentIndex, questionText);
+          entry.questionText = questionText;
+          entry.attempts.push(attemptRecord);
+          entry.summary = feedback;
           nextBtn.disabled = false;
           if (currentAttempts >= MAX_ATTEMPTS) {
             evaluateBtn.disabled = true;
