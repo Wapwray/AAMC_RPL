@@ -614,6 +614,7 @@ Job Title: ${jobTitleValue || "N/A"}
           if (contentType.includes("application/json")) {
             const json = await response.json().catch(() => ({}));
             transcriptText =
+              json?.body ||
               json?.FullTranscript ||
               json?.fullTranscript ||
               json?.transcript ||
