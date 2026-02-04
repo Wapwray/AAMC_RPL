@@ -58,7 +58,7 @@
       button:hover:not(:disabled) { background: var(--primary-dark); }
       button.secondary:hover:not(:disabled) { background: #eef6ff; }
       .hidden { display: none !important; }
-      .transcriptFloatingBtn { position: fixed; left: 24px; bottom: 24px; z-index: 50; }
+      .floatingButtonGroup { position: fixed; left: 24px; bottom: 24px; z-index: 50; display: flex; gap: 10px; flex-wrap: wrap; }
     </style>
   </head>
   <body>
@@ -154,7 +154,10 @@
       </div>
     </div>
 
-    <button id="transcriptBtn" class="secondary transcriptFloatingBtn">Transcript</button>
+    <div class="floatingButtonGroup">
+      <button id="transcriptBtn" class="secondary">Transcript</button>
+      <button id="responseBtn" class="secondary">Response</button>
+    </div>
 
     <script>
       const questionsUrl =
@@ -183,6 +186,7 @@
       const nextBtn = document.getElementById("nextBtn");
       const finalBtn = document.getElementById("finalBtn");
       const transcriptBtn = document.getElementById("transcriptBtn");
+      const responseBtn = document.getElementById("responseBtn");
       // const modeToggleEl = document.getElementById("modeToggle");
       // const modeLabelEl = document.getElementById("modeLabel");
 
@@ -213,6 +217,7 @@
       let transcriptQuestions = [];
       let resumeTranscriptText = "";
       let resumeApplied = false;
+      let lastStudentContextResponseText = "";
       const DEFAULT_FULL_NAME = "Billy Broker";
       const DEFAULT_GIVEN_NAME = "Billy";
       const DEFAULT_CONTACT_ID = "123456";
@@ -608,10 +613,12 @@ Job Title: ${jobTitleValue || "N/A"}
               json?.transcript ||
               json?.text ||
               "";
+            lastStudentContextResponseText = JSON.stringify(json, null, 2);
             logDebugDetail("Student context response", json || "(empty)");
           } else {
             const text = await response.text();
             transcriptText = text || "";
+            lastStudentContextResponseText = text || "";
             logDebugDetail("Student context response", text || "(empty)");
           }
           if (transcriptText) {
@@ -1213,7 +1220,7 @@ END_REVIEW>>>`;
           const prompt = buildFinalReviewPrompt(reviewText);
           setStatus("Generating final review...");
           finalBtn.disabled = true;
-          const html = await callTextModel(prompt, { mode: "final", temperature: 0.1, max_tokens: 1200 });
+          const html = await callTextModel(prompt);
           const reportWindow = window.open("", "RPLFinalReview", "width=900,height=700,scrollbars=yes");
           if (!reportWindow) {
             setStatus("Popup blocked. Please allow pop-ups to view the report.");
@@ -1239,6 +1246,22 @@ END_REVIEW>>>`;
           return;
         }
         const escaped = transcriptText
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+        reportWindow.document.open();
+        reportWindow.document.write(`<pre style="font-family:Segoe UI, Tahoma, Geneva, Verdana, sans-serif; white-space:pre-wrap;">${escaped}</pre>`);
+        reportWindow.document.close();
+      });
+
+      responseBtn?.addEventListener("click", () => {
+        const responseText = lastStudentContextResponseText || "(empty)";
+        const reportWindow = window.open("", "RPLResponse", "width=900,height=700,scrollbars=yes");
+        if (!reportWindow) {
+          setStatus("Popup blocked. Please allow pop-ups to view the response.");
+          return;
+        }
+        const escaped = responseText
           .replace(/&/g, "&amp;")
           .replace(/</g, "&lt;")
           .replace(/>/g, "&gt;");
