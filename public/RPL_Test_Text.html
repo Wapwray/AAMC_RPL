@@ -167,6 +167,7 @@
       <button id="transcriptBtn" class="secondary">Transcript</button>
       <button id="responseBtn" class="secondary" disabled>Response</button>
       <button id="questionBtn" class="secondary" disabled>Question</button>
+      <button id="tableBtn" class="secondary" disabled>Table</button>
     </div>
 
     <script>
@@ -203,6 +204,7 @@
       const transcriptBtn = document.getElementById("transcriptBtn");
       const responseBtn = document.getElementById("responseBtn");
       const questionBtn = document.getElementById("questionBtn");
+      const tableBtn = document.getElementById("tableBtn");
       // const modeToggleEl = document.getElementById("modeToggle");
       // const modeLabelEl = document.getElementById("modeLabel");
 
@@ -222,6 +224,9 @@
       let audioCtx = null;
       let micStream = null;
       let micSourceNode = null;
+      let mediaRecorder = null;
+      let recordedChunks = [];
+      let lastResponseRecording = null;
       let speechRecognizer = null;
       let speechPushStream = null;
       let speechTapNode = null;
@@ -781,6 +786,104 @@ Job Title: ${jobTitleValue || "N/A"}
         if (dictateStopBtn) dictateStopBtn.disabled = !isDictating;
       };
 
+      const blobToBase64 = (blob) => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const result = reader.result;
+          if (typeof result === "string") {
+            const commaIndex = result.indexOf(",");
+            resolve(commaIndex >= 0 ? result.slice(commaIndex + 1) : result);
+          } else {
+            reject(new Error("Unable to convert blob to base64."));
+          }
+        };
+        reader.onerror = () => reject(reader.error || new Error("Unable to read blob."));
+        reader.readAsDataURL(blob);
+      });
+
+      const startMediaRecorder = (stream) => {
+        if (!stream || typeof MediaRecorder === "undefined") return;
+        recordedChunks = [];
+        lastResponseRecording = null;
+        try {
+          mediaRecorder = new MediaRecorder(stream);
+        } catch (err) {
+          logDebug("MediaRecorder unavailable", err?.message || String(err));
+          mediaRecorder = null;
+          return;
+        }
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data && event.data.size) {
+            recordedChunks.push(event.data);
+          }
+        };
+        mediaRecorder.onstop = () => {
+          if (!recordedChunks.length) return;
+          const blob = new Blob(recordedChunks, { type: mediaRecorder?.mimeType || "audio/webm" });
+          lastResponseRecording = {
+            blob,
+            contentType: blob.type || "audio/webm",
+          };
+          recordedChunks = [];
+        };
+        try {
+          mediaRecorder.start();
+        } catch (err) {
+          logDebug("MediaRecorder start failed", err?.message || String(err));
+        }
+      };
+
+      const stopMediaRecorder = () => {
+        if (!mediaRecorder) return;
+        if (mediaRecorder.state !== "inactive") {
+          try {
+            mediaRecorder.stop();
+          } catch (err) {
+            logDebug("MediaRecorder stop failed", err?.message || String(err));
+          }
+        }
+      };
+
+      const sendRecordingOnEvaluate = async (attemptNumber, questionNumber) => {
+        if (!lastResponseRecording?.blob) return;
+        const ctx = getStudentContext();
+        const givenName = ctx.givenName;
+        const nameValue = fullName || ctx.fullName;
+        const contactValue = String(ctx.contactId);
+        const base64Data = await blobToBase64(lastResponseRecording.blob);
+        const payload = {
+          FullName: nameValue,
+          GivenName: givenName,
+          ContactID: contactValue,
+          Recordings: [
+            {
+              FileName: `${nameValue} - ${contactValue} - ${questionNumber} - ${attemptNumber}`,
+              Label: `Question ${questionNumber} Attempt ${attemptNumber}`,
+              ContentType: lastResponseRecording.contentType || "audio/webm",
+              Base64Data: base64Data,
+            }
+          ]
+        };
+        const url =
+          "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/e4f5525ffa66441d927fd17bbaf5bd03/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=0h2Wg4ORGlkmrTtS7fw09cv8m4MTH74l68qwSmw3t4s";
+        try {
+          const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          logDebugDetail("Recording HTTP status", `${response.status} ${response.statusText}`);
+          const text = await response.text();
+          if (text) {
+            logDebugDetail("Recording response", text);
+          }
+        } catch (error) {
+          logDebugDetail("Recording error", error?.message || String(error));
+        } finally {
+          lastResponseRecording = null;
+        }
+      };
+
       const fetchAzureSpeechToken = async () => {
         const now = Date.now();
         if (speechTokenInfo.token && speechTokenInfo.region && speechTokenInfo.expiresAt - 60000 > now) {
@@ -998,6 +1101,7 @@ Job Title: ${jobTitleValue || "N/A"}
             micStream = stream;
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             micSourceNode = audioCtx.createMediaStreamSource(stream);
+            startMediaRecorder(stream);
             return startAzureRecognition(audioCtx, micSourceNode);
           })
           .catch((err) => {
@@ -1009,6 +1113,7 @@ Job Title: ${jobTitleValue || "N/A"}
       const stopDictation = () => {
         if (!isDictating && !speechRecognizer) return;
         try {
+          stopMediaRecorder();
           stopAzureRecognition();
         } catch (err) {
           logDebug(`Dictation stop failed: ${err?.message || String(err)}`);
@@ -1048,6 +1153,73 @@ Job Title: ${jobTitleValue || "N/A"}
         appendToTranscript(role === "user" ? "User" : "System", text);
       };
 
+      const buildQuestionsTableHtml = (questionList) => {
+        if (!Array.isArray(questionList) || !questionList.length) {
+          return "<p>No questions available.</p>";
+        }
+        const allKeys = questionList.reduce((keys, question) => {
+          if (!question || typeof question !== "object") return keys;
+          Object.keys(question).forEach((key) => keys.add(key));
+          return keys;
+        }, new Set());
+
+        const orderedKeys = Array.from(allKeys);
+        if (!orderedKeys.length) return "<p>No question fields available.</p>";
+
+        const escapeHtml = (value) => String(value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/\"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+
+        const headerRow = orderedKeys
+          .map((key) => `<th>${escapeHtml(key)}</th>`)
+          .join("");
+
+        const bodyRows = questionList
+          .map((question) => {
+            const cells = orderedKeys
+              .map((key) => {
+                const value = question?.[key];
+                const cellText =
+                  value === null || value === undefined
+                    ? ""
+                    : typeof value === "object"
+                      ? JSON.stringify(value)
+                      : String(value);
+                return `<td>${escapeHtml(cellText)}</td>`;
+              })
+              .join("");
+            return `<tr>${cells}</tr>`;
+          })
+          .join("");
+
+        return `
+          <div style="font-family:Segoe UI, Tahoma, Geneva, Verdana, sans-serif; color:#0f172a;">
+            <h2 style="margin:0 0 12px; font-size:18px;">Question Table</h2>
+            <div style="overflow:auto; border:1px solid #e2e8f0; border-radius:10px;">
+              <table style="border-collapse:collapse; width:100%; min-width:700px;">
+                <thead>
+                  <tr style="background:#f8fafc; text-align:left;">
+                    ${headerRow}
+                  </tr>
+                </thead>
+                <tbody>
+                  ${bodyRows}
+                </tbody>
+              </table>
+            </div>
+            <style>
+              th, td { border: 1px solid #cbd5f5; padding: 8px 10px; vertical-align: top; }
+              th { font-weight: 700; font-size: 13px; }
+              td { font-size: 12px; }
+              tbody tr:nth-child(even) { background: #f9fbff; }
+            </style>
+          </div>
+        `;
+      };
+
       const renderQuestion = () => {
         const question = questions[currentIndex] || {};
         const total = questions.length;
@@ -1055,6 +1227,7 @@ Job Title: ${jobTitleValue || "N/A"}
         headerTitleEl.textContent = `Compliance - Question ${number} of ${total} - Attempt 1`;
         questionTextEl.textContent = question.field_5 || question.Title || "";
         answerInputEl.value = "";
+        lastResponseRecording = null;
         currentAttempts = 0;
         currentResponses = [];
         evaluateBtn.disabled = false;
@@ -1219,6 +1392,7 @@ END_REVIEW>>>`;
             throw new Error(error || "No questions returned.");
           }
           questions = items;
+          if (tableBtn) tableBtn.disabled = false;
           setupCard.classList.add("hidden");
           quizCard.classList.remove("hidden");
           const resumed = await updateCurrentQuestionFromWebhook();
@@ -1242,6 +1416,7 @@ END_REVIEW>>>`;
         updateStudentContextBanner();
         initFullTranscript();
         updateDebugVisibility();
+        window.addEventListener("hashchange", updateDebugVisibility);
         await sendStudentContextOnLoad();
         await populateMicrophones();
         if (initStatusEl) initStatusEl.textContent = "Ready.";
@@ -1280,6 +1455,8 @@ END_REVIEW>>>`;
         currentAttempts += 1;
         currentResponses.push(answer);
         const questionText = questions[currentIndex]?.field_5 || questions[currentIndex]?.Title || "";
+        const attemptNumber = currentAttempts;
+        const questionNumber = currentIndex + 1;
         const attemptRecord = {
           answer,
           submittedAt: new Date(),
@@ -1291,6 +1468,7 @@ END_REVIEW>>>`;
         evaluateBtn.disabled = true;
 
         try {
+          await sendRecordingOnEvaluate(attemptNumber, questionNumber);
           const prompt = buildPrompt(questions[currentIndex], currentResponses);
           const feedback = await callTextModel(prompt);
           addChatEntry(feedback, "ai");
@@ -1433,6 +1611,18 @@ END_REVIEW>>>`;
           .replace(/>/g, "&gt;");
         reportWindow.document.open();
         reportWindow.document.write(`<pre style="font-family:Segoe UI, Tahoma, Geneva, Verdana, sans-serif; white-space:pre-wrap;">${escaped}</pre>`);
+        reportWindow.document.close();
+      });
+
+      tableBtn?.addEventListener("click", () => {
+        const html = buildQuestionsTableHtml(questions);
+        const reportWindow = window.open("", "RPLQuestionTable", "width=1100,height=700,scrollbars=yes");
+        if (!reportWindow) {
+          setStatus("Popup blocked. Please allow pop-ups to view the table.");
+          return;
+        }
+        reportWindow.document.open();
+        reportWindow.document.write(html);
         reportWindow.document.close();
       });
     </script>
