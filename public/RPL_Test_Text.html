@@ -1116,7 +1116,6 @@ END_REVIEW>>>`;
         assessmentStartAt = new Date();
         setStatus("Loading questions...");
         beginBtn.disabled = true;
-        sendStudentContextOnLoad();
 
         try {
           const response = await fetch(questionsUrl, {
@@ -1145,6 +1144,7 @@ END_REVIEW>>>`;
         }
       });
 
+      sendStudentContextOnLoad();
       applyUrlStudentContext();
       updateStudentContextBanner();
       initFullTranscript();
