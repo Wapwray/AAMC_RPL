@@ -250,7 +250,8 @@
       const isNoTranscriptResponse = (value) => {
         if (!value) return false;
         if (typeof value !== "string") return false;
-        return value.trim().toLowerCase() === "no transcript";
+        const normalized = value.trim().toLowerCase();
+        return normalized === "no transcript" || normalized === "no transcription";
       };
 
       const populateMicrophones = async () => {
@@ -476,6 +477,36 @@
           };
         }
         return parsed;
+      };
+
+      const extractTranscriptFromResponseText = (rawText) => {
+        if (!rawText || typeof rawText !== "string") return "";
+        try {
+          const json = JSON.parse(rawText);
+          const transcriptText =
+            json?.body ||
+            json?.FullTranscript ||
+            json?.fullTranscript ||
+            json?.transcript ||
+            json?.text ||
+            "";
+          return typeof transcriptText === "string" ? transcriptText : "";
+        } catch {
+          return rawText;
+        }
+      };
+
+      const findLastAnsweredIndex = (entries, totalCount) => {
+        const maxIndex = Math.min(entries.length, totalCount) - 1;
+        for (let i = maxIndex; i >= 0; i -= 1) {
+          const entry = entries[i];
+          if (!entry) continue;
+          const hasSummary = typeof entry.summary === "string" && entry.summary.trim();
+          const hasAttempt = Array.isArray(entry.attempts)
+            && entry.attempts.some((attempt) => attempt?.answer && String(attempt.answer).trim());
+          if (hasSummary || hasAttempt) return i;
+        }
+        return 0;
       };
 
       const findFirstUnansweredIndex = (entries, totalCount) => {
@@ -1130,13 +1161,27 @@ END_REVIEW>>>`;
           questions = items;
           setupCard.classList.add("hidden");
           quizCard.classList.remove("hidden");
-          const resumed = applyTranscriptResume(resumeTranscriptText);
+          const transcriptText = extractTranscriptFromResponseText(lastStudentContextResponseText);
+          let resumed = false;
+          if (transcriptText && !isNoTranscriptResponse(transcriptText)) {
+            resumeTranscriptText = transcriptText;
+            fullTranscript = transcriptText;
+            window.RPLFullTranscript = transcriptText;
+            const parsed = parseTranscriptQuestions(transcriptText);
+            if (parsed.length) {
+              transcriptQuestions = parsed;
+              currentIndex = findLastAnsweredIndex(transcriptQuestions, questions.length);
+              resumeApplied = true;
+              resumed = true;
+            }
+          }
+
           if (currentIndex >= questions.length) {
             setCompletedState();
           } else {
             if (!resumed) currentIndex = 0;
             renderQuestion();
-            setStatus(resumed ? "Resumed from previous transcript." : "Ready.");
+            setStatus(resumed ? "Resumed at last answered question." : "Ready.");
           }
         } catch (err) {
           setStatus(err?.message || String(err));
