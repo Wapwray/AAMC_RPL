@@ -23,7 +23,9 @@
       .shell { max-width: 1100px; margin: 0 auto; display: grid; gap: 18px; }
       .header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
       .header h1 { margin: 0; font-size: 20px; font-weight: 700; }
-      .header .status { font-size: 13px; color: var(--muted); }
+      .status { font-size: 13px; color: var(--muted); }
+      .progressRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+      .progressRow h1 { margin: 0; font-size: 20px; font-weight: 700; }
       .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 18px; box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08); }
       .studentContext { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: baseline; justify-content: space-between; }
       .studentContext__name { font-weight: 700; font-size: 15px; }
@@ -75,8 +77,6 @@
       <div class="shell hidden" id="appShell">
         <div class="header">
           <div style="font-weight:700; text-decoration:underline;">AAMC RPL QUIZ</div>
-          <h1 id="headerTitle">Compliance - Question 1 of 0 - Attempt 1</h1>
-          <div class="status" id="status">Idle.</div>
         </div>
 
         <div class="card" id="studentContextCard">
@@ -102,6 +102,11 @@
             </select>
             <div class="micSelectHint" id="micStatus">Select the microphone to use for dictation.</div>
           </div>
+        </div>
+
+        <div class="progressRow hidden" id="progressRow">
+          <h1 id="headerTitle">Compliance - Question 1 of 0 - Attempt 1</h1>
+          <div class="status" id="status">Idle.</div>
         </div>
 
         <div id="setupCard" class="card">
@@ -192,6 +197,7 @@
       const initDebugSectionEl = document.getElementById("initDebugSection");
       const initDebugLogEl = document.getElementById("initDebugLog");
       const appShellEl = document.getElementById("appShell");
+      const progressRowEl = document.getElementById("progressRow");
       const micSelectEl = document.getElementById("micSelect");
       const micStatusEl = document.getElementById("micStatus");
       const answerInputEl = document.getElementById("answerInput");
@@ -558,6 +564,25 @@
         return index >= 0 ? index : null;
       };
 
+      const findQuestionIndexByNumber = (numberText) => {
+        if (!numberText || !questions.length) return null;
+        const normalized = String(numberText).trim();
+        if (!normalized) return null;
+        const regex = new RegExp(`\\b${normalized}\\b`, "i");
+        const candidates = questions.map((question) =>
+          (question?.Title || question?.field_5 || "").toString()
+        );
+        const index = candidates.findIndex((candidate) => regex.test(candidate));
+        return index >= 0 ? index : null;
+      };
+
+      const extractQuestionNumberFromText = (value) => {
+        if (!value) return "";
+        const text = String(value);
+        const match = text.match(/\b(\d{1,3})\b/);
+        return match ? match[1] : "";
+      };
+
       const fetchCurrentQuestionFromWebhook = async () => {
         const ctx = getStudentContext();
         const payload = {
@@ -702,10 +727,18 @@ Job Title: ${jobTitleValue || "N/A"}
         }
         try {
           const value = await fetchCurrentQuestionFromWebhook();
-          const nextIndex = findQuestionIndexByTitle(value);
-          if (nextIndex === null) return false;
-          currentIndex = nextIndex;
-          return true;
+          const numberText = extractQuestionNumberFromText(value);
+          const numberMatchIndex = findQuestionIndexByNumber(numberText);
+          if (numberMatchIndex !== null) {
+            currentIndex = numberMatchIndex;
+            return true;
+          }
+          const titleMatchIndex = findQuestionIndexByTitle(value);
+          if (titleMatchIndex !== null) {
+            currentIndex = titleMatchIndex;
+            return true;
+          }
+          return false;
         } catch (error) {
           logDebugDetail("Current question error", error?.message || String(error));
           return false;
@@ -1403,6 +1436,7 @@ END_REVIEW>>>`;
             if (!resumed) currentIndex = 0;
             renderQuestion();
             setStatus(resumed ? "Resumed at current question." : "Ready.");
+            if (progressRowEl) progressRowEl.classList.remove("hidden");
           }
         } catch (err) {
           setStatus(err?.message || String(err));
