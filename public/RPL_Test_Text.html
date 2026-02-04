@@ -58,6 +58,7 @@
       button:hover:not(:disabled) { background: var(--primary-dark); }
       button.secondary:hover:not(:disabled) { background: #eef6ff; }
       .hidden { display: none !important; }
+      .transcriptFloatingBtn { position: fixed; left: 24px; bottom: 24px; z-index: 50; }
     </style>
   </head>
   <body>
@@ -153,6 +154,8 @@
       </div>
     </div>
 
+    <button id="transcriptBtn" class="secondary transcriptFloatingBtn">Transcript</button>
+
     <script>
       const questionsUrl =
         "https://default4f0de57b35694b51b8c8b1dadd7ba8.19.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/8feea7df352a455d9efde46977446910/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=AF-53thnNRJd9IxzY55POQzrW8owJ2SA6EhRycxtTEY";
@@ -179,6 +182,7 @@
       const evaluateBtn = document.getElementById("evaluateBtn");
       const nextBtn = document.getElementById("nextBtn");
       const finalBtn = document.getElementById("finalBtn");
+      const transcriptBtn = document.getElementById("transcriptBtn");
       // const modeToggleEl = document.getElementById("modeToggle");
       // const modeLabelEl = document.getElementById("modeLabel");
 
@@ -207,6 +211,8 @@
       let fullTranscript = "";
       let assessmentStartAt = null;
       let transcriptQuestions = [];
+      let resumeTranscriptText = "";
+      let resumeApplied = false;
       const DEFAULT_FULL_NAME = "Billy Broker";
       const DEFAULT_GIVEN_NAME = "Billy";
       const DEFAULT_CONTACT_ID = "123456";
@@ -381,7 +387,11 @@
       };
 
       const formatDate = (value) => value.toLocaleDateString();
-      const formatDateTime = (value) => value.toLocaleString();
+      const formatDateTime = (value) => {
+        if (value instanceof Date) return value.toLocaleString();
+        if (typeof value === "string" && value.trim()) return value.trim();
+        return "";
+      };
 
       const getOverallAssessment = (feedback) => {
         if (!feedback) return "";
@@ -421,6 +431,69 @@
           };
         }
         return transcriptQuestions[index];
+      };
+
+      const parseTranscriptQuestions = (transcriptText) => {
+        if (!transcriptText) return [];
+        const parsed = [];
+        const questionRegex = /Question\s+(\d+):\s*([\s\S]*?)(?=\nQuestion\s+\d+:|$)/g;
+        let match;
+        while ((match = questionRegex.exec(transcriptText))) {
+          const index = Math.max(0, parseInt(match[1], 10) - 1);
+          const section = match[2] || "";
+          const questionLine = (section.split("\n")[0] || "").trim();
+          const summaryMatch = section.match(/Summary:\s*([\s\S]*?)(?=\n\n|\nOverall assessment:|\n-----------------------------)/i);
+          const summary = summaryMatch ? summaryMatch[1].trim() : "";
+          const attempts = [];
+          const attemptsSection = section.split("-----------------------------")[1] || "";
+          const attemptRegex = /\n([^\n]+) \(Attempt (\d+)\):\n([\s\S]*?)(?=\nAssessorBot:|\nSubmitted:|\n\n|\n-----------------------------|$)/g;
+          let attemptMatch;
+          while ((attemptMatch = attemptRegex.exec(attemptsSection))) {
+            const tail = attemptsSection.slice(attemptMatch.index + attemptMatch[0].length);
+            const feedbackMatch = tail.match(/^\n?AssessorBot:\n([\s\S]*?)(?=\nSubmitted:|\n\n|\n-----------------------------|$)/);
+            const submittedMatch = tail.match(/Submitted:\s*([^\n]+)/);
+            attempts.push({
+              answer: (attemptMatch[3] || "").trim(),
+              feedback: feedbackMatch ? feedbackMatch[1].trim() : "",
+              submittedAt: submittedMatch ? submittedMatch[1].trim() : "",
+            });
+          }
+          parsed[index] = {
+            questionText: questionLine,
+            attempts,
+            summary,
+          };
+        }
+        return parsed;
+      };
+
+      const findFirstUnansweredIndex = (entries, totalCount) => {
+        for (let i = 0; i < totalCount; i += 1) {
+          const entry = entries[i];
+          if (!entry || !entry.summary) return i;
+          if (getOverallAssessment(entry.summary) === "NEEDS MORE INFO") return i;
+        }
+        return totalCount;
+      };
+
+      const applyTranscriptResume = (transcriptText) => {
+        if (!transcriptText || resumeApplied || !questions.length) return false;
+        const parsed = parseTranscriptQuestions(transcriptText);
+        if (parsed.length) {
+          transcriptQuestions = parsed;
+        }
+        currentIndex = findFirstUnansweredIndex(transcriptQuestions, questions.length);
+        resumeApplied = true;
+        return true;
+      };
+
+      const setCompletedState = () => {
+        setStatus("All questions completed.");
+        headerTitleEl.textContent = "Compliance - Completed";
+        questionTextEl.textContent = "You have completed all questions.";
+        answerInputEl.value = "";
+        evaluateBtn.disabled = true;
+        nextBtn.disabled = true;
       };
 
       const buildFullTranscript = () => {
@@ -522,8 +595,26 @@ Job Title: ${jobTitleValue || "N/A"}
             body: JSON.stringify(payload),
           });
           logDebugDetail("Student context HTTP status", `${response.status} ${response.statusText}`);
-          const text = await response.text();
-          logDebugDetail("Student context response", text || "(empty)");
+          const contentType = response.headers.get("content-type") || "";
+          let transcriptText = "";
+          if (contentType.includes("application/json")) {
+            const json = await response.json().catch(() => ({}));
+            transcriptText =
+              json?.FullTranscript ||
+              json?.fullTranscript ||
+              json?.transcript ||
+              json?.text ||
+              "";
+            logDebugDetail("Student context response", json || "(empty)");
+          } else {
+            const text = await response.text();
+            transcriptText = text || "";
+            logDebugDetail("Student context response", text || "(empty)");
+          }
+          if (transcriptText) {
+            resumeTranscriptText = transcriptText;
+            applyTranscriptResume(resumeTranscriptText);
+          }
         } catch (error) {
           logDebugDetail("Student context error", error?.message || String(error));
         }
@@ -998,11 +1089,16 @@ END_REVIEW>>>`;
             throw new Error(error || "No questions returned.");
           }
           questions = items;
-          currentIndex = 0;
           setupCard.classList.add("hidden");
           quizCard.classList.remove("hidden");
-          renderQuestion();
-          setStatus("Ready.");
+          const resumed = applyTranscriptResume(resumeTranscriptText);
+          if (currentIndex >= questions.length) {
+            setCompletedState();
+          } else {
+            if (!resumed) currentIndex = 0;
+            renderQuestion();
+            setStatus(resumed ? "Resumed from previous transcript." : "Ready.");
+          }
         } catch (err) {
           setStatus(err?.message || String(err));
           beginBtn.disabled = false;
@@ -1124,6 +1220,22 @@ END_REVIEW>>>`;
         } finally {
           finalBtn.disabled = false;
         }
+      });
+
+      transcriptBtn?.addEventListener("click", () => {
+        const transcriptText = buildFullTranscript();
+        const reportWindow = window.open("", "RPLTranscript", "width=900,height=700,scrollbars=yes");
+        if (!reportWindow) {
+          setStatus("Popup blocked. Please allow pop-ups to view the transcript.");
+          return;
+        }
+        const escaped = transcriptText
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+        reportWindow.document.open();
+        reportWindow.document.write(`<pre style="font-family:Segoe UI, Tahoma, Geneva, Verdana, sans-serif; white-space:pre-wrap;">${escaped}</pre>`);
+        reportWindow.document.close();
       });
     </script>
   </body>
