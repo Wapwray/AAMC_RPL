@@ -502,16 +502,35 @@
         if (typeof rawText !== "string") return String(rawText);
         try {
           const json = JSON.parse(rawText);
-          const value =
+          const directValue =
             json?.Title ||
             json?.title ||
             json?.CurrentQuestion ||
             json?.currentQuestion ||
             json?.question ||
-            json?.body ||
             json?.text ||
             "";
-          return typeof value === "string" ? value : String(value || "");
+          if (typeof directValue === "string" && directValue.trim()) {
+            return directValue;
+          }
+          const bodyValue = json?.body;
+          if (typeof bodyValue === "string" && bodyValue.trim()) {
+            try {
+              const bodyJson = JSON.parse(bodyValue);
+              const nestedValue =
+                bodyJson?.Title ||
+                bodyJson?.title ||
+                bodyJson?.CurrentQuestion ||
+                bodyJson?.currentQuestion ||
+                bodyJson?.question ||
+                bodyJson?.text ||
+                bodyValue;
+              return typeof nestedValue === "string" ? nestedValue : String(nestedValue || "");
+            } catch {
+              return bodyValue;
+            }
+          }
+          return typeof json?.body === "string" ? json.body : String(json?.body || "");
         } catch {
           return rawText;
         }
@@ -521,10 +540,16 @@
         if (!titleText || !questions.length) return null;
         const normalized = String(titleText).trim().toLowerCase();
         if (!normalized) return null;
-        const index = questions.findIndex((question) => {
-          const candidate = (question?.Title || question?.field_5 || "").toString().trim().toLowerCase();
-          return candidate === normalized;
-        });
+        const candidates = questions.map((question) =>
+          (question?.Title || question?.field_5 || "").toString().trim().toLowerCase()
+        );
+
+        let index = candidates.findIndex((candidate) => candidate === normalized);
+        if (index >= 0) return index;
+
+        index = candidates.findIndex((candidate) =>
+          candidate && (candidate.includes(normalized) || normalized.includes(candidate))
+        );
         return index >= 0 ? index : null;
       };
 
