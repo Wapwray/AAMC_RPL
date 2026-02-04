@@ -479,34 +479,59 @@
         return parsed;
       };
 
-      const extractTranscriptFromResponseText = (rawText) => {
-        if (!rawText || typeof rawText !== "string") return "";
+      const parseCurrentQuestionValue = (rawText) => {
+        if (!rawText) return "";
+        if (typeof rawText !== "string") return String(rawText);
         try {
           const json = JSON.parse(rawText);
-          const transcriptText =
+          const value =
+            json?.CurrentQuestion ||
+            json?.currentQuestion ||
+            json?.question ||
             json?.body ||
-            json?.FullTranscript ||
-            json?.fullTranscript ||
-            json?.transcript ||
             json?.text ||
             "";
-          return typeof transcriptText === "string" ? transcriptText : "";
+          return typeof value === "string" ? value : String(value || "");
         } catch {
           return rawText;
         }
       };
 
-      const findLastAnsweredIndex = (entries, totalCount) => {
-        const maxIndex = Math.min(entries.length, totalCount) - 1;
-        for (let i = maxIndex; i >= 0; i -= 1) {
-          const entry = entries[i];
-          if (!entry) continue;
-          const hasSummary = typeof entry.summary === "string" && entry.summary.trim();
-          const hasAttempt = Array.isArray(entry.attempts)
-            && entry.attempts.some((attempt) => attempt?.answer && String(attempt.answer).trim());
-          if (hasSummary || hasAttempt) return i;
+      const parseQuestionIndexFromValue = (value, totalCount) => {
+        if (!value) return null;
+        const match = String(value).match(/\d+/);
+        if (!match) return null;
+        const number = Number.parseInt(match[0], 10);
+        if (!Number.isFinite(number) || number <= 0) return null;
+        const index = number - 1;
+        if (typeof totalCount === "number" && totalCount > 0) {
+          return Math.min(Math.max(index, 0), totalCount - 1);
         }
-        return 0;
+        return Math.max(index, 0);
+      };
+
+      const fetchCurrentQuestionFromWebhook = async () => {
+        const ctx = getStudentContext();
+        const payload = {
+          FullName: ctx.fullName,
+          ContactID: String(ctx.contactId),
+          GivenName: ctx.givenName,
+        };
+        const url =
+          "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/b1ff377a8f444df09e636aebeb258784/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=4pQKTsG4VbeKDS3UDU_3FDvE6WUItJxkJh7SZg1oOuc";
+
+        logDebug("Fetching current question from webhook");
+        logDebugDetail("Current question payload", payload);
+
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        logDebugDetail("Current question HTTP status", `${response.status} ${response.statusText}`);
+        const rawText = await response.text();
+        logDebugDetail("Current question response", rawText || "(empty)");
+        return parseCurrentQuestionValue(rawText);
       };
 
       const findFirstUnansweredIndex = (entries, totalCount) => {
@@ -620,73 +645,17 @@ Job Title: ${jobTitleValue || "N/A"}
         }
       };
 
-      const sendStudentContextOnLoad = async () => {
-        const ctx = getStudentContext();
-        if (responseBtn) responseBtn.disabled = true;
-        const payload = {
-          FullName: ctx.fullName,
-          ContactID: String(ctx.contactId),
-          GivenName: ctx.givenName,
-        };
-        const url =
-          "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/d39da5be329d41849dd8148dadc64016/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=cJzfjCDuTI3kVJNFpiiZT2S47B8zS5XvDwTBIQRX6XE";
-
-        logDebug("Sending student context on load");
-        logDebugDetail("Student context payload", payload);
-
+      const updateCurrentQuestionFromWebhook = async () => {
+        if (isNoTranscriptResponse(lastStudentContextResponseText)) return false;
         try {
-          const response = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          });
-          logDebugDetail("Student context HTTP status", `${response.status} ${response.statusText}`);
-          const contentType = response.headers.get("content-type") || "";
-          const rawText = await response.text();
-          let transcriptText = "";
-          lastStudentContextResponseText = rawText || "";
-          if (contentType.includes("application/json")) {
-            let json = {};
-            if (rawText) {
-              try {
-                json = JSON.parse(rawText);
-              } catch {
-                json = {};
-              }
-            }
-            transcriptText =
-              json?.body ||
-              json?.FullTranscript ||
-              json?.fullTranscript ||
-              json?.transcript ||
-              json?.text ||
-              "";
-            if (!lastStudentContextResponseText && Object.keys(json).length) {
-              lastStudentContextResponseText = JSON.stringify(json, null, 2);
-            }
-            logDebugDetail("Student context response", Object.keys(json).length ? json : rawText || "(empty)");
-          } else {
-            transcriptText = rawText || "";
-            logDebugDetail("Student context response", rawText || "(empty)");
-          }
-          if (responseBtn) responseBtn.disabled = false;
-          if (isNoTranscriptResponse(transcriptText)) {
-            logDebug("Student context returned 'No Transcript'");
-            return;
-          }
-          if (transcriptText) {
-            resumeTranscriptText = transcriptText;
-            fullTranscript = transcriptText;
-            window.RPLFullTranscript = transcriptText;
-            const parsed = parseTranscriptQuestions(transcriptText);
-            if (parsed.length) {
-              transcriptQuestions = parsed;
-            }
-            applyTranscriptResume(resumeTranscriptText);
-          }
+          const value = await fetchCurrentQuestionFromWebhook();
+          const nextIndex = parseQuestionIndexFromValue(value, questions.length);
+          if (nextIndex === null) return false;
+          currentIndex = nextIndex;
+          return true;
         } catch (error) {
-          logDebugDetail("Student context error", error?.message || String(error));
-          if (responseBtn) responseBtn.disabled = false;
+          logDebugDetail("Current question error", error?.message || String(error));
+          return false;
         }
       };
 
@@ -1161,27 +1130,14 @@ END_REVIEW>>>`;
           questions = items;
           setupCard.classList.add("hidden");
           quizCard.classList.remove("hidden");
-          const transcriptText = extractTranscriptFromResponseText(lastStudentContextResponseText);
-          let resumed = false;
-          if (transcriptText && !isNoTranscriptResponse(transcriptText)) {
-            resumeTranscriptText = transcriptText;
-            fullTranscript = transcriptText;
-            window.RPLFullTranscript = transcriptText;
-            const parsed = parseTranscriptQuestions(transcriptText);
-            if (parsed.length) {
-              transcriptQuestions = parsed;
-              currentIndex = findLastAnsweredIndex(transcriptQuestions, questions.length);
-              resumeApplied = true;
-              resumed = true;
-            }
-          }
+          const resumed = await updateCurrentQuestionFromWebhook();
 
           if (currentIndex >= questions.length) {
             setCompletedState();
           } else {
             if (!resumed) currentIndex = 0;
             renderQuestion();
-            setStatus(resumed ? "Resumed at last answered question." : "Ready.");
+            setStatus(resumed ? "Resumed at current question." : "Ready.");
           }
         } catch (err) {
           setStatus(err?.message || String(err));
@@ -1189,7 +1145,6 @@ END_REVIEW>>>`;
         }
       });
 
-      sendStudentContextOnLoad();
       applyUrlStudentContext();
       updateStudentContextBanner();
       initFullTranscript();
@@ -1267,7 +1222,7 @@ END_REVIEW>>>`;
         }
       });
 
-      nextBtn.addEventListener("click", () => {
+      nextBtn.addEventListener("click", async () => {
         sendTranscriptOnNext();
         if (currentIndex + 1 >= questions.length) {
           setStatus("All questions completed.");
@@ -1278,6 +1233,29 @@ END_REVIEW>>>`;
           return;
         }
         currentIndex += 1;
+        const ctx = getStudentContext();
+        const payload = {
+          FullName: ctx.fullName,
+          ContactID: String(ctx.contactId),
+          GivenName: ctx.givenName,
+          CurrentQuestion: String(currentIndex + 1),
+        };
+        const url =
+          "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/5403405d1b2543a48ccd83c2d5f703ee/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=vNYYnuckqabWJ9uC_CH0kGTymUyBIutten9INl_-f-s";
+        try {
+          const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          logDebugDetail("Next question HTTP status", `${response.status} ${response.statusText}`);
+          const text = await response.text();
+          if (text) {
+            logDebugDetail("Next question response", text);
+          }
+        } catch (error) {
+          logDebugDetail("Next question error", error?.message || String(error));
+        }
         renderQuestion();
         setStatus("Ready.");
       });
