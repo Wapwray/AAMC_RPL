@@ -477,14 +477,17 @@
       };
 
       const applyTranscriptResume = (transcriptText) => {
-        if (!transcriptText || resumeApplied || !questions.length) return false;
+        if (!transcriptText || resumeApplied) return false;
         const parsed = parseTranscriptQuestions(transcriptText);
         if (parsed.length) {
           transcriptQuestions = parsed;
         }
-        currentIndex = findFirstUnansweredIndex(transcriptQuestions, questions.length);
-        resumeApplied = true;
-        return true;
+        if (questions.length) {
+          currentIndex = findFirstUnansweredIndex(transcriptQuestions, questions.length);
+          resumeApplied = true;
+          return true;
+        }
+        return false;
       };
 
       const setCompletedState = () => {
@@ -613,6 +616,12 @@ Job Title: ${jobTitleValue || "N/A"}
           }
           if (transcriptText) {
             resumeTranscriptText = transcriptText;
+            fullTranscript = transcriptText;
+            window.RPLFullTranscript = transcriptText;
+            const parsed = parseTranscriptQuestions(transcriptText);
+            if (parsed.length) {
+              transcriptQuestions = parsed;
+            }
             applyTranscriptResume(resumeTranscriptText);
           }
         } catch (error) {
