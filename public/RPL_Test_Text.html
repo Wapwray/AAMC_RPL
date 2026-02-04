@@ -166,6 +166,7 @@
     <div class="floatingButtonGroup">
       <button id="transcriptBtn" class="secondary">Transcript</button>
       <button id="responseBtn" class="secondary" disabled>Response</button>
+      <button id="questionBtn" class="secondary" disabled>Question</button>
     </div>
 
     <script>
@@ -201,6 +202,7 @@
       const finalBtn = document.getElementById("finalBtn");
       const transcriptBtn = document.getElementById("transcriptBtn");
       const responseBtn = document.getElementById("responseBtn");
+      const questionBtn = document.getElementById("questionBtn");
       // const modeToggleEl = document.getElementById("modeToggle");
       // const modeLabelEl = document.getElementById("modeLabel");
 
@@ -232,6 +234,7 @@
       let resumeTranscriptText = "";
       let resumeApplied = false;
       let lastStudentContextResponseText = "";
+      let lastQuestionResponseText = "";
       const DEFAULT_FULL_NAME = "Billy Broker";
       const DEFAULT_GIVEN_NAME = "Billy";
       const DEFAULT_CONTACT_ID = "123456";
@@ -500,6 +503,8 @@
         try {
           const json = JSON.parse(rawText);
           const value =
+            json?.Title ||
+            json?.title ||
             json?.CurrentQuestion ||
             json?.currentQuestion ||
             json?.question ||
@@ -512,17 +517,15 @@
         }
       };
 
-      const parseQuestionIndexFromValue = (value, totalCount) => {
-        if (!value) return null;
-        const match = String(value).match(/\d+/);
-        if (!match) return null;
-        const number = Number.parseInt(match[0], 10);
-        if (!Number.isFinite(number) || number <= 0) return null;
-        const index = number - 1;
-        if (typeof totalCount === "number" && totalCount > 0) {
-          return Math.min(Math.max(index, 0), totalCount - 1);
-        }
-        return Math.max(index, 0);
+      const findQuestionIndexByTitle = (titleText) => {
+        if (!titleText || !questions.length) return null;
+        const normalized = String(titleText).trim().toLowerCase();
+        if (!normalized) return null;
+        const index = questions.findIndex((question) => {
+          const candidate = (question?.Title || question?.field_5 || "").toString().trim().toLowerCase();
+          return candidate === normalized;
+        });
+        return index >= 0 ? index : null;
       };
 
       const fetchCurrentQuestionFromWebhook = async () => {
@@ -545,6 +548,8 @@
         });
         logDebugDetail("Current question HTTP status", `${response.status} ${response.statusText}`);
         const rawText = await response.text();
+        lastQuestionResponseText = rawText || "";
+        if (questionBtn) questionBtn.disabled = false;
         logDebugDetail("Current question response", rawText || "(empty)");
         return parseCurrentQuestionValue(rawText);
       };
@@ -661,10 +666,13 @@ Job Title: ${jobTitleValue || "N/A"}
       };
 
       const updateCurrentQuestionFromWebhook = async () => {
-        if (isNoTranscriptResponse(lastStudentContextResponseText)) return false;
+        if (isNoTranscriptResponse(lastStudentContextResponseText)) {
+          currentIndex = 0;
+          return false;
+        }
         try {
           const value = await fetchCurrentQuestionFromWebhook();
-          const nextIndex = parseQuestionIndexFromValue(value, questions.length);
+          const nextIndex = findQuestionIndexByTitle(value);
           if (nextIndex === null) return false;
           currentIndex = nextIndex;
           return true;
@@ -704,6 +712,7 @@ Job Title: ${jobTitleValue || "N/A"}
       const sendStudentContextOnLoad = async () => {
         const ctx = getStudentContext();
         if (responseBtn) responseBtn.disabled = true;
+        if (questionBtn) questionBtn.disabled = true;
         const payload = {
           FullName: ctx.fullName,
           ContactID: String(ctx.contactId),
@@ -726,9 +735,11 @@ Job Title: ${jobTitleValue || "N/A"}
           lastStudentContextResponseText = rawText || "";
           logDebugDetail("Student context response", rawText || "(empty)");
           if (responseBtn) responseBtn.disabled = false;
+          if (questionBtn) questionBtn.disabled = false;
         } catch (error) {
           logDebugDetail("Student context error", error?.message || String(error));
           if (responseBtn) responseBtn.disabled = false;
+          if (questionBtn) questionBtn.disabled = false;
         }
       };
 
@@ -1367,6 +1378,26 @@ END_REVIEW>>>`;
           return;
         }
         const reportWindow = window.open("", "RPLResponse", "width=900,height=700,scrollbars=yes");
+        if (!reportWindow) {
+          setStatus("Popup blocked. Please allow pop-ups to view the response.");
+          return;
+        }
+        const escaped = responseText
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+        reportWindow.document.open();
+        reportWindow.document.write(`<pre style="font-family:Segoe UI, Tahoma, Geneva, Verdana, sans-serif; white-space:pre-wrap;">${escaped}</pre>`);
+        reportWindow.document.close();
+      });
+
+      questionBtn?.addEventListener("click", () => {
+        const responseText = lastQuestionResponseText;
+        if (!responseText) {
+          setStatus("Question response not available yet.");
+          return;
+        }
+        const reportWindow = window.open("", "RPLQuestionResponse", "width=900,height=700,scrollbars=yes");
         if (!reportWindow) {
           setStatus("Popup blocked. Please allow pop-ups to view the response.");
           return;
