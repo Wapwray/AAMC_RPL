@@ -70,7 +70,6 @@
       .playbackDot { position: absolute; top: 50%; left: 0%; width: 12px; height: 12px; border-radius: 50%; background: var(--primary); transform: translate(-50%, -50%); box-shadow: 0 0 0 2px #ffffff; transition: left 0.05s linear; }
       .playbackTime { font-size: 11px; color: var(--muted); min-width: 62px; text-align: right; }
       .playbackWidget.disabled { opacity: 0.5; }
-      .debugBox { border: 1px dashed var(--border); border-radius: 12px; padding: 12px; background: #ffffff; font-size: 12px; color: var(--muted); white-space: pre-wrap; min-height: 80px; }
       button { appearance: none; border: none; border-radius: 999px; padding: 10px 16px; font-size: 14px; font-weight: 600; background: var(--primary); color: #ffffff; cursor: pointer; transition: background 0.2s ease; }
       button.secondary { background: #ffffff; color: var(--primary); border: 1px solid #c7d9e8; }
       button:disabled { opacity: 0.55; cursor: not-allowed; }
@@ -124,20 +123,6 @@
         gap: 12px;
         text-align: left;
         margin-top: 12px;
-      }
-      .debugDock {
-        position: fixed;
-        left: 24px;
-        right: 24px;
-        bottom: 16px;
-        z-index: 80;
-        background: rgba(255, 255, 255, 0.94);
-        border: 1px solid var(--border);
-        border-radius: 14px;
-        padding: 12px;
-        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
-        max-height: 32vh;
-        overflow: auto;
       }
       .welcomeLogo {
         position: absolute;
@@ -284,16 +269,6 @@
             <p>Initialising…</p>
           </div>
           <button id="welcomeContinueBtn" disabled>Continue</button>
-          <div class="welcomeDetails debugDock" id="welcomeDetails">
-            <div>
-              <div style="font-weight:600; margin-bottom:6px;">Welcome Webhook Response</div>
-              <div class="debugBox" id="welcomeWebhookResponse" style="min-height:120px;">Waiting for response…</div>
-            </div>
-            <div>
-              <div style="font-weight:600; margin:12px 0 6px;">Welcome Debug</div>
-              <div class="debugBox" id="welcomeDebug" style="min-height:120px;">Pending…</div>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -302,10 +277,6 @@
         <div id="initScreen" class="card" style="margin:0 0 18px;">
           <div style="font-weight:700; margin-bottom:6px;">Initialising</div>
           <div class="status" id="initStatus">Please wait while we prepare your assessment.</div>
-          <div id="initDebugSection" class="debugDock" style="margin-top:12px;">
-            <strong>Debug</strong>
-            <div class="debugBox" id="initDebugLog"></div>
-          </div>
         </div>
 
         <div class="shell hidden" id="appShell">
@@ -421,10 +392,6 @@
             <div>
               <strong>Feedback</strong>
               <div class="chatHistory" id="chatHistory"></div>
-            </div>
-            <div id="debugSection" class="debugDock">
-              <strong>Debug</strong>
-              <div class="debugBox" id="debugLog"></div>
             </div>
             <div>
               <strong>Your answer</strong>

@@ -37,7 +37,6 @@
       .actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
       .dictationControls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
       .dictationStatus { font-size: 12px; color: var(--muted); }
-      .debugBox { border: 1px dashed var(--border); border-radius: 12px; padding: 12px; background: #ffffff; font-size: 12px; color: var(--muted); white-space: pre-wrap; min-height: 80px; }
       button { appearance: none; border: none; border-radius: 999px; padding: 10px 16px; font-size: 14px; font-weight: 600; background: var(--primary); color: #ffffff; cursor: pointer; transition: background 0.2s ease; }
       button.secondary { background: #ffffff; color: var(--primary); border: 1px solid #c7d9e8; }
       button:disabled { opacity: 0.55; cursor: not-allowed; }
@@ -90,10 +89,6 @@
             <div>
               <strong>Feedback</strong>
               <div class="chatHistory" id="chatHistory"></div>
-            </div>
-            <div>
-              <strong>Debug</strong>
-              <div class="debugBox" id="debugLog"></div>
             </div>
             <div>
               <strong>Your answer</strong>
