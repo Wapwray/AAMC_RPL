@@ -1161,8 +1161,14 @@ Job Title: ${jobTitleValue || "N/A"}
           if (text) {
             logDebugDetail("Transcript response", text);
           }
+          if (!response.ok) {
+            throw new Error(`Transcript webhook failed (${response.status}) ${response.statusText}`.trim());
+          }
+          return true;
         } catch (error) {
           logDebugDetail("Transcript error", error?.message || String(error));
+          setStatus(error?.message || "Transcript webhook failed.");
+          return false;
         }
       };
 
@@ -2464,7 +2470,7 @@ END_REVIEW>>>`;
       });
 
       nextBtn.addEventListener("click", async () => {
-        sendTranscriptOnNext();
+        await sendTranscriptOnNext();
         const ctx = getStudentContext();
         const isLastQuestion = currentIndex + 1 >= questions.length;
         const nextQuestionValue = isLastQuestion ? "XXX" : String(currentIndex + 2);
