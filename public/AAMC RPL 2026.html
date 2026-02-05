@@ -889,7 +889,17 @@ Job Title: ${jobTitleValue || "N/A"}
         const url =
           "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/9a8d98d38d584b44bb47066b652aa24d/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=Ion44zyKyWxVDVJYUfe9iJPVM-0G5ZLEZ6LRQEvrvWQ";
         try {
-          const response = await fetch(url, { method: "POST" });
+          const ctx = getStudentContext();
+          const payload = {
+            FullName: ctx.fullName,
+            ContactID: String(ctx.contactId),
+            GivenName: ctx.givenName,
+          };
+          const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
           if (welcomeDebugEl) {
             welcomeDebugEl.textContent = `HTTP ${response.status} ${response.statusText}`;
           }
