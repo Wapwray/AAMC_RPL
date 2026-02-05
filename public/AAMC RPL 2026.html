@@ -2263,6 +2263,8 @@ END_REVIEW>>>`;
             FullName: ctx.fullName,
             ContactID: String(ctx.contactId),
             GivenName: ctx.givenName,
+            Industry: industry,
+            jobTitle: jobTitle,
           };
           await fetch(collectWebhookUrl, {
             method: "POST",
