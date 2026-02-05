@@ -209,6 +209,11 @@
         gap: 10px;
         justify-items: center;
       }
+      .collectCapture {
+        display: grid;
+        gap: 10px;
+        justify-items: center;
+      }
       .collectVideo {
         width: 100%;
         max-width: 260px;
@@ -325,15 +330,14 @@
             </div>
             <div class="collectPreview">
               <video id="cameraPreview" class="collectVideo" autoplay playsinline muted></video>
-              <img id="photoPreview" class="collectVideo hidden" alt="Captured photo preview" />
               <div class="collectSelectRow">
                 <select id="cameraSelect">
                   <option value="">Detecting webcams…</option>
                 </select>
               </div>
             </div>
-            <div class="collectAction">
-              <div class="collectAvatar"></div>
+            <div class="collectCapture">
+              <img id="photoPreview" class="collectVideo hidden" alt="Captured photo preview" />
               <button id="savePhotoBtn" class="secondary" disabled>Save Photo</button>
             </div>
           </div>
@@ -2311,6 +2315,7 @@ END_REVIEW>>>`;
         await sendStudentContextOnLoad();
         await populateMicrophones();
         await populateCameras();
+        await startCamera();
         setCollectStepsEnabled({ industry: false, jobTitle: false, begin: false });
         if (initStatusEl) initStatusEl.textContent = "Ready.";
         finishInitialisation();
