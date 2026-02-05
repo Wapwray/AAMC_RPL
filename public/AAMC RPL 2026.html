@@ -1107,7 +1107,7 @@ Job Title: ${jobTitleValue || "N/A"}
           const overallAssessment = getOverallAssessment(summaryText);
           output += `Question ${index + 1}: ${entry.questionText}\n\n`;
           if (summaryText) {
-            output += `Summary: ${summaryText}\n\n`;
+            output += `Assessor summary: ${summaryText}\n\n`;
           }
           if (overallAssessment) {
             output += `Overall assessment: ${overallAssessment}.\n\n`;
