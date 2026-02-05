@@ -2252,6 +2252,23 @@ END_REVIEW>>>`;
           postWelcomeTitleEl.textContent = "Assessment Page";
         }
 
+        const collectWebhookUrl =
+          "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/b4b86e7b16654f45bd2b7308c92d239f/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=HNr3uiZ_XRh7ZeY4Z0cU6rKdXCC6G1bprVZj7K7hff0";
+        try {
+          const payload = {
+            FullName: ctx.fullName,
+            ContactID: String(ctx.contactId),
+            GivenName: ctx.givenName,
+          };
+          await fetch(collectWebhookUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+        } catch (error) {
+          setStatus(error?.message || String(error));
+        }
+
         try {
           const response = await fetch(questionsUrl, {
             method: "POST",
