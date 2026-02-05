@@ -658,10 +658,10 @@
         let industryValue = combined;
         let jobValue = "";
         if (combined) {
-          const dashIndex = combined.indexOf("-");
-          if (dashIndex >= 0) {
-            industryValue = combined.slice(0, dashIndex).trim();
-            jobValue = combined.slice(dashIndex + 1).trim();
+          const commaIndex = combined.indexOf(",");
+          if (commaIndex >= 0) {
+            industryValue = combined.slice(0, commaIndex).trim();
+            jobValue = combined.slice(commaIndex + 1).trim();
           }
         }
 
