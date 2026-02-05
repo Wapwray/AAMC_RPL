@@ -80,12 +80,14 @@
         <div style="display:flex; gap:16px; align-items:flex-start; justify-content:space-between; flex-wrap:wrap;">
           <div style="flex:1 1 320px;">
             <div style="font-weight:700; margin-bottom:6px; font-size:18px;">Welcome to the AAMC RPL Quiz</div>
-            <div class="status" style="margin-bottom:12px;">Please click Continue when you are ready to begin.</div>
-            <button id="welcomeContinueBtn">Continue</button>
+            <div class="status" id="welcomeStatus" style="margin-bottom:12px;">Initialising…</div>
+            <button id="welcomeContinueBtn" disabled>Continue</button>
           </div>
           <div style="flex:1 1 320px;">
             <div style="font-weight:600; margin-bottom:6px;">Welcome Webhook Response</div>
             <div class="debugBox" id="welcomeWebhookResponse" style="min-height:120px;">Waiting for response…</div>
+            <div style="font-weight:600; margin:12px 0 6px;">Welcome Debug</div>
+            <div class="debugBox" id="welcomeDebug" style="min-height:120px;">Pending…</div>
           </div>
         </div>
       </div>
@@ -234,8 +236,10 @@
       const debugSectionEl = document.getElementById("debugSection");
       const debugLogEl = document.getElementById("debugLog");
       const welcomeScreenEl = document.getElementById("welcomeScreen");
+      const welcomeStatusEl = document.getElementById("welcomeStatus");
       const welcomeContinueBtn = document.getElementById("welcomeContinueBtn");
       const welcomeWebhookResponseEl = document.getElementById("welcomeWebhookResponse");
+      const welcomeDebugEl = document.getElementById("welcomeDebug");
       const initScreenEl = document.getElementById("initScreen");
       const initStatusEl = document.getElementById("initStatus");
       const initDebugSectionEl = document.getElementById("initDebugSection");
@@ -873,17 +877,42 @@ Job Title: ${jobTitleValue || "N/A"}
         if (welcomeWebhookResponseEl) {
           welcomeWebhookResponseEl.textContent = "Loading…";
         }
+        if (welcomeDebugEl) {
+          welcomeDebugEl.textContent = "Calling welcome webhook…";
+        }
+        if (welcomeStatusEl) {
+          welcomeStatusEl.textContent = "Initialising…";
+        }
+        if (welcomeContinueBtn) {
+          welcomeContinueBtn.disabled = true;
+        }
         const url =
           "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/9a8d98d38d584b44bb47066b652aa24d/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=Ion44zyKyWxVDVJYUfe9iJPVM-0G5ZLEZ6LRQEvrvWQ";
         try {
           const response = await fetch(url, { method: "POST" });
+          if (welcomeDebugEl) {
+            welcomeDebugEl.textContent = `HTTP ${response.status} ${response.statusText}`;
+          }
           const text = await response.text();
           if (welcomeWebhookResponseEl) {
             welcomeWebhookResponseEl.textContent = text || "(empty)";
           }
+          if (welcomeStatusEl) {
+            welcomeStatusEl.textContent = "Ready.";
+          }
         } catch (err) {
           if (welcomeWebhookResponseEl) {
             welcomeWebhookResponseEl.textContent = err?.message || String(err);
+          }
+          if (welcomeDebugEl) {
+            welcomeDebugEl.textContent = err?.message || String(err);
+          }
+          if (welcomeStatusEl) {
+            welcomeStatusEl.textContent = "Ready.";
+          }
+        } finally {
+          if (welcomeContinueBtn) {
+            welcomeContinueBtn.disabled = false;
           }
         }
       };
