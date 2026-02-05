@@ -101,6 +101,17 @@
         font-size: 15px;
         color: var(--muted);
       }
+      .welcomeBody {
+        font-size: 16px;
+        line-height: 1.6;
+        color: var(--text);
+      }
+      .welcomeBody p {
+        margin: 0 0 8px;
+      }
+      .welcomeBody p:last-child {
+        margin-bottom: 0;
+      }
       .welcomeDetails {
         width: min(900px, 100%);
         display: grid;
@@ -144,8 +155,10 @@
         <img class="welcomeArt topLeft" src="/RPL%20Bot%20Artwork/xxx.png" alt="Decorative" />
         <img class="welcomeArt bottomLeft" src="/RPL%20Bot%20Artwork/xxx.png" alt="Decorative" />
         <div class="welcomeContent">
-          <div class="welcomeTitle">Welcome to the AAMC RPL Quiz</div>
-          <div class="welcomeSubtext" id="welcomeStatus">Initialising…</div>
+          <div class="welcomeTitle" id="welcomeTitle">Welcome to the AAMC RPL Quiz</div>
+          <div class="welcomeBody" id="welcomeBody">
+            <p>Initialising…</p>
+          </div>
           <button id="welcomeContinueBtn" disabled>Continue</button>
           <div class="welcomeDetails hidden" id="welcomeDetails">
             <div>
@@ -304,7 +317,8 @@
       const debugSectionEl = document.getElementById("debugSection");
       const debugLogEl = document.getElementById("debugLog");
       const welcomeScreenEl = document.getElementById("welcomeScreen");
-      const welcomeStatusEl = document.getElementById("welcomeStatus");
+      const welcomeTitleEl = document.getElementById("welcomeTitle");
+      const welcomeBodyEl = document.getElementById("welcomeBody");
       const welcomeContinueBtn = document.getElementById("welcomeContinueBtn");
       const welcomeWebhookResponseEl = document.getElementById("welcomeWebhookResponse");
       const welcomeDebugEl = document.getElementById("welcomeDebug");
@@ -943,6 +957,69 @@ Job Title: ${jobTitleValue || "N/A"}
         }
       };
 
+      const getWelcomeBodyText = (rawText) => {
+        if (!rawText) return "";
+        const text = String(rawText).trim();
+        if (!text) return "";
+        if (!/^[\[{]/.test(text)) return text;
+        try {
+          const json = JSON.parse(text);
+          if (typeof json?.body === "string") return json.body;
+          if (typeof json?.result === "string") return json.result;
+          if (typeof json?.message === "string") return json.message;
+          return text;
+        } catch {
+          return text;
+        }
+      };
+
+      const updateWelcomeMessage = (responseText) => {
+        const ctx = getStudentContext();
+        const bodyText = getWelcomeBodyText(responseText);
+        const normalized = bodyText.toLowerCase();
+        const questionMatch = bodyText.match(/\b(\d{1,3})\b/);
+        const questionNumber = questionMatch ? questionMatch[1] : "xxx";
+
+        if (normalized.includes("new user")) {
+          if (welcomeTitleEl) {
+            welcomeTitleEl.textContent = `Hello ${ctx.fullName} and welcome to your RPL Assessment`;
+          }
+          if (welcomeBodyEl) {
+            welcomeBodyEl.innerHTML = "";
+          }
+          if (welcomeContinueBtn) {
+            welcomeContinueBtn.textContent = "Start Assessment";
+          }
+          return;
+        }
+
+        if (normalized.includes("user exists")) {
+          if (welcomeTitleEl) {
+            welcomeTitleEl.textContent = `Hello ${ctx.fullName} and welcome back to your RPL Assessment`;
+          }
+          if (welcomeBodyEl) {
+            welcomeBodyEl.innerHTML = `
+              <p>It looks like you had already started this assessment and were on question ${questionNumber}.</p>
+              <p>Press the RESUME button to continue.</p>
+            `;
+          }
+          if (welcomeContinueBtn) {
+            welcomeContinueBtn.textContent = "RESUME";
+          }
+          return;
+        }
+
+        if (welcomeTitleEl) {
+          welcomeTitleEl.textContent = "Welcome to the AAMC RPL Quiz";
+        }
+        if (welcomeBodyEl) {
+          welcomeBodyEl.innerHTML = "";
+        }
+        if (welcomeContinueBtn) {
+          welcomeContinueBtn.textContent = "Continue";
+        }
+      };
+
       const loadWelcomeWebhook = async () => {
         if (welcomeWebhookResponseEl) {
           welcomeWebhookResponseEl.textContent = "Loading…";
@@ -950,8 +1027,11 @@ Job Title: ${jobTitleValue || "N/A"}
         if (welcomeDebugEl) {
           welcomeDebugEl.textContent = "Calling welcome webhook…";
         }
-        if (welcomeStatusEl) {
-          welcomeStatusEl.textContent = "Initialising…";
+        if (welcomeTitleEl) {
+          welcomeTitleEl.textContent = "Welcome to the AAMC RPL Quiz";
+        }
+        if (welcomeBodyEl) {
+          welcomeBodyEl.innerHTML = "<p>Initialising…</p>";
         }
         if (welcomeContinueBtn) {
           welcomeContinueBtn.disabled = true;
@@ -977,9 +1057,7 @@ Job Title: ${jobTitleValue || "N/A"}
           if (welcomeWebhookResponseEl) {
             welcomeWebhookResponseEl.textContent = text || "(empty)";
           }
-          if (welcomeStatusEl) {
-            welcomeStatusEl.textContent = "Ready.";
-          }
+          updateWelcomeMessage(text || "");
         } catch (err) {
           if (welcomeWebhookResponseEl) {
             welcomeWebhookResponseEl.textContent = err?.message || String(err);
@@ -987,9 +1065,7 @@ Job Title: ${jobTitleValue || "N/A"}
           if (welcomeDebugEl) {
             welcomeDebugEl.textContent = err?.message || String(err);
           }
-          if (welcomeStatusEl) {
-            welcomeStatusEl.textContent = "Ready.";
-          }
+          updateWelcomeMessage("");
         } finally {
           if (welcomeContinueBtn) {
             welcomeContinueBtn.disabled = false;
