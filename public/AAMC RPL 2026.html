@@ -55,7 +55,7 @@
       input, select, textarea { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font: inherit; background: #ffffff; }
       textarea { resize: vertical; min-height: 120px; }
       .questionBox { border: 1px solid var(--border); border-radius: 12px; padding: 12px; min-height: 90px; background: #ffffff; }
-      .chatHistory { border: 1px solid var(--border); border-radius: 12px; padding: 12px; min-height: 220px; background: #ffffff; }
+      .chatHistory { border: 1px solid var(--border); border-radius: 12px; padding: 12px; min-height: 220px; height: 100%; background: #ffffff; }
       .chatEntry { padding: 10px 12px; border-radius: 10px; margin-bottom: 10px; font-size: 14px; line-height: 1.45; }
       .chatEntry:last-child { margin-bottom: 0; }
       .chatEntry.user { background: #eef6ff; border: 1px solid #d7e7ff; }
@@ -65,11 +65,16 @@
       .assessmentDebugTitle { font-size: 13px; font-weight: 700; color: var(--text); }
       .assessmentDebugLog { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 12px; line-height: 1.45; white-space: pre-wrap; max-height: 200px; overflow: auto; background: #f8fafc; border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
       .quizHeader { font-size: 18px; font-weight: 700; margin: 0 0 8px; }
-      .assessmentLayout { display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 18px; align-items: start; }
-      .assessmentMain { display: grid; gap: 14px; }
+      .assessmentLayout { display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 18px; align-items: stretch; min-height: calc(100vh - 220px); }
+      .assessmentMain { display: grid; gap: 14px; grid-template-rows: auto auto 1fr auto; min-height: 0; }
       .assessmentSide { display: grid; gap: 14px; align-content: start; }
       .assessmentSide button { width: 100%; }
       .quizHeaderRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+      .answerRow { display: grid; grid-template-columns: minmax(0, 1fr) 180px; gap: 12px; align-items: stretch; }
+      .answerStack { display: grid; gap: 6px; grid-template-rows: auto 1fr; min-height: 0; }
+      .answerStack textarea { height: 100%; }
+      .answerActions { display: flex; flex-direction: column; justify-content: space-between; gap: 12px; }
+      .feedbackSection { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
       .hintBtn { background: #0b8f64; }
       .hintBtn:hover:not(:disabled) { background: #0a7a55; }
       .actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
@@ -92,7 +97,8 @@
       button:hover:not(:disabled) { background: var(--primary-dark); }
       button.secondary:hover:not(:disabled) { background: #eef6ff; }
       .hidden { display: none !important; }
-      .floatingButtonGroup { position: fixed; left: 24px; bottom: 24px; z-index: 50; display: flex; gap: 10px; flex-wrap: wrap; }
+      .pageTitleRow { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+      .floatingButtonGroup { position: static; z-index: 50; display: flex; gap: 10px; flex-wrap: wrap; }
       .hintOverlay {
         position: fixed;
         inset: 0;
@@ -379,7 +385,16 @@
           src="/RPL%20Bot%20Artwork/2024_logo_black_transparent_outline_HRES.png"
           alt="AAMC Training Group"
         />
-        <div class="pageTitle" id="postWelcomeTitle">Collect User Data</div>
+        <div class="pageTitleRow">
+          <div class="pageTitle" id="postWelcomeTitle">Collect User Data</div>
+          <div class="floatingButtonGroup">
+            <button id="transcriptBtn" class="secondary">Transcript</button>
+            <button id="responseBtn" class="secondary" disabled>Response</button>
+            <button id="questionBtn" class="secondary" disabled>Question</button>
+            <button id="tableBtn" class="secondary" disabled>Table</button>
+            <button id="finalBtn" class="secondary">Final</button>
+          </div>
+        </div>
         <div id="initScreen" class="card" style="margin:0 0 18px;">
           <div style="font-weight:700; margin-bottom:6px;">Initialising</div>
           <div class="status" id="initStatus">Please wait while we prepare your assessment.</div>
@@ -472,17 +487,23 @@
                 <button id="showHintBtn" class="hintBtn secondary">Show Hint</button>
               </div>
               <div class="questionBox" id="questionText"></div>
-              <div>
+              <div class="answerRow">
+                <div class="answerStack">
+                  <strong>Your answer</strong>
+                  <textarea id="answerInput" placeholder="Type your answer here..."></textarea>
+                </div>
+                <div class="answerActions">
+                  <button id="evaluateBtn">Evaluate</button>
+                  <button id="nextBtn" class="secondary" disabled>Next</button>
+                </div>
+              </div>
+              <div class="feedbackSection">
                 <strong>Feedback</strong>
                 <div class="chatHistory" id="chatHistory"></div>
               </div>
-              <div>
-                <strong>Your answer</strong>
-                <textarea id="answerInput" placeholder="Type your answer here..."></textarea>
-              </div>
             </div>
             <div class="assessmentSide">
-              <button id="dictateBtn" class="secondary">Start</button>
+              <button id="dictateBtn" class="secondary">Start Transcription</button>
               <button id="playbackBtn" class="secondary" disabled>Playback</button>
               <div class="audioMeter inactive" id="dictationMeter" title="Mic level">
                 <div class="audioMeterFill" id="dictationMeterFill"></div>
@@ -499,8 +520,6 @@
                 <div class="playbackTime" id="playbackTime">0:00</div>
               </div>
               <span class="dictationStatus" id="dictationStatus">Dictation idle.</span>
-              <button id="evaluateBtn">Evaluate</button>
-              <button id="nextBtn" class="secondary" disabled>Next</button>
             </div>
           </div>
         </div>
@@ -515,14 +534,6 @@
         </div>
         <div class="hintBody" id="hintBody">No hint available.</div>
       </div>
-    </div>
-
-    <div class="floatingButtonGroup">
-      <button id="transcriptBtn" class="secondary">Transcript</button>
-      <button id="responseBtn" class="secondary" disabled>Response</button>
-      <button id="questionBtn" class="secondary" disabled>Question</button>
-      <button id="tableBtn" class="secondary" disabled>Table</button>
-      <button id="finalBtn" class="secondary">Final</button>
     </div>
 
     <script>
@@ -1552,7 +1563,7 @@ Job Title: ${jobTitleValue || "N/A"}
           dictationStatusEl.textContent = stateText;
         }
         if (dictateBtn) {
-          dictateBtn.textContent = isDictating ? "Stop" : "Start";
+          dictateBtn.textContent = isDictating ? "Stop Transcription" : "Start Transcription";
           dictateBtn.disabled = isUiLocked || hintOpen;
         }
         if (playbackBtn) {
@@ -1567,13 +1578,27 @@ Job Title: ${jobTitleValue || "N/A"}
       const getQuestionHint = (question) => {
         if (!question || typeof question !== "object") return "";
         return (
-          question.Hint ||
+          question.Hints ||
           question.hint ||
           question.field_6 ||
           question.field_4 ||
           question.field_7 ||
           ""
         );
+      };
+
+      const updateEvaluateButtonState = () => {
+        if (!evaluateBtn) return;
+        const answerText = answerInputEl?.value?.trim() || "";
+        if (isUiLocked || hintOpen) {
+          evaluateBtn.disabled = true;
+          return;
+        }
+        if (currentAttempts >= MAX_ATTEMPTS) {
+          evaluateBtn.disabled = true;
+          return;
+        }
+        evaluateBtn.disabled = !answerText;
       };
 
       const getAllButtons = () => Array.from(document.querySelectorAll("button"));
@@ -1607,6 +1632,7 @@ Job Title: ${jobTitleValue || "N/A"}
         } else {
           setButtonsDisabled(false);
           updateDictationUi(dictationStatusEl?.textContent || "Dictation idle.");
+          updateEvaluateButtonState();
         }
       };
 
@@ -2065,6 +2091,7 @@ Job Title: ${jobTitleValue || "N/A"}
             if (!transcript || manualOverride) return;
             finalTranscript += `${transcript} `;
             answerInputEl.value = `${finalTranscript}`.trim();
+            updateEvaluateButtonState();
             logDebug("Azure speech final segment", {
               transcript: transcript.length > 160 ? `${transcript.slice(0, 160)}…` : transcript
             });
@@ -2299,10 +2326,11 @@ Job Title: ${jobTitleValue || "N/A"}
         updatePlaybackUi(0, 0);
         currentAttempts = 0;
         currentResponses = [];
-        evaluateBtn.disabled = false;
+        evaluateBtn.disabled = true;
         nextBtn.disabled = true;
         chatHistoryEl.textContent = "";
         if (showHintBtn) showHintBtn.disabled = false;
+        updateEvaluateButtonState();
       };
 
       const buildPrompt = (question, answers) => {
@@ -2692,6 +2720,7 @@ END_REVIEW>>>`;
           manualOverride = true;
           stopDictation();
         }
+        updateEvaluateButtonState();
       });
 
       evaluateBtn.addEventListener("click", async () => {
@@ -2733,6 +2762,7 @@ END_REVIEW>>>`;
           entry.attempts.push(attemptRecord);
           entry.summary = feedback;
           answerInputEl.value = "";
+          updateEvaluateButtonState();
           nextBtn.disabled = false;
           if (currentAttempts >= MAX_ATTEMPTS) {
             evaluateBtn.disabled = true;
@@ -2747,6 +2777,7 @@ END_REVIEW>>>`;
           evaluateBtn.disabled = false;
         } finally {
           setUiLockedState(false);
+          updateEvaluateButtonState();
           if (currentAttempts >= MAX_ATTEMPTS) {
             evaluateBtn.disabled = true;
           }
