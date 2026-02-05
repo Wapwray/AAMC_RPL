@@ -162,6 +162,34 @@
       .hintHeader { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
       .hintTitle { font-weight: 700; font-size: 16px; }
       .hintBody { font-size: 14px; line-height: 1.5; color: var(--text); }
+      .finalisingOverlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.55);
+        display: grid;
+        place-items: center;
+        z-index: 95;
+        padding: 20px;
+      }
+      .finalisingModal {
+        width: min(420px, 90vw);
+        background: #ffffff;
+        border-radius: 16px;
+        border: 1px solid var(--border);
+        box-shadow: 0 20px 40px rgba(15, 23, 42, 0.2);
+        padding: 22px 20px;
+        text-align: center;
+        display: grid;
+        gap: 8px;
+      }
+      .finalisingTitle {
+        font-weight: 700;
+        font-size: 18px;
+      }
+      .finalisingBody {
+        font-size: 15px;
+        color: var(--muted);
+      }
       .pageTitle {
         font-size: 22px;
         font-weight: 700;
@@ -652,6 +680,13 @@
       </div>
     </div>
 
+    <div id="finalisingOverlay" class="finalisingOverlay hidden" role="alertdialog" aria-modal="true" aria-live="assertive">
+      <div class="finalisingModal">
+        <div class="finalisingTitle">Please wait.</div>
+        <div class="finalisingBody">We are finalising your results.</div>
+      </div>
+    </div>
+
     <script>
       const questionsUrl =
         "https://default4f0de57b35694b51b8c8b1dadd7ba8.19.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/8feea7df352a455d9efde46977446910/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=AF-53thnNRJd9IxzY55POQzrW8owJ2SA6EhRycxtTEY";
@@ -722,6 +757,7 @@
       const hintOverlayEl = document.getElementById("hintOverlay");
       const hintCloseBtn = document.getElementById("hintCloseBtn");
       const hintBodyEl = document.getElementById("hintBody");
+      const finalisingOverlayEl = document.getElementById("finalisingOverlay");
       const answerWrapEl = document.querySelector(".answerWrap");
       // const modeToggleEl = document.getElementById("modeToggle");
       // const modeLabelEl = document.getElementById("modeLabel");
@@ -1335,9 +1371,18 @@
         if (completionBodyEl) {
           completionBodyEl.textContent = "An assessor will be in contact. You can now close your browser window.";
         }
+        if (finalisingOverlayEl) finalisingOverlayEl.classList.add("hidden");
         if (postWelcomePageEl) postWelcomePageEl.classList.add("hidden");
         if (welcomeScreenEl) welcomeScreenEl.classList.add("hidden");
         if (completionScreenEl) completionScreenEl.classList.remove("hidden");
+      };
+
+      const showFinalisingOverlay = () => {
+        if (finalisingOverlayEl) finalisingOverlayEl.classList.remove("hidden");
+      };
+
+      const hideFinalisingOverlay = () => {
+        if (finalisingOverlayEl) finalisingOverlayEl.classList.add("hidden");
       };
 
       const runFinalReview = async ({ openWindow = false, sendWebhook = false, showCompletion = false } = {}) => {
@@ -1346,6 +1391,7 @@
         const prompt = buildFinalReviewPrompt(reviewText);
         setStatus("Generating final review...");
         finalBtn.disabled = true;
+        showFinalisingOverlay();
         try {
           const html = await callTextModel(prompt);
           if (openWindow) {
@@ -1385,6 +1431,7 @@
           setStatus(err?.message || "Unable to generate final review.");
           throw err;
         } finally {
+          hideFinalisingOverlay();
           finalBtn.disabled = false;
         }
       };
