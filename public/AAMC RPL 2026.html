@@ -1647,7 +1647,7 @@ Job Title: ${jobTitleValue || "N/A"}
             welcomeBodyEl.innerHTML = "<p>Initialising…</p>";
           }
           if (welcomeContinueBtn) {
-            welcomeContinueBtn.classList.remove("hidden");
+            welcomeContinueBtn.classList.add("hidden");
             welcomeContinueBtn.textContent = "RESUME";
           }
           return;
@@ -1707,6 +1707,10 @@ Job Title: ${jobTitleValue || "N/A"}
               <p>It looks like you had already started this assessment and were on question ${resumeCurrentQuestionNumber}.</p>
               <p>Press the RESUME button to continue.</p>
             `;
+          }
+          if (welcomeContinueBtn) {
+            welcomeContinueBtn.classList.remove("hidden");
+            welcomeContinueBtn.textContent = "RESUME";
           }
           return parsed;
         } catch (err) {
