@@ -25,13 +25,14 @@
         color: var(--text);
       }
       .page { padding: 24px 24px 260px; }
-      .shell { max-width: 1100px; margin: 0 auto; display: grid; gap: 18px; }
+      .shell { max-width: none; width: 100%; margin: 0; display: grid; gap: 18px; }
       .header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
       .header h1 { margin: 0; font-size: 20px; font-weight: 700; }
       .status { font-size: 13px; color: var(--muted); }
       .progressRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
       .progressRow h1 { margin: 0; font-size: 20px; font-weight: 700; }
-      .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 18px; box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08); }
+      .card { width: 100%; background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 18px; box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08); }
+      .flatCard { background: transparent; border: none; box-shadow: none; padding: 0; }
       .studentContext { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: baseline; justify-content: space-between; }
       .studentContext__name { font-weight: 700; font-size: 15px; }
       .studentContext__meta { font-size: 13px; color: var(--muted); }
@@ -269,7 +270,7 @@
   </head>
   <body>
     <div class="page">
-      <div id="welcomeScreen" class="card welcomeScreen" style="max-width:1100px; margin:0 auto 18px;">
+      <div id="welcomeScreen" class="card welcomeScreen" style="margin:0 0 18px;">
         <img
           class="welcomeLogo"
           src="/RPL%20Bot%20Artwork/2024_logo_black_transparent_outline_HRES.png"
@@ -298,7 +299,7 @@
 
       <div id="postWelcomePage" class="hidden">
         <div class="pageTitle" id="postWelcomeTitle">Collect User Data</div>
-        <div id="initScreen" class="card" style="max-width:1100px; margin:0 auto 18px;">
+        <div id="initScreen" class="card" style="margin:0 0 18px;">
           <div style="font-weight:700; margin-bottom:6px;">Initialising</div>
           <div class="status" id="initStatus">Please wait while we prepare your assessment.</div>
           <div id="initDebugSection" class="debugDock" style="margin-top:12px;">
@@ -312,7 +313,7 @@
             <div style="font-weight:700; text-decoration:underline;">AAMC RPL Quiz - V0.1</div>
           </div>
 
-        <div class="card" id="studentContextCard">
+        <div class="card flatCard" id="studentContextCard">
           <!-- <div class="modeToggleRow" style="margin-bottom:10px;">
             <div class="modeLabel">Environment</div>
             <div class="toggleWrap">
@@ -589,6 +590,14 @@
         statusEl.textContent = message;
       };
 
+      const setCollectStepsEnabled = (state) => {
+        if (industryEl) industryEl.disabled = !state.industry;
+        if (confirmIndustryBtn) confirmIndustryBtn.disabled = !state.industry;
+        if (jobTitleEl) jobTitleEl.disabled = !state.jobTitle;
+        if (confirmJobTitleBtn) confirmJobTitleBtn.disabled = !state.jobTitle;
+        if (beginBtn) beginBtn.disabled = !state.begin;
+      };
+
       const updateCollectGreeting = () => {
         const ctx = getStudentContext();
         if (collectGreetingEl) {
@@ -692,6 +701,7 @@
         if (savePhotoBtn) savePhotoBtn.disabled = false;
         stopCameraStream();
         setStatus("Photo captured. You can save it now.");
+        setCollectStepsEnabled({ industry: true, jobTitle: false, begin: false });
       };
 
       const savePhoto = async () => {
@@ -2278,6 +2288,9 @@ END_REVIEW>>>`;
         assessmentStartAt = new Date();
         setStatus("Loading questions...");
         beginBtn.disabled = true;
+        if (postWelcomeTitleEl) {
+          postWelcomeTitleEl.textContent = "Assessment Page";
+        }
 
         try {
           const response = await fetch(questionsUrl, {
@@ -2321,6 +2334,7 @@ END_REVIEW>>>`;
         await sendStudentContextOnLoad();
         await populateMicrophones();
         await populateCameras();
+        setCollectStepsEnabled({ industry: false, jobTitle: false, begin: false });
         if (initStatusEl) initStatusEl.textContent = "Ready.";
         finishInitialisation();
       };
@@ -2330,6 +2344,7 @@ END_REVIEW>>>`;
 
       applyUrlStudentContext();
       updateCollectGreeting();
+      setCollectStepsEnabled({ industry: false, jobTitle: false, begin: false });
       loadWelcomeWebhook();
 
       welcomeContinueBtn?.addEventListener("click", async () => {
@@ -2355,10 +2370,20 @@ END_REVIEW>>>`;
       });
       savePhotoBtn?.addEventListener("click", () => savePhoto());
       confirmIndustryBtn?.addEventListener("click", () => {
+        if (!industryEl?.value?.trim()) {
+          setStatus("Select an industry before confirming.");
+          return;
+        }
         setStatus("Industry confirmed.");
+        setCollectStepsEnabled({ industry: true, jobTitle: true, begin: false });
       });
       confirmJobTitleBtn?.addEventListener("click", () => {
+        if (!jobTitleEl?.value?.trim()) {
+          setStatus("Enter a job title before confirming.");
+          return;
+        }
         setStatus("Job title confirmed.");
+        setCollectStepsEnabled({ industry: true, jobTitle: true, begin: true });
       });
       cameraSelectEl?.addEventListener("change", () => {
         if (cameraStream) startCamera();
