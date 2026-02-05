@@ -210,6 +210,7 @@
     <script>
       const questionsUrl =
         "https://default4f0de57b35694b51b8c8b1dadd7ba8.19.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/8feea7df352a455d9efde46977446910/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=AF-53thnNRJd9IxzY55POQzrW8owJ2SA6EhRycxtTEY";
+      const PROMPTS_URL = "/prompts.json";
 
       const statusEl = document.getElementById("status");
       const headerTitleEl = document.getElementById("headerTitle");
@@ -300,6 +301,7 @@
       let resumeApplied = false;
       let lastStudentContextResponseText = "";
       let lastQuestionResponseText = "";
+      let promptTemplates = null;
       const DEFAULT_FULL_NAME = "Billy Broker";
       const DEFAULT_GIVEN_NAME = "Billy";
       const DEFAULT_CONTACT_ID = "123456";
@@ -843,6 +845,21 @@ Job Title: ${jobTitleValue || "N/A"}
         }
       };
 
+      const loadPromptTemplates = async () => {
+        try {
+          const response = await fetch(PROMPTS_URL, { cache: "no-store" });
+          if (!response.ok) {
+            throw new Error(`Prompt load failed (${response.status})`);
+          }
+          const json = await response.json();
+          promptTemplates = json;
+          logDebugDetail("Prompts loaded", Object.keys(json || {}));
+        } catch (err) {
+          logDebugDetail("Prompt load error", err?.message || String(err));
+          promptTemplates = null;
+        }
+      };
+
       const sendStudentContextOnLoad = async () => {
         const ctx = getStudentContext();
         if (responseBtn) responseBtn.disabled = true;
@@ -899,6 +916,14 @@ Job Title: ${jobTitleValue || "N/A"}
         const minutes = Math.floor(total / 60);
         const seconds = String(total % 60).padStart(2, "0");
         return `${minutes}:${seconds}`;
+      };
+
+      const applyTemplate = (template, data) => {
+        if (!template) return "";
+        return template.replace(/\{\{(\w+)\}\}/g, (_match, key) => {
+          const value = data[key];
+          return value === undefined || value === null ? "" : String(value);
+        });
       };
 
       const updatePlaybackUi = (current, duration) => {
@@ -1567,11 +1592,37 @@ Job Title: ${jobTitleValue || "N/A"}
         const answerBlock = answers
           .map((response, index) => `Attempt ${index + 1}: ${response}`)
           .join("\n");
+        const ctx = getStudentContext();
+        const template = promptTemplates?.assessmentPrompt;
+        if (template) {
+          return applyTemplate(template, {
+            FullName: fullName || ctx.fullName,
+            GivenName: firstName || ctx.givenName || ctx.fullName,
+            ContactID: ctx.contactId,
+            Industry: industry || industryEl?.value?.trim() || "",
+            JobTitle: jobTitle || jobTitleEl?.value?.trim() || "",
+            QuestionText: questionText,
+            Objective: objective,
+            Answers: answerBlock,
+          });
+        }
         return `You are an expert in the Australian Financial industry and are acting as an assessor of ${fullName}'s responses to the question '${questionText}'. ${firstName} has provided multiple attempts. Use all attempts together to judge completeness without requiring repetition.\n\n${answerBlock}\n\nTake into account ${fullName} works in the ${industry} Industry as a ${jobTitle} and assess using the objective '${objective}' if they have demonstrated the required understanding, even if key terms, concepts, or regulations are implied rather than explicitly stated.\n\nProvide a concise overview to ${firstName} that follows these rules:\n\n1) If the responses together effectively answer the question and meet the intent of the Objective, do not ask for any further details. Acknowledge that the response is sufficient and tell them to move to the next question.\n\n2) If the responses together have not effectively answered the question or do not meet the Objective, do not give the answer. Only ask for the missing information that has not been covered yet. Advise ${firstName} to add more details by pressing the 'Start' button or typing in the Chat box below. Tell them that if they cannot add any more they can move to the next question.\n\n3) Do not say 'Hi' at the start of the response.`;
       };
 
       const buildFinalReviewPrompt = (reviewText) => {
         const industryValue = industry || industryEl?.value?.trim() || "";
+        const ctx = getStudentContext();
+        const template = promptTemplates?.finalReviewPrompt;
+        if (template) {
+          return applyTemplate(template, {
+            FullName: fullName || ctx.fullName,
+            GivenName: firstName || ctx.givenName || ctx.fullName,
+            ContactID: ctx.contactId,
+            Industry: industryValue || "Not stated in the Review",
+            JobTitle: jobTitle || jobTitleEl?.value?.trim() || "",
+            ReviewText: reviewText,
+          });
+        }
         return `You are an expert reviewer in Australia for the ${industryValue || "Not stated in the Review"} industry. Use Australian English and spelling.
 
 SOURCE OF TRUTH
@@ -1744,6 +1795,7 @@ END_REVIEW>>>`;
         initFullTranscript();
         updateDebugVisibility();
         window.addEventListener("hashchange", updateDebugVisibility);
+        await loadPromptTemplates();
         await sendStudentContextOnLoad();
         await populateMicrophones();
         if (initStatusEl) initStatusEl.textContent = "Ready.";
