@@ -2031,6 +2031,7 @@ END_REVIEW>>>`;
       if (initScreenEl) initScreenEl.classList.add("hidden");
       if (appShellEl) appShellEl.classList.add("hidden");
 
+      applyUrlStudentContext();
       loadWelcomeWebhook();
 
       welcomeContinueBtn?.addEventListener("click", async () => {
