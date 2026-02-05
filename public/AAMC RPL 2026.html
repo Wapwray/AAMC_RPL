@@ -53,9 +53,9 @@
       .formGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
       label { font-size: 13px; color: var(--muted); }
       input, select, textarea { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font: inherit; background: #ffffff; }
-      textarea { resize: vertical; min-height: 120px; }
-      .questionBox { border: 1px solid var(--border); border-radius: 12px; padding: 12px; min-height: 90px; background: #ffffff; }
-      .chatHistory { border: 1px solid var(--border); border-radius: 12px; padding: 12px; min-height: 220px; height: 100%; background: #ffffff; }
+      textarea { resize: vertical; min-height: 120px; overflow: auto; }
+      .questionBox { border: 1px solid var(--border); border-radius: 12px; padding: 12px; min-height: 90px; max-height: 160px; overflow: auto; background: #ffffff; }
+      .chatHistory { border: 1px solid var(--border); border-radius: 12px; padding: 12px; min-height: 220px; height: 100%; overflow: auto; background: #ffffff; }
       .chatEntry { padding: 10px 12px; border-radius: 10px; margin-bottom: 10px; font-size: 14px; line-height: 1.45; }
       .chatEntry:last-child { margin-bottom: 0; }
       .chatEntry.user { background: #eef6ff; border: 1px solid #d7e7ff; }
@@ -65,15 +65,17 @@
       .assessmentDebugTitle { font-size: 13px; font-weight: 700; color: var(--text); }
       .assessmentDebugLog { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 12px; line-height: 1.45; white-space: pre-wrap; max-height: 200px; overflow: auto; background: #f8fafc; border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
       .quizHeader { font-size: 18px; font-weight: 700; margin: 0 0 8px; }
-      .assessmentLayout { display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 18px; align-items: stretch; min-height: calc(100vh - 220px); }
+      .assessmentLayout { display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 18px; align-items: stretch; height: calc(100vh - 220px); }
       .assessmentMain { display: grid; gap: 14px; grid-template-rows: auto auto 1fr auto; min-height: 0; }
       .assessmentSide { display: grid; gap: 14px; align-content: start; }
       .assessmentSide button { width: 100%; }
       .quizHeaderRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-      .answerRow { display: grid; grid-template-columns: minmax(0, 1fr) 180px; gap: 12px; align-items: stretch; }
+      .answerRow { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: stretch; position: relative; }
       .answerStack { display: grid; gap: 6px; grid-template-rows: auto 1fr; min-height: 0; }
-      .answerStack textarea { height: 100%; }
-      .answerActions { display: flex; flex-direction: column; justify-content: space-between; gap: 12px; }
+      .answerStack textarea { height: 100%; max-height: 240px; padding-right: 190px; }
+      .answerRow.is-locked textarea { background: #e2e8f0; color: #64748b; }
+      .evaluateFloating { position: absolute; right: 0; bottom: 0; min-width: 170px; }
+      .nextFloating { position: fixed; right: 24px; bottom: 24px; z-index: 70; }
       .feedbackSection { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
       .hintBtn { background: #0b8f64; }
       .hintBtn:hover:not(:disabled) { background: #0a7a55; }
@@ -97,7 +99,7 @@
       button:hover:not(:disabled) { background: var(--primary-dark); }
       button.secondary:hover:not(:disabled) { background: #eef6ff; }
       .hidden { display: none !important; }
-      .pageTitleRow { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+      .pageTitleRow { display: flex; align-items: center; justify-content: flex-start; gap: 12px; flex-wrap: wrap; }
       .floatingButtonGroup { position: static; z-index: 50; display: flex; gap: 10px; flex-wrap: wrap; }
       .hintOverlay {
         position: fixed;
@@ -358,6 +360,17 @@
         .assessmentSide {
           grid-template-columns: repeat(2, minmax(0, 1fr));
         }
+        .answerStack textarea {
+          padding-right: 12px;
+        }
+        .evaluateFloating {
+          position: static;
+          width: 100%;
+        }
+        .nextFloating {
+          position: static;
+          width: 100%;
+        }
       }
     </style>
   </head>
@@ -492,10 +505,7 @@
                   <strong>Your answer</strong>
                   <textarea id="answerInput" placeholder="Type your answer here..."></textarea>
                 </div>
-                <div class="answerActions">
-                  <button id="evaluateBtn">Evaluate</button>
-                  <button id="nextBtn" class="secondary" disabled>Next</button>
-                </div>
+                <button id="evaluateBtn" class="evaluateFloating">Evaluate</button>
               </div>
               <div class="feedbackSection">
                 <strong>Feedback</strong>
@@ -522,6 +532,7 @@
               <span class="dictationStatus" id="dictationStatus">Dictation idle.</span>
             </div>
           </div>
+          <button id="nextBtn" class="secondary nextFloating" disabled>Next</button>
         </div>
       </div>
     </div>
@@ -603,6 +614,7 @@
       const hintOverlayEl = document.getElementById("hintOverlay");
       const hintCloseBtn = document.getElementById("hintCloseBtn");
       const hintBodyEl = document.getElementById("hintBody");
+      const answerRowEl = document.querySelector(".answerRow");
       // const modeToggleEl = document.getElementById("modeToggle");
       // const modeLabelEl = document.getElementById("modeLabel");
 
@@ -657,6 +669,8 @@
       let isUiLocked = false;
       let hintOpen = false;
       let lockedButtonStates = null;
+      let attemptLocked = false;
+      let attemptLockStates = null;
       const DEFAULT_FULL_NAME = "Billy Broker";
       const DEFAULT_GIVEN_NAME = "Billy";
       const DEFAULT_CONTACT_ID = "123456";
@@ -1590,7 +1604,7 @@ Job Title: ${jobTitleValue || "N/A"}
       const updateEvaluateButtonState = () => {
         if (!evaluateBtn) return;
         const answerText = answerInputEl?.value?.trim() || "";
-        if (isUiLocked || hintOpen) {
+        if (attemptLocked || isUiLocked || hintOpen) {
           evaluateBtn.disabled = true;
           return;
         }
@@ -1599,6 +1613,36 @@ Job Title: ${jobTitleValue || "N/A"}
           return;
         }
         evaluateBtn.disabled = !answerText;
+      };
+
+      const setAttemptLockState = (locked) => {
+        attemptLocked = locked;
+        if (answerInputEl) {
+          answerInputEl.disabled = locked;
+        }
+        if (answerRowEl) {
+          answerRowEl.classList.toggle("is-locked", locked);
+        }
+        if (locked) {
+          attemptLockStates = new Map();
+          getAllButtons().forEach((button) => {
+            attemptLockStates.set(button, button.disabled);
+            if (button !== nextBtn) {
+              button.disabled = true;
+            }
+          });
+          if (nextBtn) nextBtn.disabled = false;
+          return;
+        }
+        if (attemptLockStates) {
+          attemptLockStates.forEach((wasDisabled, button) => {
+            if (button && button.isConnected) {
+              button.disabled = wasDisabled;
+            }
+          });
+          attemptLockStates = null;
+        }
+        updateEvaluateButtonState();
       };
 
       const getAllButtons = () => Array.from(document.querySelectorAll("button"));
@@ -2329,6 +2373,7 @@ Job Title: ${jobTitleValue || "N/A"}
         evaluateBtn.disabled = true;
         nextBtn.disabled = true;
         chatHistoryEl.textContent = "";
+        setAttemptLockState(false);
         if (showHintBtn) showHintBtn.disabled = false;
         updateEvaluateButtonState();
       };
@@ -2767,6 +2812,7 @@ END_REVIEW>>>`;
           if (currentAttempts >= MAX_ATTEMPTS) {
             evaluateBtn.disabled = true;
             setStatus("Feedback ready. Maximum attempts reached.");
+            setAttemptLockState(true);
           } else {
             evaluateBtn.disabled = false;
             setStatus(`Feedback ready. You have ${MAX_ATTEMPTS - currentAttempts} attempt(s) left.`);
