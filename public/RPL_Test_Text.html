@@ -154,6 +154,7 @@
               <div class="dictationControls" style="margin:8px 0 6px;">
                 <button id="dictateStartBtn" class="secondary">Start dictation</button>
                 <button id="dictateStopBtn" class="secondary" disabled>Stop dictation</button>
+                 <button id="playbackBtn" class="secondary" disabled>Playback</button>
                 <span class="dictationStatus" id="dictationStatus">Dictation idle.</span>
               </div>
               <textarea id="answerInput" placeholder="Type your answer here..."></textarea>
@@ -203,6 +204,7 @@
       const answerInputEl = document.getElementById("answerInput");
       const dictateStartBtn = document.getElementById("dictateStartBtn");
       const dictateStopBtn = document.getElementById("dictateStopBtn");
+      const playbackBtn = document.getElementById("playbackBtn");
       const dictationStatusEl = document.getElementById("dictationStatus");
       const evaluateBtn = document.getElementById("evaluateBtn");
       const nextBtn = document.getElementById("nextBtn");
@@ -233,6 +235,8 @@
       let mediaRecorder = null;
       let recordedChunks = [];
       let lastResponseRecording = null;
+      let lastPlaybackRecording = null;
+      let lastPlaybackUrl = "";
       let speechRecognizer = null;
       let speechPushStream = null;
       let speechTapNode = null;
@@ -834,6 +838,7 @@ Job Title: ${jobTitleValue || "N/A"}
         }
         if (dictateStartBtn) dictateStartBtn.disabled = isDictating;
         if (dictateStopBtn) dictateStopBtn.disabled = !isDictating;
+         if (playbackBtn) playbackBtn.disabled = !lastPlaybackRecording?.blob;
       };
 
       const blobToBase64 = (blob) => new Promise((resolve, reject) => {
@@ -855,6 +860,12 @@ Job Title: ${jobTitleValue || "N/A"}
         if (!stream || typeof MediaRecorder === "undefined") return;
         recordedChunks = [];
         lastResponseRecording = null;
+         lastPlaybackRecording = null;
+         if (playbackBtn) playbackBtn.disabled = true;
+         if (lastPlaybackUrl) {
+           URL.revokeObjectURL(lastPlaybackUrl);
+           lastPlaybackUrl = "";
+         }
         try {
           mediaRecorder = new MediaRecorder(stream);
         } catch (err) {
@@ -874,6 +885,8 @@ Job Title: ${jobTitleValue || "N/A"}
             blob,
             contentType: blob.type || "audio/webm",
           };
+           lastPlaybackRecording = lastResponseRecording;
+           if (playbackBtn) playbackBtn.disabled = false;
           recordedChunks = [];
         };
         try {
@@ -1278,6 +1291,12 @@ Job Title: ${jobTitleValue || "N/A"}
         questionTextEl.textContent = question.field_5 || question.Title || "";
         answerInputEl.value = "";
         lastResponseRecording = null;
+         lastPlaybackRecording = null;
+         if (playbackBtn) playbackBtn.disabled = true;
+         if (lastPlaybackUrl) {
+           URL.revokeObjectURL(lastPlaybackUrl);
+           lastPlaybackUrl = "";
+         }
         currentAttempts = 0;
         currentResponses = [];
         evaluateBtn.disabled = false;
@@ -1476,6 +1495,25 @@ END_REVIEW>>>`;
 
       dictateStartBtn?.addEventListener("click", () => startDictation());
       dictateStopBtn?.addEventListener("click", () => stopDictation());
+        playbackBtn?.addEventListener("click", () => {
+          if (!lastPlaybackRecording?.blob) {
+            setStatus("No recording available for playback.");
+            return;
+          }
+          if (!lastPlaybackUrl) {
+            lastPlaybackUrl = URL.createObjectURL(lastPlaybackRecording.blob);
+          }
+          const audio = new Audio(lastPlaybackUrl);
+          audio.onended = () => {
+            if (lastPlaybackUrl) {
+              URL.revokeObjectURL(lastPlaybackUrl);
+              lastPlaybackUrl = "";
+            }
+          };
+          audio.play().catch((err) => {
+            setStatus(err?.message || "Unable to play recording.");
+          });
+        });
       micSelectEl?.addEventListener("change", (event) => {
         const value = event.target?.value || "";
         localStorage.setItem(MIC_STORAGE_KEY, value);
