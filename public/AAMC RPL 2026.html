@@ -77,81 +77,85 @@
       button.secondary:hover:not(:disabled) { background: #eef6ff; }
       .hidden { display: none !important; }
       .floatingButtonGroup { position: fixed; left: 24px; bottom: 24px; z-index: 50; display: flex; gap: 10px; flex-wrap: wrap; }
-      .welcomeCard {
+      .welcomeScreen {
         position: relative;
-        min-height: 480px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
-        background: rgba(255, 255, 255, 0.9);
+        overflow: hidden;
+        background: #f6f6f6 url("/RPL%20Bot%20Artwork/RPL%20Background.jpg") no-repeat center center;
+        background-size: cover;
       }
-      .welcomeStage {
-        max-width: 720px;
-        padding: 40px 24px 46px;
-        display: grid;
-        gap: 16px;
+      .welcomeContent {
+        position: relative;
+        z-index: 2;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        padding: 48px 18px 36px;
       }
       .welcomeTitle {
-        margin: 0;
-        font-size: 20px;
         font-weight: 700;
+        font-size: 20px;
       }
-      .welcomeSubtitle {
-        margin: 0;
-        font-size: 16px;
-        color: #1f2937;
-      }
-      .welcomeStatus {
-        margin: 0;
-        font-size: 12px;
+      .welcomeSubtext {
+        font-size: 15px;
         color: var(--muted);
+      }
+      .welcomeDetails {
+        width: min(900px, 100%);
+        display: grid;
+        gap: 12px;
+        text-align: left;
+        margin-top: 12px;
       }
       .welcomeLogo {
         position: absolute;
-        top: 24px;
-        right: 28px;
-        width: 150px;
-        max-width: 30vw;
+        top: 18px;
+        right: 22px;
+        width: 160px;
         height: auto;
+        z-index: 3;
       }
-      .welcomeX {
+      .welcomeArt {
         position: absolute;
-        left: 22px;
-        width: 96px;
+        width: 120px;
         height: auto;
-        opacity: 0.9;
+        z-index: 1;
       }
-      .welcomeXTop { top: 18px; transform: rotate(180deg); }
-      .welcomeXBottom { bottom: 18px; }
-      .welcomeDebugSection {
-        margin-top: 18px;
-        width: 100%;
-        text-align: left;
+      .welcomeArt.topLeft {
+        top: 16px;
+        left: 16px;
+        transform: rotate(180deg);
+      }
+      .welcomeArt.bottomLeft {
+        bottom: 16px;
+        left: 16px;
       }
     </style>
   </head>
   <body>
     <div class="page">
-      <div id="welcomeScreen" class="card welcomeCard" style="max-width:1100px; margin:0 auto 18px;">
-        <img class="welcomeLogo" src="/RPL%20Bot%20Artwork/2024_logo_black_transparent_outline_HRES.png" alt="AAMC Training Group" />
-        <img class="welcomeX welcomeXTop" src="/RPL%20Bot%20Artwork/xxx.png" alt="" aria-hidden="true" />
-        <img class="welcomeX welcomeXBottom" src="/RPL%20Bot%20Artwork/xxx.png" alt="" aria-hidden="true" />
-
-        <div class="welcomeStage">
-          <h1 class="welcomeTitle">Hello <span id="welcomeName">Student</span> and welcome back to your RPL Assessment</h1>
-          <p class="welcomeSubtitle" id="welcomeQuestionLine">It looks like you had already started this assessment and were on question <span id="welcomeQuestionNumber">2</span></p>
-          <p class="welcomeSubtitle">Press the RESUME button to continue</p>
-          <div>
-            <button id="welcomeContinueBtn" disabled>RESUME</button>
-          </div>
-          <div class="welcomeStatus" id="welcomeStatus">Initialising…</div>
-
-          <div id="welcomeDebugSection" class="welcomeDebugSection hidden">
-            <div style="font-weight:600; margin-bottom:6px;">Welcome Webhook Response</div>
-            <div class="debugBox" id="welcomeWebhookResponse" style="min-height:120px;">Waiting for response…</div>
-            <div style="font-weight:600; margin:12px 0 6px;">Welcome Debug</div>
-            <div class="debugBox" id="welcomeDebug" style="min-height:120px;">Pending…</div>
+      <div id="welcomeScreen" class="card welcomeScreen" style="max-width:1100px; margin:0 auto 18px;">
+        <img
+          class="welcomeLogo"
+          src="/RPL%20Bot%20Artwork/2024_logo_black_transparent_outline_HRES.png"
+          alt="AAMC Training Group"
+        />
+        <img class="welcomeArt topLeft" src="/RPL%20Bot%20Artwork/xxx.png" alt="Decorative" />
+        <img class="welcomeArt bottomLeft" src="/RPL%20Bot%20Artwork/xxx.png" alt="Decorative" />
+        <div class="welcomeContent">
+          <div class="welcomeTitle">Welcome to the AAMC RPL Quiz</div>
+          <div class="welcomeSubtext" id="welcomeStatus">Initialising…</div>
+          <button id="welcomeContinueBtn" disabled>Continue</button>
+          <div class="welcomeDetails hidden" id="welcomeDetails">
+            <div>
+              <div style="font-weight:600; margin-bottom:6px;">Welcome Webhook Response</div>
+              <div class="debugBox" id="welcomeWebhookResponse" style="min-height:120px;">Waiting for response…</div>
+            </div>
+            <div>
+              <div style="font-weight:600; margin:12px 0 6px;">Welcome Debug</div>
+              <div class="debugBox" id="welcomeDebug" style="min-height:120px;">Pending…</div>
+            </div>
           </div>
         </div>
       </div>
@@ -300,14 +304,11 @@
       const debugSectionEl = document.getElementById("debugSection");
       const debugLogEl = document.getElementById("debugLog");
       const welcomeScreenEl = document.getElementById("welcomeScreen");
-      const welcomeNameEl = document.getElementById("welcomeName");
-      const welcomeQuestionLineEl = document.getElementById("welcomeQuestionLine");
-      const welcomeQuestionNumberEl = document.getElementById("welcomeQuestionNumber");
       const welcomeStatusEl = document.getElementById("welcomeStatus");
       const welcomeContinueBtn = document.getElementById("welcomeContinueBtn");
       const welcomeWebhookResponseEl = document.getElementById("welcomeWebhookResponse");
       const welcomeDebugEl = document.getElementById("welcomeDebug");
-      const welcomeDebugSectionEl = document.getElementById("welcomeDebugSection");
+      const welcomeDetailsEl = document.getElementById("welcomeDetails");
       const initScreenEl = document.getElementById("initScreen");
       const initStatusEl = document.getElementById("initStatus");
       const initDebugSectionEl = document.getElementById("initDebugSection");
@@ -398,7 +399,7 @@
         const isAdmin = isAdminDebugEnabled();
         if (debugSectionEl) debugSectionEl.classList.toggle("hidden", !isAdmin);
         if (initDebugSectionEl) initDebugSectionEl.classList.toggle("hidden", !isAdmin);
-        if (welcomeDebugSectionEl) welcomeDebugSectionEl.classList.toggle("hidden", !isAdmin);
+        if (welcomeDetailsEl) welcomeDetailsEl.classList.toggle("hidden", !isAdmin);
       };
 
       const pickFirstValue = (...candidates) => {
@@ -733,22 +734,6 @@
         return match ? match[1] : "";
       };
 
-      const updateWelcomeMessage = (questionSourceText = "") => {
-        const ctx = getStudentContext();
-        if (welcomeNameEl) {
-          welcomeNameEl.textContent = ctx.fullName || "Student";
-        }
-        const questionNumber = extractQuestionNumberFromText(questionSourceText);
-        if (welcomeQuestionLineEl) {
-          if (questionNumber) {
-            if (welcomeQuestionNumberEl) welcomeQuestionNumberEl.textContent = questionNumber;
-            welcomeQuestionLineEl.classList.remove("hidden");
-          } else {
-            welcomeQuestionLineEl.classList.add("hidden");
-          }
-        }
-      };
-
       const fetchCurrentQuestionFromWebhook = async () => {
         const ctx = getStudentContext();
         const payload = {
@@ -959,7 +944,6 @@ Job Title: ${jobTitleValue || "N/A"}
       };
 
       const loadWelcomeWebhook = async () => {
-        updateWelcomeMessage();
         if (welcomeWebhookResponseEl) {
           welcomeWebhookResponseEl.textContent = "Loading…";
         }
@@ -993,7 +977,6 @@ Job Title: ${jobTitleValue || "N/A"}
           if (welcomeWebhookResponseEl) {
             welcomeWebhookResponseEl.textContent = text || "(empty)";
           }
-          updateWelcomeMessage(text);
           if (welcomeStatusEl) {
             welcomeStatusEl.textContent = "Ready.";
           }
