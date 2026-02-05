@@ -201,6 +201,30 @@
       .welcomeBody p:last-child {
         margin-bottom: 0;
       }
+      .completionScreen {
+        position: relative;
+        overflow: hidden;
+        background: #f6f6f6;
+      }
+      .completionContent {
+        position: relative;
+        z-index: 2;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        padding: 56px 18px 42px;
+      }
+      .completionTitle {
+        font-weight: 700;
+        font-size: 20px;
+      }
+      .completionBody {
+        font-size: 16px;
+        line-height: 1.6;
+        color: var(--text);
+      }
       .welcomeLogo {
         position: absolute;
         top: 18px;
@@ -460,6 +484,20 @@
         </div>
       </div>
 
+      <div id="completionScreen" class="card completionScreen hidden" style="margin:0 0 18px;">
+        <img
+          class="welcomeLogo"
+          src="/RPL%20Bot%20Artwork/2024_logo_black_transparent_outline_HRES.png"
+          alt="AAMC Training Group"
+        />
+        <div class="completionContent">
+          <div class="completionTitle" id="completionTitle">Thank you for completing your assessment</div>
+          <div class="completionBody" id="completionBody">
+            An assessor will be in contact. You can now close your browser window.
+          </div>
+        </div>
+      </div>
+
       <div id="postWelcomePage" class="hidden">
         <img
           class="appLogo"
@@ -642,6 +680,9 @@
       const debugSectionEl = document.getElementById("debugSection");
       const debugLogEl = document.getElementById("debugLog");
       const welcomeScreenEl = document.getElementById("welcomeScreen");
+      const completionScreenEl = document.getElementById("completionScreen");
+      const completionTitleEl = document.getElementById("completionTitle");
+      const completionBodyEl = document.getElementById("completionBody");
       const welcomeTitleEl = document.getElementById("welcomeTitle");
       const welcomeBodyEl = document.getElementById("welcomeBody");
       const welcomeContinueBtn = document.getElementById("welcomeContinueBtn");
@@ -729,6 +770,7 @@
       let resumeTranscriptText = "";
       let resumeApplied = false;
       let resumeCurrentQuestionNumber = null;
+      let resumeCurrentQuestionValue = "";
       let resumeLoadPromise = null;
       let lastStudentContextResponseText = "";
       let lastQuestionResponseText = "";
@@ -799,8 +841,14 @@
         }
 
         resumeTranscriptText = transcriptText || "";
-        const parsedNumber = Number.parseInt(currentQuestionText, 10);
+        resumeCurrentQuestionValue = String(currentQuestionText || "").trim();
+        const parsedNumber = Number.parseInt(resumeCurrentQuestionValue, 10);
         resumeCurrentQuestionNumber = Number.isFinite(parsedNumber) ? parsedNumber : null;
+      };
+
+      const isCompletionQuestionValue = (value) => {
+        if (!value) return false;
+        return String(value).trim().toLowerCase() === "xxx";
       };
 
       const pickFirstValue = (...candidates) => {
@@ -1278,6 +1326,69 @@
         nextBtn.disabled = true;
       };
 
+      const showCompletionScreen = () => {
+        const ctx = getStudentContext();
+        const givenName = ctx.givenName || ctx.fullName || "";
+        if (completionTitleEl) {
+          completionTitleEl.textContent = `Thank you ${givenName} for completing the assessment`;
+        }
+        if (completionBodyEl) {
+          completionBodyEl.textContent = "An assessor will be in contact. You can now close your browser window.";
+        }
+        if (postWelcomePageEl) postWelcomePageEl.classList.add("hidden");
+        if (welcomeScreenEl) welcomeScreenEl.classList.add("hidden");
+        if (completionScreenEl) completionScreenEl.classList.remove("hidden");
+      };
+
+      const runFinalReview = async ({ openWindow = false, sendWebhook = false, showCompletion = false } = {}) => {
+        const ctx = getStudentContext();
+        const reviewText = buildFullTranscript();
+        const prompt = buildFinalReviewPrompt(reviewText);
+        setStatus("Generating final review...");
+        finalBtn.disabled = true;
+        try {
+          const html = await callTextModel(prompt);
+          if (openWindow) {
+            const reportWindow = window.open("", "RPLFinalReview", "width=900,height=700,scrollbars=yes");
+            if (!reportWindow) {
+              setStatus("Popup blocked. Please allow pop-ups to view the report.");
+              return;
+            }
+            reportWindow.document.open();
+            reportWindow.document.write(html);
+            reportWindow.document.close();
+          }
+          if (sendWebhook) {
+            const payload = {
+              FullName: ctx.fullName,
+              ContactID: String(ctx.contactId),
+              FinalReport: html,
+            };
+            const url =
+              "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ad445c5a35534861933f60ee864eecfa/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=qiOM0ZtGoUf_75xUdMZJ6B5zVSzpc9qYVZJbEbYm6pM";
+            const response = await fetch(url, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+            logDebugDetail("Final report HTTP status", `${response.status} ${response.statusText}`);
+            logAssessmentDebug("Final report webhook", `${response.status} ${response.statusText}`);
+            if (!response.ok) {
+              throw new Error(`Final report webhook failed (${response.status}) ${response.statusText}`.trim());
+            }
+          }
+          if (showCompletion) {
+            showCompletionScreen();
+          }
+          setStatus("Final review ready.");
+        } catch (err) {
+          setStatus(err?.message || "Unable to generate final review.");
+          throw err;
+        } finally {
+          finalBtn.disabled = false;
+        }
+      };
+
       const buildFullTranscript = () => {
         const ctx = getStudentContext();
         const now = new Date();
@@ -1543,6 +1654,14 @@ Job Title: ${jobTitleValue || "N/A"}
             return null;
           }
           setWelcomeResumeData(parsed);
+          if (isCompletionQuestionValue(resumeCurrentQuestionValue)) {
+            welcomeMode = "completed";
+            if (welcomeContinueBtn) {
+              welcomeContinueBtn.classList.add("hidden");
+            }
+            showCompletionScreen();
+            return parsed;
+          }
           if (welcomeBodyEl && resumeCurrentQuestionNumber) {
             welcomeBodyEl.innerHTML = `
               <p>It looks like you had already started this assessment and were on question ${resumeCurrentQuestionNumber}.</p>
@@ -2762,6 +2881,7 @@ END_REVIEW>>>`;
       loadWelcomeWebhook();
 
       welcomeContinueBtn?.addEventListener("click", async () => {
+        if (welcomeMode === "completed") return;
         if (welcomeScreenEl) welcomeScreenEl.classList.add("hidden");
         if (postWelcomePageEl) postWelcomePageEl.classList.remove("hidden");
         if (postWelcomeTitleEl) {
@@ -2948,11 +3068,12 @@ END_REVIEW>>>`;
           return;
         }
         if (isLastQuestion) {
-          setStatus("All questions completed.");
-          headerTitleEl.textContent = "Compliance - Completed";
-          questionTextEl.textContent = "You have completed all questions.";
-          answerInputEl.value = "";
-          nextBtn.disabled = true;
+          setCompletedState();
+          try {
+            await runFinalReview({ sendWebhook: true, showCompletion: true });
+          } catch {
+            return;
+          }
           return;
         }
         currentIndex += 1;
@@ -2962,25 +3083,9 @@ END_REVIEW>>>`;
 
       finalBtn?.addEventListener("click", async () => {
         try {
-          const reviewText = buildFullTranscript();
-          const prompt = buildFinalReviewPrompt(reviewText);
-          setStatus("Generating final review...");
-          finalBtn.disabled = true;
-          const html = await callTextModel(prompt);
-          const reportWindow = window.open("", "RPLFinalReview", "width=900,height=700,scrollbars=yes");
-          if (!reportWindow) {
-            setStatus("Popup blocked. Please allow pop-ups to view the report.");
-            finalBtn.disabled = false;
-            return;
-          }
-          reportWindow.document.open();
-          reportWindow.document.write(html);
-          reportWindow.document.close();
-          setStatus("Final review ready.");
-        } catch (err) {
-          setStatus(err?.message || "Unable to generate final review.");
-        } finally {
-          finalBtn.disabled = false;
+          await runFinalReview({ openWindow: true });
+        } catch {
+          return;
         }
       });
 
