@@ -1380,7 +1380,7 @@
         const reviewText = buildFullTranscript();
         const prompt = buildFinalReviewPrompt(reviewText);
         setStatus("Generating final review...");
-        finalBtn.disabled = true;
+        if (finalBtn) finalBtn.disabled = true;
         showFinalisingOverlay();
         try {
           const html = await callTextModel(prompt);
@@ -1422,7 +1422,7 @@
           throw err;
         } finally {
           hideFinalisingOverlay();
-          finalBtn.disabled = false;
+          if (finalBtn) finalBtn.disabled = false;
         }
       };
 
@@ -3048,6 +3048,12 @@ END_REVIEW>>>`;
           entry.questionText = questionText;
           entry.attempts.push(attemptRecord);
           entry.summary = feedback;
+          const normalizedFeedback = feedback.toLowerCase();
+          if (normalizedFeedback.includes("press the next button to continue")) {
+            setStatus("Feedback ready. Press Next to continue.");
+            setAttemptLockState(true);
+            return;
+          }
           answerInputEl.value = "";
           updateEvaluateButtonState();
           nextBtn.disabled = false;
