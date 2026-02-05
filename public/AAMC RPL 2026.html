@@ -56,6 +56,10 @@
       .chatEntry:last-child { margin-bottom: 0; }
       .chatEntry.user { background: #eef6ff; border: 1px solid #d7e7ff; }
       .chatEntry.ai { background: #f8fafc; border: 1px solid var(--border); }
+      .assessmentDebug { border: 1px solid var(--border); border-radius: 12px; background: #ffffff; padding: 12px; }
+      .assessmentDebugHeader { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+      .assessmentDebugTitle { font-size: 13px; font-weight: 700; color: var(--text); }
+      .assessmentDebugLog { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 12px; line-height: 1.45; white-space: pre-wrap; max-height: 200px; overflow: auto; background: #f8fafc; border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
       .actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
       .dictationControls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
       .dictationStatus { font-size: 12px; color: var(--muted); }
@@ -418,6 +422,12 @@
               <button id="evaluateBtn">Evaluate</button>
               <button id="nextBtn" class="secondary" disabled>Next</button>
             </div>
+            <div class="assessmentDebug">
+              <div class="assessmentDebugHeader">
+                <div class="assessmentDebugTitle">Assessment debug</div>
+              </div>
+              <div id="assessmentDebugLog" class="assessmentDebugLog">Waiting for activity…</div>
+            </div>
           </div>
         </div>
       </div>
@@ -489,6 +499,7 @@
       const playbackMeterEl = document.getElementById("playbackMeter");
       const playbackMeterFillEl = document.getElementById("playbackMeterFill");
       const dictationStatusEl = document.getElementById("dictationStatus");
+      const assessmentDebugLogEl = document.getElementById("assessmentDebugLog");
       const evaluateBtn = document.getElementById("evaluateBtn");
       const nextBtn = document.getElementById("nextBtn");
       const finalBtn = document.getElementById("finalBtn");
@@ -1147,6 +1158,7 @@ Job Title: ${jobTitleValue || "N/A"}
           FullTranscript: fullTranscript,
           currentQuestion: currentQuestionValue,
         };
+        logAssessmentDebug("Transcript webhook", "Sending payload");
         const url =
           "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/903538467bfb426fb4b074ef9cc3caa4/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=H7BkpCmAeGTUqrl4NPh94_bK4-3hX5r82Xh-sbwnWG4";
 
@@ -1157,9 +1169,11 @@ Job Title: ${jobTitleValue || "N/A"}
             body: JSON.stringify(payload),
           });
           logDebugDetail("Transcript HTTP status", `${response.status} ${response.statusText}`);
+          logAssessmentDebug("Transcript webhook", `${response.status} ${response.statusText}`);
           const text = await response.text();
           if (text) {
             logDebugDetail("Transcript response", text);
+            logAssessmentDebug("Transcript response", text);
           }
           if (!response.ok) {
             throw new Error(`Transcript webhook failed (${response.status}) ${response.statusText}`.trim());
@@ -1167,6 +1181,7 @@ Job Title: ${jobTitleValue || "N/A"}
           return true;
         } catch (error) {
           logDebugDetail("Transcript error", error?.message || String(error));
+          logAssessmentDebug("Transcript error", error?.message || String(error));
           setStatus(error?.message || "Transcript webhook failed.");
           return false;
         }
@@ -1227,6 +1242,16 @@ Job Title: ${jobTitleValue || "N/A"}
         } catch (err) {
           logDebug(`${label}: ${String(detail)}`);
         }
+      };
+
+      const logAssessmentDebug = (label, detail) => {
+        if (!assessmentDebugLogEl) return;
+        const timestamp = new Date().toLocaleTimeString();
+        const message = detail === undefined || detail === null ? label : `${label}: ${detail}`;
+        if (assessmentDebugLogEl.textContent === "Waiting for activity…") {
+          assessmentDebugLogEl.textContent = "";
+        }
+        assessmentDebugLogEl.textContent = `[${timestamp}] ${message}\n` + assessmentDebugLogEl.textContent;
       };
 
       const loadPromptTemplates = async () => {
@@ -2482,6 +2507,7 @@ END_REVIEW>>>`;
           FullTranscript: fullTranscriptValue,
           CurrentQuestion: nextQuestionValue,
         };
+        logAssessmentDebug("Next webhook", "Sending payload");
         const url =
           "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/5403405d1b2543a48ccd83c2d5f703ee/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=vNYYnuckqabWJ9uC_CH0kGTymUyBIutten9INl_-f-s";
         try {
@@ -2491,12 +2517,20 @@ END_REVIEW>>>`;
             body: JSON.stringify(payload),
           });
           logDebugDetail("Next question HTTP status", `${response.status} ${response.statusText}`);
+          logAssessmentDebug("Next webhook", `${response.status} ${response.statusText}`);
           const text = await response.text();
           if (text) {
             logDebugDetail("Next question response", text);
+            logAssessmentDebug("Next response", text);
+          }
+          if (!response.ok) {
+            throw new Error(`Next webhook failed (${response.status}) ${response.statusText}`.trim());
           }
         } catch (error) {
           logDebugDetail("Next question error", error?.message || String(error));
+          logAssessmentDebug("Next error", error?.message || String(error));
+          setStatus(error?.message || "Next webhook failed.");
+          return;
         }
         if (isLastQuestion) {
           setStatus("All questions completed.");
