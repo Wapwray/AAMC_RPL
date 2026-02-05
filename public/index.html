@@ -6,17 +6,15 @@
     <title>AAMC TRAINING RPL TESTING</title>
     <style>
       :root {
-        color-scheme: light;
+        <title>AAMC RPL Access</title>
         --bg: #f4f6fb;
         --card: #ffffff;
         --text: #0f172a;
-        --muted: #5b6b82;
-        --border: #e2e8f0;
-        --primary: #1d4ed8;
-        --primary-strong: #1e40af;
-      }
-      * {
-        box-sizing: border-box;
+            --bg: #f4f6f9;
+            --card: #ffffff;
+            --text: #0f172a;
+            --muted: #64748b;
+            --border: #e2e8f0;
       }
       body {
         margin: 0;
@@ -29,226 +27,71 @@
         padding: 28px;
       }
       .shell {
-        max-width: 1200px;
+            padding: 24px;
         margin: 0 auto;
-        display: grid;
-        gap: 20px;
-      }
-      header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 16px;
-      }
-      h1 {
-        margin: 0;
-        font-size: 22px;
-      }
-      .status {
-        font-size: 13px;
-        color: var(--muted);
-      }
-      .grid {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 18px;
-      }
-      .card {
-        background: var(--card);
-        border: 1px solid var(--border);
-        border-radius: 16px;
-        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
-        padding: 18px;
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-      }
-      .card h2 {
-        margin: 0;
-        font-size: 16px;
-      }
-      .meta {
-        font-size: 12px;
-        color: var(--muted);
-      }
-      .controls {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-      }
-      .tableWrap {
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        background: #ffffff;
-        padding: 10px;
-        overflow-x: auto;
-      }
-      .tableWrap .empty {
-        color: var(--muted);
-        font-size: 12px;
-        padding: 6px;
-      }
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 13px;
-      }
-      th,
-      td {
-        border-bottom: 1px solid var(--border);
-        padding: 8px 10px;
-        text-align: left;
-        vertical-align: top;
-        word-break: break-word;
-      }
-      th {
-        background: #f8fafc;
-        color: var(--muted);
-        font-weight: 600;
-      }
-      button {
-        appearance: none;
-        border: none;
-        border-radius: 999px;
-        padding: 9px 16px;
-        font-size: 13px;
-        font-weight: 600;
-        background: var(--primary);
-        color: #ffffff;
-        cursor: pointer;
-        transition: background 0.2s ease;
-      }
-      button:hover:not(:disabled) {
-        background: var(--primary-strong);
-      }
-    </style>
-  </head>
-  <body>
+          .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 18px;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+          }
+          .welcomeScreen {
+            position: relative;
+            overflow: hidden;
+            background: #f6f6f6 url("/RPL%20Bot%20Artwork/RPL%20Background.jpg") no-repeat center center;
+            background-size: cover;
+            min-height: 320px;
+          }
+          .welcomeLogo {
+            position: absolute;
+            top: 18px;
+            right: 22px;
+            width: 160px;
+            height: auto;
+            z-index: 3;
+          }
+          .welcomeContent {
+            position: relative;
+            z-index: 2;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            padding: 64px 18px 48px;
+          }
+          .welcomeTitle {
+            font-weight: 700;
+            font-size: 20px;
+          }
+          .welcomeBody {
+            font-size: 16px;
+            line-height: 1.6;
+            color: var(--text);
+            max-width: 520px;
+          }
+          .welcomeBody p {
+            margin: 0;
+          }
     <div class="page">
       <div class="shell">
         <header>
           <div>
-            <h1>Welcome to AAMC TRAINING RPL TESTING V0.1</h1>
-            <div class="status">Launch the assessment when ready.</div>
+          <div class="card welcomeScreen">
+            <img
+              class="welcomeLogo"
+              src="/RPL%20Bot%20Artwork/2024_logo_black_transparent_outline_HRES.png"
+              alt="AAMC Training Group"
+            />
+            <div class="welcomeContent">
+              <div class="welcomeTitle">RPL Application Access</div>
+              <div class="welcomeBody">
+                <p>Please go to the link provide to access the RPL Application.</p>
+              </div>
+            </div>
           </div>
-        </header>
-
-        <section class="grid">
-          <article class="card">
-            <h2>RPL Assessment</h2>
-            <div class="meta">Start the text-based RPL test experience.</div>
-            <div class="controls">
-              <button id="rplTestTextBtn">Go to RPL Test (Text)</button>
-            </div>
-          </article>
-          <article class="card">
-            <h2>Photo Test</h2>
-            <div class="meta">Capture a photo using a webcam.</div>
-            <div class="controls">
-              <button id="photoTestBtn">Go to Photo Test</button>
-            </div>
-          </article>
-          <article class="card">
-            <h2>Questions</h2>
-            <div class="meta">Fetch the latest questions payload.</div>
-            <div class="controls">
-              <button id="questionsBtn">Questions</button>
-            </div>
-            <div class="tableWrap" id="questionsTableWrap"></div>
-          </article>
-        </section>
-      </div>
-    </div>
-
-    <script>
       const questionsUrl =
-        "https://default4f0de57b35694b51b8c8b1dadd7ba8.19.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/8feea7df352a455d9efde46977446910/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=AF-53thnNRJd9IxzY55POQzrW8owJ2SA6EhRycxtTEY";
-
-      const rplTestTextBtn = document.getElementById("rplTestTextBtn");
-      const photoTestBtn = document.getElementById("photoTestBtn");
-      const questionsBtn = document.getElementById("questionsBtn");
-      const questionsTableWrap = document.getElementById("questionsTableWrap");
-
-      const renderQuestionsTable = (items, wrapEl) => {
-        wrapEl.textContent = "";
-        if (!Array.isArray(items) || !items.length) {
-          const empty = document.createElement("div");
-          empty.className = "empty";
-          empty.textContent = "No questions returned.";
-          wrapEl.appendChild(empty);
-          return;
-        }
-
-        const columns = [
-          { key: "Title", label: "#" },
-          { key: "field_1", label: "Category" },
-          { key: "field_5", label: "Question" },
-          { key: "Hints", label: "Hints" },
-          { key: "field_3", label: "Objective" },
-          { key: "Group1", label: "Group 1" },
-          { key: "Group2", label: "Group 2" },
-          { key: "Modified", label: "Modified" },
-          { key: "Created", label: "Created" },
-        ];
-
-        const table = document.createElement("table");
-        const thead = document.createElement("thead");
-        const headRow = document.createElement("tr");
-        columns.forEach(({ label }) => {
-          const th = document.createElement("th");
-          th.textContent = label;
-          headRow.appendChild(th);
-        });
-        thead.appendChild(headRow);
-        table.appendChild(thead);
-
-        const tbody = document.createElement("tbody");
-        items.forEach((item) => {
-          const row = document.createElement("tr");
-          columns.forEach(({ key }) => {
-            const td = document.createElement("td");
-            const value = item?.[key];
-            if (value == null) {
-              td.textContent = "";
-            } else if (typeof value === "object") {
-              td.textContent = JSON.stringify(value);
-            } else {
-              td.textContent = String(value).trim();
-            }
-            row.appendChild(td);
-          });
-          tbody.appendChild(row);
-        });
-        table.appendChild(tbody);
-        wrapEl.appendChild(table);
-      };
-
-      const parseListItems = (json) => {
-        if (!json || typeof json.listitems !== "string") {
-          return { items: [], error: "Response does not include listitems." };
-        }
-        try {
-          const listItems = JSON.parse(json.listitems);
-          if (!Array.isArray(listItems)) {
-            return { items: [], error: "listitems is not an array." };
-          }
-          return { items: listItems, error: null };
-        } catch (parseError) {
-          return { items: [], error: parseError?.message || String(parseError) };
-        }
-      };
-
-      const loadQuestions = async () => {
-        questionsBtn.disabled = true;
-        try {
-          const response = await fetch(questionsUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-          });
-          const data = await response.json();
-          const { items } = parseListItems(data);
-          renderQuestionsTable(items, questionsTableWrap);
-        } catch (error) {
           renderQuestionsTable([], questionsTableWrap);
         } finally {
           questionsBtn.disabled = false;

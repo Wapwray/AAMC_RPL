@@ -93,8 +93,7 @@
       .welcomeScreen {
         position: relative;
         overflow: hidden;
-        background: #f6f6f6 url("/RPL%20Bot%20Artwork/RPL%20Background.jpg") no-repeat center center;
-        background-size: cover;
+        background: #f6f6f6;
       }
       .welcomeContent {
         position: relative;
@@ -133,6 +132,14 @@
         height: auto;
         z-index: 3;
       }
+      .appLogo {
+        position: fixed;
+        top: 18px;
+        right: 22px;
+        width: 160px;
+        height: auto;
+        z-index: 6;
+      }
       .welcomeArt {
         position: absolute;
         width: 120px;
@@ -149,14 +156,20 @@
         left: 16px;
       }
       .collectCard {
-        background: #2f2f2f;
-        color: #f8fafc;
-        border-color: #3f3f3f;
+        background: #f6f6f6 url("/RPL%20Bot%20Artwork/RPL%20Background.jpg") no-repeat center center;
+        background-size: cover;
+        color: var(--text);
+        border-color: var(--border);
       }
       .collectCard label,
       .collectCard .status,
       .collectCard .stepTitle {
-        color: #e2e8f0;
+        color: var(--text);
+      }
+      #quizCard {
+        background: #f6f6f6 url("/RPL%20Bot%20Artwork/RPL%20Background.jpg") no-repeat center center;
+        background-size: cover;
+        border-color: var(--border);
       }
       .collectHeader {
         display: grid;
@@ -169,7 +182,7 @@
       }
       .collectSubtitle {
         font-style: italic;
-        color: #cbd5f5;
+        color: var(--muted);
         font-size: 14px;
       }
       .collectTop {
@@ -325,6 +338,11 @@
       </div>
 
       <div id="postWelcomePage" class="hidden">
+        <img
+          class="appLogo"
+          src="/RPL%20Bot%20Artwork/2024_logo_black_transparent_outline_HRES.png"
+          alt="AAMC Training Group"
+        />
         <div class="pageTitle" id="postWelcomeTitle">Collect User Data</div>
         <div id="initScreen" class="card" style="margin:0 0 18px;">
           <div style="font-weight:700; margin-bottom:6px;">Initialising</div>
@@ -2462,6 +2480,9 @@ END_REVIEW>>>`;
 
       const startInitialisation = async () => {
         if (initStatusEl) initStatusEl.textContent = "Initialising…";
+        if (setupCard) setupCard.classList.remove("hidden");
+        if (quizCard) quizCard.classList.add("hidden");
+        if (progressRowEl) progressRowEl.classList.add("hidden");
         applyUrlStudentContext();
         updateStudentContextBanner();
         updateCollectGreeting();
