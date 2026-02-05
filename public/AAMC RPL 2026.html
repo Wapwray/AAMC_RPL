@@ -16,6 +16,10 @@
         --border: #e2e8f0;
         --primary: #0b6ea9;
         --primary-dark: #095c8b;
+        --camera-width: 260px;
+        --camera-height: 180px;
+        --camera-select-height: 42px;
+        --camera-gap: 10px;
       }
       * { box-sizing: border-box; }
       body {
@@ -170,15 +174,16 @@
       }
       .collectTop {
         display: grid;
-        grid-template-columns: 1.2fr 1fr 0.9fr;
-        gap: 20px;
+        grid-template-columns: minmax(220px, 0.9fr) minmax(240px, 1.05fr) minmax(240px, 1.05fr);
+        gap: 18px;
         align-items: start;
         margin-bottom: 18px;
       }
       .collectBottom {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        grid-template-columns: repeat(3, minmax(240px, 1fr));
         gap: 16px;
+        align-items: start;
       }
       .collectStep {
         display: grid;
@@ -201,25 +206,42 @@
         display: grid;
         gap: 10px;
       }
+      .collectBottom .stepContent {
+        width: 100%;
+        max-width: 260px;
+      }
+      .collectBottom .stepContent select,
+      .collectBottom .stepContent input,
+      .collectBottom .stepContent button {
+        width: 100%;
+      }
       .collectPreview {
         display: grid;
-        gap: 10px;
-        justify-items: center;
+        gap: var(--camera-gap);
+        justify-items: start;
+        grid-template-rows: var(--camera-height) var(--camera-select-height);
       }
       .collectCapture {
         display: grid;
         gap: 12px;
-        justify-items: center;
+        justify-items: start;
         align-content: start;
       }
       .collectVideo {
         width: 100%;
-        max-width: 260px;
-        aspect-ratio: 4 / 3;
+        max-width: var(--camera-width);
+        height: var(--camera-height);
         border-radius: 12px;
         border: 1px solid #4b5563;
         background: #0f172a;
         object-fit: cover;
+      }
+      .collectSelectRow {
+        width: 100%;
+        max-width: var(--camera-width);
+        height: var(--camera-select-height);
+        display: grid;
+        align-items: center;
       }
       .collectSelectRow select,
       .collectCard input,
@@ -233,20 +255,39 @@
         justify-items: center;
       }
       .collectAvatar {
-        width: 140px;
-        height: 140px;
-        border-radius: 50%;
-        border: 2px solid #d1d5db;
+        width: 100%;
+        max-width: var(--camera-width);
+        height: calc(var(--camera-height) + var(--camera-select-height) + var(--camera-gap));
+        border-radius: 12px;
+        border: 1px solid #4b5563;
         background: rgba(255, 255, 255, 0.08);
         display: grid;
         place-items: center;
         overflow: hidden;
+        position: relative;
       }
       .collectAvatar img {
         width: 100%;
         height: 100%;
         object-fit: cover;
+        border-radius: 12px;
+      }
+      .collectPlaceholder {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background: #2f3b45;
+      }
+      .collectPlaceholder::before {
+        content: "";
+        width: 54px;
+        height: 54px;
         border-radius: 50%;
+        background: #4b5563;
+        display: block;
+        margin-bottom: 8px;
+        box-shadow: 0 60px 0 8px #4b5563;
       }
       .collectCard button.secondary {
         background: #ffffff;
@@ -329,7 +370,7 @@
               <div class="stepContent">
                 <div class="stepTitle">
                   You can do this as many times as you like. First, take your photo. When you are
-                  happy with the result, select “Save Photo”.
+                  happy with the result, continue to confirm your details below.
                 </div>
                 <button id="takePhotoBtn">Take Photo</button>
               </div>
@@ -344,9 +385,9 @@
             </div>
             <div class="collectCapture">
               <div class="collectAvatar">
+                <div id="photoPlaceholder" class="collectPlaceholder"></div>
                 <img id="photoPreview" class="hidden" alt="Captured photo preview" />
               </div>
-              <button id="savePhotoBtn" class="secondary" disabled>Save Photo</button>
             </div>
           </div>
           <div class="collectBottom">
@@ -461,12 +502,12 @@
       const collectGreetingEl = document.getElementById("collectGreeting");
       const cameraSelectEl = document.getElementById("cameraSelect");
       const takePhotoBtn = document.getElementById("takePhotoBtn");
-      const savePhotoBtn = document.getElementById("savePhotoBtn");
       const confirmIndustryBtn = document.getElementById("confirmIndustryBtn");
       const confirmJobTitleBtn = document.getElementById("confirmJobTitleBtn");
       const cameraPreviewEl = document.getElementById("cameraPreview");
       const photoPreviewEl = document.getElementById("photoPreview");
       const photoCanvasEl = document.getElementById("photoCanvas");
+      const photoPlaceholderEl = document.getElementById("photoPlaceholder");
 
       const questionTextEl = document.getElementById("questionText");
       const chatHistoryEl = document.getElementById("chatHistory");
@@ -688,6 +729,7 @@
           cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
           if (cameraPreviewEl) cameraPreviewEl.srcObject = cameraStream;
           if (photoPreviewEl) photoPreviewEl.classList.add("hidden");
+          if (photoPlaceholderEl) photoPlaceholderEl.classList.remove("hidden");
           setStatus("Camera ready. Press Take Photo again to capture.");
         } catch (error) {
           setStatus(error?.message || String(error));
@@ -709,52 +751,9 @@
           photoPreviewEl.src = lastPhotoDataUrl;
           photoPreviewEl.classList.remove("hidden");
         }
-        if (savePhotoBtn) savePhotoBtn.disabled = false;
-        setStatus("Photo captured. You can save it now.");
+        if (photoPlaceholderEl) photoPlaceholderEl.classList.add("hidden");
+        setStatus("Photo captured.");
         setCollectStepsEnabled({ industry: true, jobTitle: false, begin: false });
-      };
-
-      const savePhoto = async () => {
-        const photoWebhookUrl =
-          "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/eed37019d13445dca3ed1328184834cd/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=5N4jQe1NiJqap973EL0-OkOSZOn4fiICPEMVBaqQEdY";
-        if (!photoWebhookUrl) {
-          setStatus("No photo webhook configured.");
-          return;
-        }
-        if (!lastPhotoDataUrl) {
-          setStatus("Capture a photo before saving.");
-          return;
-        }
-        if (savePhotoBtn) savePhotoBtn.disabled = true;
-        setStatus("Sending photo...");
-        try {
-          const ctx = getStudentContext();
-          const contentType = "image/jpeg";
-          const base64Data = lastPhotoDataUrl.includes(",")
-            ? lastPhotoDataUrl.split(",")[1]
-            : lastPhotoDataUrl;
-          const payload = {
-            FullName: ctx.fullName,
-            ContactID: String(ctx.contactId),
-            FileName: `${ctx.fullName} - ${ctx.contactId} - Photo`,
-            ContentType: contentType,
-            Base64Data: base64Data,
-          };
-          const response = await fetch(photoWebhookUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          });
-          if (!response.ok) {
-            const text = await response.text();
-            throw new Error(`Webhook error ${response.status}: ${text}`);
-          }
-          setStatus("Photo saved successfully.");
-        } catch (error) {
-          setStatus(error?.message || String(error));
-        } finally {
-          if (savePhotoBtn) savePhotoBtn.disabled = false;
-        }
       };
 
       const isNoTranscriptResponse = (value) => {
@@ -2361,6 +2360,32 @@ END_REVIEW>>>`;
           return;
         }
 
+        if (lastPhotoDataUrl) {
+          const photoWebhookUrl =
+            "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/eed37019d13445dca3ed1328184834cd/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=5N4jQe1NiJqap973EL0-OkOSZOn4fiICPEMVBaqQEdY";
+          try {
+            const contentType = "image/jpeg";
+            const base64Data = lastPhotoDataUrl.includes(",")
+              ? lastPhotoDataUrl.split(",")[1]
+              : lastPhotoDataUrl;
+            const payload = {
+              FullName: ctx.fullName,
+              ContactID: String(ctx.contactId),
+              FileName: `${ctx.fullName} - ${ctx.contactId} - Photo`,
+              ContentType: contentType,
+              Base64Data: base64Data,
+            };
+            await fetch(photoWebhookUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+          } catch (error) {
+            setStatus(error?.message || String(error));
+            return;
+          }
+        }
+
         industry = industryValue;
         jobTitle = jobValue;
         if (industryEl && industryValue) industryEl.value = industryValue;
@@ -2488,7 +2513,6 @@ END_REVIEW>>>`;
         }
         capturePhoto();
       });
-      savePhotoBtn?.addEventListener("click", () => savePhoto());
       confirmIndustryBtn?.addEventListener("click", () => {
         if (!industryEl?.value?.trim()) {
           setStatus("Select an industry before confirming.");
