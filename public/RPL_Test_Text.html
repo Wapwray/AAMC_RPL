@@ -56,6 +56,7 @@
       .playbackWidget { display: inline-flex; align-items: center; gap: 8px; min-width: 220px; }
       .playbackTrack { position: relative; width: 160px; height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
       .playbackFill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: #7fb6dc; transition: width 0.05s linear; }
+      .playbackIndicator { position: absolute; top: -4px; left: 0%; width: 3px; height: 16px; background: var(--primary-dark); transform: translateX(-50%); border-radius: 2px; transition: left 0.05s linear; }
       .playbackDot { position: absolute; top: 50%; left: 0%; width: 12px; height: 12px; border-radius: 50%; background: var(--primary); transform: translate(-50%, -50%); box-shadow: 0 0 0 2px #ffffff; transition: left 0.05s linear; }
       .playbackTime { font-size: 11px; color: var(--muted); min-width: 62px; text-align: right; }
       .playbackWidget.disabled { opacity: 0.5; }
@@ -164,6 +165,7 @@
                 <div class="playbackWidget disabled" id="playbackWidget">
                   <div class="playbackTrack">
                     <div class="playbackFill" id="playbackFill"></div>
+                    <div class="playbackIndicator" id="playbackIndicator"></div>
                     <div class="playbackDot" id="playbackDot"></div>
                   </div>
                   <div class="playbackTime" id="playbackTime">0:00</div>
@@ -220,6 +222,7 @@
       const playbackBtn = document.getElementById("playbackBtn");
       const playbackWidgetEl = document.getElementById("playbackWidget");
       const playbackFillEl = document.getElementById("playbackFill");
+      const playbackIndicatorEl = document.getElementById("playbackIndicator");
       const playbackDotEl = document.getElementById("playbackDot");
       const playbackTimeEl = document.getElementById("playbackTime");
       const dictationStatusEl = document.getElementById("dictationStatus");
@@ -877,6 +880,7 @@ Job Title: ${jobTitleValue || "N/A"}
         const ratio = safeDuration ? Math.min(1, safeCurrent / safeDuration) : 0;
         const percent = `${(ratio * 100).toFixed(2)}%`;
         if (playbackFillEl) playbackFillEl.style.width = percent;
+        if (playbackIndicatorEl) playbackIndicatorEl.style.left = percent;
         if (playbackDotEl) playbackDotEl.style.left = percent;
         if (playbackTimeEl) {
           const durationLabel = safeDuration ? formatPlaybackTime(safeDuration) : "0:00";
@@ -918,7 +922,13 @@ Job Title: ${jobTitleValue || "N/A"}
           updatePlaybackUi(0, lastPlaybackDuration);
         };
         playbackAudio.ontimeupdate = () => {
-          updatePlaybackUi(playbackAudio.currentTime || 0, playbackAudio.duration || lastPlaybackDuration || 0);
+          const duration = Number.isFinite(playbackAudio.duration) && playbackAudio.duration > 0
+            ? playbackAudio.duration
+            : lastPlaybackDuration || 0;
+          if (duration && duration !== lastPlaybackDuration) {
+            lastPlaybackDuration = duration;
+          }
+          updatePlaybackUi(playbackAudio.currentTime || 0, duration);
         };
         playbackAudio.onended = () => {
           stopPlayback({ reset: true });
