@@ -128,6 +128,21 @@
         text-align: left;
         margin-top: 12px;
       }
+      .welcomeResumeGrid {
+        display: grid;
+        gap: 10px;
+        font-size: 13px;
+      }
+      .welcomeResumeLabel {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+      }
+      .welcomeResumeValue {
+        font-weight: 600;
+        color: var(--text);
+      }
       .welcomeLogo {
         position: absolute;
         top: 18px;
@@ -278,6 +293,37 @@
             <p>Initialising…</p>
           </div>
           <button id="welcomeContinueBtn" disabled>Continue</button>
+          <div class="welcomeDetails" id="welcomeDetails">
+            <div class="assessmentDebug">
+              <div class="assessmentDebugHeader">
+                <div class="assessmentDebugTitle">Welcome debug</div>
+              </div>
+              <div id="welcomeDebugLog" class="assessmentDebugLog">Waiting for activity…</div>
+            </div>
+            <div class="assessmentDebug">
+              <div class="assessmentDebugHeader">
+                <div class="assessmentDebugTitle">Resume data</div>
+              </div>
+              <div class="welcomeResumeGrid">
+                <div>
+                  <div class="welcomeResumeLabel">Industry</div>
+                  <div id="welcomeResumeIndustry" class="welcomeResumeValue">—</div>
+                </div>
+                <div>
+                  <div class="welcomeResumeLabel">Job Title</div>
+                  <div id="welcomeResumeJobTitle" class="welcomeResumeValue">—</div>
+                </div>
+                <div>
+                  <div class="welcomeResumeLabel">Current Question</div>
+                  <div id="welcomeResumeCurrentQuestion" class="welcomeResumeValue">—</div>
+                </div>
+                <div>
+                  <div class="welcomeResumeLabel">Full Transcription</div>
+                  <div id="welcomeResumeTranscript" class="welcomeResumeValue">—</div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -472,9 +518,12 @@
       const welcomeTitleEl = document.getElementById("welcomeTitle");
       const welcomeBodyEl = document.getElementById("welcomeBody");
       const welcomeContinueBtn = document.getElementById("welcomeContinueBtn");
-      const welcomeWebhookResponseEl = document.getElementById("welcomeWebhookResponse");
-      const welcomeDebugEl = document.getElementById("welcomeDebug");
+      const welcomeDebugLogEl = document.getElementById("welcomeDebugLog");
       const welcomeDetailsEl = document.getElementById("welcomeDetails");
+      const welcomeResumeIndustryEl = document.getElementById("welcomeResumeIndustry");
+      const welcomeResumeJobTitleEl = document.getElementById("welcomeResumeJobTitle");
+      const welcomeResumeCurrentQuestionEl = document.getElementById("welcomeResumeCurrentQuestion");
+      const welcomeResumeTranscriptEl = document.getElementById("welcomeResumeTranscript");
       const postWelcomePageEl = document.getElementById("postWelcomePage");
       const postWelcomeTitleEl = document.getElementById("postWelcomeTitle");
       const initScreenEl = document.getElementById("initScreen");
@@ -552,6 +601,8 @@
       let transcriptQuestions = [];
       let resumeTranscriptText = "";
       let resumeApplied = false;
+      let resumeCurrentQuestionNumber = null;
+      let resumeLoadPromise = null;
       let lastStudentContextResponseText = "";
       let lastQuestionResponseText = "";
       let promptTemplates = null;
@@ -586,6 +637,59 @@
         if (debugSectionEl) debugSectionEl.classList.remove("hidden");
         if (initDebugSectionEl) initDebugSectionEl.classList.remove("hidden");
         if (welcomeDetailsEl) welcomeDetailsEl.classList.remove("hidden");
+      };
+
+      const logWelcomeDebug = (label, detail) => {
+        if (!welcomeDebugLogEl) return;
+        const timestamp = new Date().toLocaleTimeString();
+        const message = detail === undefined || detail === null ? label : `${label}: ${detail}`;
+        if (welcomeDebugLogEl.textContent === "Waiting for activity…") {
+          welcomeDebugLogEl.textContent = "";
+        }
+        welcomeDebugLogEl.textContent = `[${timestamp}] ${message}\n` + welcomeDebugLogEl.textContent;
+      };
+
+      const setWelcomeResumeData = (data) => {
+        if (!data || typeof data !== "object") return;
+        const combined = pickFirstValue(data["Industry,Job Title"], data.industryJobTitle);
+        const currentQuestionText = pickFirstValue(data["Current Question"], data.currentQuestion);
+        const transcriptText = pickFirstValue(data["Full Transcription"], data.fullTranscription);
+
+        let industryValue = combined;
+        let jobValue = "";
+        if (combined) {
+          const dashIndex = combined.indexOf("-");
+          if (dashIndex >= 0) {
+            industryValue = combined.slice(0, dashIndex).trim();
+            jobValue = combined.slice(dashIndex + 1).trim();
+          }
+        }
+
+        if (industryValue) {
+          industry = industryValue;
+          if (industryEl) industryEl.value = industryValue;
+        }
+        if (jobValue) {
+          jobTitle = jobValue;
+          if (jobTitleEl) jobTitleEl.value = jobValue;
+        }
+
+        if (welcomeResumeIndustryEl) {
+          welcomeResumeIndustryEl.textContent = industryValue || "—";
+        }
+        if (welcomeResumeJobTitleEl) {
+          welcomeResumeJobTitleEl.textContent = jobValue || "—";
+        }
+        if (welcomeResumeCurrentQuestionEl) {
+          welcomeResumeCurrentQuestionEl.textContent = currentQuestionText || "—";
+        }
+        if (welcomeResumeTranscriptEl) {
+          welcomeResumeTranscriptEl.textContent = transcriptText || "—";
+        }
+
+        resumeTranscriptText = transcriptText || "";
+        const parsedNumber = Number.parseInt(currentQuestionText, 10);
+        resumeCurrentQuestionNumber = Number.isFinite(parsedNumber) ? parsedNumber : null;
       };
 
       const pickFirstValue = (...candidates) => {
@@ -1045,6 +1149,7 @@
         logDebug("Fetching current question from webhook");
         logDebugDetail("Current question payload", payload);
 
+        /*
         const response = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1053,6 +1158,12 @@
         logDebugDetail("Current question HTTP status", `${response.status} ${response.statusText}`);
         const rawText = await response.text();
         lastQuestionResponseText = rawText || "";
+        if (questionBtn) questionBtn.disabled = false;
+        logDebugDetail("Current question response", rawText || "(empty)");
+        return parseCurrentQuestionValue(rawText);
+        */
+        const rawText = "";
+        lastQuestionResponseText = rawText;
         if (questionBtn) questionBtn.disabled = false;
         logDebugDetail("Current question response", rawText || "(empty)");
         return parseCurrentQuestionValue(rawText);
@@ -1330,13 +1441,49 @@ Job Title: ${jobTitleValue || "N/A"}
         welcomeMode = "new";
       };
 
+      const loadResumeWebhook = async () => {
+        const ctx = getStudentContext();
+        const payload = {
+          FullName: ctx.fullName,
+          ContactID: String(ctx.contactId),
+          GivenName: ctx.givenName,
+        };
+        const url =
+          "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/e227ea1f254a4fc885e0a6cbbed2a9ea/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=9wpXy_WL_FQZhqDZ18f2e6SwLneEIGN1QlGMMY7HnaI";
+        logWelcomeDebug("Resume webhook", "Sending payload");
+        try {
+          const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          logWelcomeDebug("Resume webhook", `${response.status} ${response.statusText}`);
+          const text = await response.text();
+          logWelcomeDebug("Resume response", text || "(empty)");
+          if (!text) return null;
+          let parsed = null;
+          try {
+            parsed = JSON.parse(text);
+          } catch (err) {
+            logWelcomeDebug("Resume parse error", err?.message || String(err));
+            return null;
+          }
+          setWelcomeResumeData(parsed);
+          if (welcomeBodyEl && resumeCurrentQuestionNumber) {
+            welcomeBodyEl.innerHTML = `
+              <p>It looks like you had already started this assessment and were on question ${resumeCurrentQuestionNumber}.</p>
+              <p>Press the RESUME button to continue.</p>
+            `;
+          }
+          return parsed;
+        } catch (err) {
+          logWelcomeDebug("Resume error", err?.message || String(err));
+          return null;
+        }
+      };
+
       const loadWelcomeWebhook = async () => {
-        if (welcomeWebhookResponseEl) {
-          welcomeWebhookResponseEl.textContent = "Loading…";
-        }
-        if (welcomeDebugEl) {
-          welcomeDebugEl.textContent = "Calling welcome webhook…";
-        }
+        logWelcomeDebug("Welcome webhook", "Calling welcome webhook…");
         if (welcomeTitleEl) {
           welcomeTitleEl.textContent = "Welcome to the AAMC RPL Quiz";
         }
@@ -1360,21 +1507,16 @@ Job Title: ${jobTitleValue || "N/A"}
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
           });
-          if (welcomeDebugEl) {
-            welcomeDebugEl.textContent = `HTTP ${response.status} ${response.statusText}`;
-          }
+          logWelcomeDebug("Welcome webhook", `HTTP ${response.status} ${response.statusText}`);
           const text = await response.text();
-          if (welcomeWebhookResponseEl) {
-            welcomeWebhookResponseEl.textContent = text || "(empty)";
-          }
+          logWelcomeDebug("Welcome response", text || "(empty)");
           updateWelcomeMessage(text || "");
+          if (text && text.toLowerCase().includes("user exists")) {
+            resumeLoadPromise = loadResumeWebhook();
+            await resumeLoadPromise;
+          }
         } catch (err) {
-          if (welcomeWebhookResponseEl) {
-            welcomeWebhookResponseEl.textContent = err?.message || String(err);
-          }
-          if (welcomeDebugEl) {
-            welcomeDebugEl.textContent = err?.message || String(err);
-          }
+          logWelcomeDebug("Welcome error", err?.message || String(err));
           updateWelcomeMessage("");
         } finally {
           if (welcomeContinueBtn) {
@@ -2268,19 +2410,24 @@ END_REVIEW>>>`;
         return String(text).trim();
       };
 
-      beginBtn.addEventListener("click", async () => {
+      const beginAssessmentFlow = async ({ skipValidation = false } = {}) => {
         const ctx = getStudentContext();
         fullName = fullNameEl ? fullNameEl.value.trim() : "";
         if (!fullName) {
           fullName = ctx.fullName || DEFAULT_FULL_NAME;
         }
-        industry = industryEl.value.trim();
-        jobTitle = jobTitleEl.value.trim();
 
-        if (!industry || !jobTitle) {
+        const industryValue = industryEl?.value?.trim() || industry || "";
+        const jobValue = jobTitleEl?.value?.trim() || jobTitle || "";
+        if (!skipValidation && (!industryValue || !jobValue)) {
           setStatus("Please complete all fields.");
           return;
         }
+
+        industry = industryValue;
+        jobTitle = jobValue;
+        if (industryEl && industryValue) industryEl.value = industryValue;
+        if (jobTitleEl && jobValue) jobTitleEl.value = jobValue;
 
         firstName = ctx.givenName || fullName.split(" ").filter(Boolean)[0] || fullName;
         assessmentStartAt = new Date();
@@ -2323,20 +2470,32 @@ END_REVIEW>>>`;
           if (tableBtn) tableBtn.disabled = false;
           setupCard.classList.add("hidden");
           quizCard.classList.remove("hidden");
-          const resumed = await updateCurrentQuestionFromWebhook();
+
+          if (resumeTranscriptText) {
+            applyTranscriptResume(resumeTranscriptText);
+          }
+          if (resumeCurrentQuestionNumber && Number.isFinite(resumeCurrentQuestionNumber)) {
+            const targetIndex = Math.max(0, resumeCurrentQuestionNumber - 1);
+            currentIndex = Math.min(targetIndex, Math.max(0, questions.length - 1));
+          } else if (!skipValidation) {
+            await updateCurrentQuestionFromWebhook();
+          }
 
           if (currentIndex >= questions.length) {
             setCompletedState();
           } else {
-            if (!resumed) currentIndex = 0;
             renderQuestion();
-            setStatus(resumed ? "Resumed at current question." : "Ready.");
+            setStatus("Ready.");
             if (progressRowEl) progressRowEl.classList.remove("hidden");
           }
         } catch (err) {
           setStatus(err?.message || String(err));
           beginBtn.disabled = false;
         }
+      };
+
+      beginBtn.addEventListener("click", async () => {
+        await beginAssessmentFlow({ skipValidation: false });
       });
 
       const startInitialisation = async () => {
@@ -2375,6 +2534,12 @@ END_REVIEW>>>`;
         if (initScreenEl) initScreenEl.classList.remove("hidden");
         if (appShellEl) appShellEl.classList.add("hidden");
         await startInitialisation();
+        if (welcomeMode === "existing") {
+          if (resumeLoadPromise) {
+            await resumeLoadPromise;
+          }
+          await beginAssessmentFlow({ skipValidation: true });
+        }
       });
 
       dictateStartBtn?.addEventListener("click", () => startDictation());
