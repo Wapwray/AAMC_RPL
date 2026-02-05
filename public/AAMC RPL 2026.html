@@ -2499,12 +2499,10 @@ END_REVIEW>>>`;
         const ctx = getStudentContext();
         const isLastQuestion = currentIndex + 1 >= questions.length;
         const nextQuestionValue = isLastQuestion ? "XXX" : String(currentIndex + 2);
-        const fullTranscriptValue = buildFullTranscript();
         const payload = {
           FullName: ctx.fullName,
           ContactID: String(ctx.contactId),
           GivenName: ctx.givenName,
-          FullTranscript: fullTranscriptValue,
           CurrentQuestion: nextQuestionValue,
         };
         logAssessmentDebug("Next webhook", "Sending payload");
