@@ -1133,11 +1133,19 @@ Job Title: ${jobTitleValue || "N/A"}
         const ctx = getStudentContext();
         fullTranscript = buildFullTranscript();
         window.RPLFullTranscript = fullTranscript;
+        const firstUnansweredIndex = questions.length
+          ? findFirstUnansweredIndex(transcriptQuestions, questions.length)
+          : null;
+        const currentQuestionValue =
+          firstUnansweredIndex === null || firstUnansweredIndex >= questions.length
+            ? "XXX"
+            : `Q${firstUnansweredIndex + 1}`;
         const payload = {
           FullName: ctx.fullName,
           ContactID: String(ctx.contactId),
           GivenName: ctx.givenName,
           FullTranscript: fullTranscript,
+          currentQuestion: currentQuestionValue,
         };
         const url =
           "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/903538467bfb426fb4b074ef9cc3caa4/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=H7BkpCmAeGTUqrl4NPh94_bK4-3hX5r82Xh-sbwnWG4";
