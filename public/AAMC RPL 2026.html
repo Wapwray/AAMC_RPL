@@ -121,28 +121,6 @@
       .welcomeBody p:last-child {
         margin-bottom: 0;
       }
-      .welcomeDetails {
-        width: min(900px, 100%);
-        display: grid;
-        gap: 12px;
-        text-align: left;
-        margin-top: 12px;
-      }
-      .welcomeResumeGrid {
-        display: grid;
-        gap: 10px;
-        font-size: 13px;
-      }
-      .welcomeResumeLabel {
-        font-size: 12px;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: var(--muted);
-      }
-      .welcomeResumeValue {
-        font-weight: 600;
-        color: var(--text);
-      }
       .welcomeLogo {
         position: absolute;
         top: 18px;
@@ -285,45 +263,13 @@
           src="/RPL%20Bot%20Artwork/2024_logo_black_transparent_outline_HRES.png"
           alt="AAMC Training Group"
         />
-        <img class="welcomeArt topLeft" src="/RPL%20Bot%20Artwork/xxx.png" alt="Decorative" />
-        <img class="welcomeArt bottomLeft" src="/RPL%20Bot%20Artwork/xxx.png" alt="Decorative" />
+        
         <div class="welcomeContent">
           <div class="welcomeTitle" id="welcomeTitle">Welcome to the AAMC RPL Quiz</div>
           <div class="welcomeBody" id="welcomeBody">
             <p>Initialising…</p>
           </div>
           <button id="welcomeContinueBtn" disabled>Continue</button>
-          <div class="welcomeDetails" id="welcomeDetails">
-            <div class="assessmentDebug">
-              <div class="assessmentDebugHeader">
-                <div class="assessmentDebugTitle">Welcome debug</div>
-              </div>
-              <div id="welcomeDebugLog" class="assessmentDebugLog">Waiting for activity…</div>
-            </div>
-            <div class="assessmentDebug">
-              <div class="assessmentDebugHeader">
-                <div class="assessmentDebugTitle">Resume data</div>
-              </div>
-              <div class="welcomeResumeGrid">
-                <div>
-                  <div class="welcomeResumeLabel">Industry</div>
-                  <div id="welcomeResumeIndustry" class="welcomeResumeValue">—</div>
-                </div>
-                <div>
-                  <div class="welcomeResumeLabel">Job Title</div>
-                  <div id="welcomeResumeJobTitle" class="welcomeResumeValue">—</div>
-                </div>
-                <div>
-                  <div class="welcomeResumeLabel">Current Question</div>
-                  <div id="welcomeResumeCurrentQuestion" class="welcomeResumeValue">—</div>
-                </div>
-                <div>
-                  <div class="welcomeResumeLabel">Full Transcription</div>
-                  <div id="welcomeResumeTranscript" class="welcomeResumeValue">—</div>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -518,12 +464,7 @@
       const welcomeTitleEl = document.getElementById("welcomeTitle");
       const welcomeBodyEl = document.getElementById("welcomeBody");
       const welcomeContinueBtn = document.getElementById("welcomeContinueBtn");
-      const welcomeDebugLogEl = document.getElementById("welcomeDebugLog");
-      const welcomeDetailsEl = document.getElementById("welcomeDetails");
-      const welcomeResumeIndustryEl = document.getElementById("welcomeResumeIndustry");
-      const welcomeResumeJobTitleEl = document.getElementById("welcomeResumeJobTitle");
-      const welcomeResumeCurrentQuestionEl = document.getElementById("welcomeResumeCurrentQuestion");
-      const welcomeResumeTranscriptEl = document.getElementById("welcomeResumeTranscript");
+      const welcomeDebugLogEl = null;
       const postWelcomePageEl = document.getElementById("postWelcomePage");
       const postWelcomeTitleEl = document.getElementById("postWelcomeTitle");
       const initScreenEl = document.getElementById("initScreen");
@@ -636,18 +577,10 @@
       const updateDebugVisibility = () => {
         if (debugSectionEl) debugSectionEl.classList.remove("hidden");
         if (initDebugSectionEl) initDebugSectionEl.classList.remove("hidden");
-        if (welcomeDetailsEl) welcomeDetailsEl.classList.remove("hidden");
+        
       };
 
-      const logWelcomeDebug = (label, detail) => {
-        if (!welcomeDebugLogEl) return;
-        const timestamp = new Date().toLocaleTimeString();
-        const message = detail === undefined || detail === null ? label : `${label}: ${detail}`;
-        if (welcomeDebugLogEl.textContent === "Waiting for activity…") {
-          welcomeDebugLogEl.textContent = "";
-        }
-        welcomeDebugLogEl.textContent = `[${timestamp}] ${message}\n` + welcomeDebugLogEl.textContent;
-      };
+      const logWelcomeDebug = () => {};
 
       const setWelcomeResumeData = (data) => {
         if (!data || typeof data !== "object") return;
@@ -672,19 +605,6 @@
         if (jobValue) {
           jobTitle = jobValue;
           if (jobTitleEl) jobTitleEl.value = jobValue;
-        }
-
-        if (welcomeResumeIndustryEl) {
-          welcomeResumeIndustryEl.textContent = industryValue || "—";
-        }
-        if (welcomeResumeJobTitleEl) {
-          welcomeResumeJobTitleEl.textContent = jobValue || "—";
-        }
-        if (welcomeResumeCurrentQuestionEl) {
-          welcomeResumeCurrentQuestionEl.textContent = currentQuestionText || "—";
-        }
-        if (welcomeResumeTranscriptEl) {
-          welcomeResumeTranscriptEl.textContent = transcriptText || "—";
         }
 
         resumeTranscriptText = transcriptText || "";
@@ -1418,10 +1338,7 @@ Job Title: ${jobTitleValue || "N/A"}
             welcomeTitleEl.textContent = `Hello ${ctx.fullName} and welcome back to your RPL Assessment`;
           }
           if (welcomeBodyEl) {
-            welcomeBodyEl.innerHTML = `
-              <p>It looks like you had already started this assessment and were on question ${questionNumber}.</p>
-              <p>Press the RESUME button to continue.</p>
-            `;
+            welcomeBodyEl.innerHTML = "<p>Initialising…</p>";
           }
           if (welcomeContinueBtn) {
             welcomeContinueBtn.textContent = "RESUME";
