@@ -969,6 +969,27 @@ Job Title: ${jobTitleValue || "N/A"}
         playbackAnalyser = null;
       };
 
+      const playStartTone = () => {
+        if (!audioCtx) return;
+        try {
+          if (audioCtx.state === "suspended") {
+            audioCtx.resume().catch(() => {});
+          }
+          const oscillator = audioCtx.createOscillator();
+          const gainNode = audioCtx.createGain();
+          oscillator.type = "sine";
+          oscillator.frequency.value = 880;
+          gainNode.gain.value = 0.0001;
+          oscillator.connect(gainNode);
+          gainNode.connect(audioCtx.destination);
+          const now = audioCtx.currentTime;
+          gainNode.gain.exponentialRampToValueAtTime(0.08, now + 0.01);
+          gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+          oscillator.start(now);
+          oscillator.stop(now + 0.2);
+        } catch {}
+      };
+
       const startPlaybackMeter = () => {
         if (!playbackAudio) return;
         if (!playbackAudioCtx) {
@@ -1385,6 +1406,7 @@ Job Title: ${jobTitleValue || "N/A"}
             micStream = stream;
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             micSourceNode = audioCtx.createMediaStreamSource(stream);
+            playStartTone();
             startMediaRecorder(stream);
             return startAzureRecognition(audioCtx, micSourceNode);
           })
