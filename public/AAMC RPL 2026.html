@@ -2430,6 +2430,7 @@ Job Title: ${jobTitleValue || "N/A"}
       const buildPrompt = (question, answers) => {
         const questionText = question.field_5 || question.Title || "";
         const objective = question.field_3 || "";
+        const hintText = getQuestionHint(question);
         const answerBlock = answers
           .map((response, index) => `Attempt ${index + 1}: ${response}`)
           .join("\n");
@@ -2445,6 +2446,7 @@ Job Title: ${jobTitleValue || "N/A"}
             QuestionText: questionText,
             Objective: objective,
             Answers: answerBlock,
+            Hints: hintText,
           });
         }
         return `You are an expert in the Australian Financial industry and are acting as an assessor of ${fullName}'s responses to the question '${questionText}'. ${firstName} has provided multiple attempts. Use all attempts together to judge completeness without requiring repetition.\n\n${answerBlock}\n\nTake into account ${fullName} works in the ${industry} Industry as a ${jobTitle} and assess using the objective '${objective}' if they have demonstrated the required understanding, even if key terms, concepts, or regulations are implied rather than explicitly stated.\n\nProvide a concise overview to ${firstName} that follows these rules:\n\n1) If the responses together effectively answer the question and meet the intent of the Objective, do not ask for any further details. Acknowledge that the response is sufficient and tell them to move to the next question.\n\n2) If the responses together have not effectively answered the question or do not meet the Objective, do not give the answer. Only ask for the missing information that has not been covered yet. Advise ${firstName} to add more details by pressing the 'Start' button or typing in the Chat box below. Tell them that if they cannot add any more they can move to the next question.\n\n3) Do not say 'Hi' at the start of the response.`;
