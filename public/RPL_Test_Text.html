@@ -53,6 +53,10 @@
       .actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
       .dictationControls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
       .dictationStatus { font-size: 12px; color: var(--muted); }
+      .audioMeter { position: relative; width: 120px; height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
+      .audioMeterFill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: #22c55e; transition: width 0.05s linear; }
+      .audioMeter.active .audioMeterFill { background: #22c55e; }
+      .audioMeter.inactive .audioMeterFill { background: #94a3b8; }
       .playbackWidget { display: inline-flex; align-items: center; gap: 8px; min-width: 220px; }
       .playbackTrack { position: relative; width: 160px; height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
       .playbackFill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: #7fb6dc; transition: width 0.05s linear; }
@@ -162,11 +166,17 @@
                 <button id="dictateStartBtn" class="secondary">Start dictation</button>
                 <button id="dictateStopBtn" class="secondary" disabled>Stop dictation</button>
                 <button id="playbackBtn" class="secondary" disabled>Playback</button>
+                <div class="audioMeter inactive" id="dictationMeter" title="Mic level">
+                  <div class="audioMeterFill" id="dictationMeterFill"></div>
+                </div>
                 <div class="playbackWidget disabled" id="playbackWidget">
                   <div class="playbackTrack">
                     <div class="playbackFill" id="playbackFill"></div>
                     <div class="playbackIndicator" id="playbackIndicator"></div>
                     <div class="playbackDot" id="playbackDot"></div>
+                  </div>
+                  <div class="audioMeter inactive" id="playbackMeter" title="Playback level">
+                    <div class="audioMeterFill" id="playbackMeterFill"></div>
                   </div>
                   <div class="playbackTime" id="playbackTime">0:00</div>
                 </div>
@@ -220,11 +230,15 @@
       const dictateStartBtn = document.getElementById("dictateStartBtn");
       const dictateStopBtn = document.getElementById("dictateStopBtn");
       const playbackBtn = document.getElementById("playbackBtn");
+      const dictationMeterEl = document.getElementById("dictationMeter");
+      const dictationMeterFillEl = document.getElementById("dictationMeterFill");
       const playbackWidgetEl = document.getElementById("playbackWidget");
       const playbackFillEl = document.getElementById("playbackFill");
       const playbackIndicatorEl = document.getElementById("playbackIndicator");
       const playbackDotEl = document.getElementById("playbackDot");
       const playbackTimeEl = document.getElementById("playbackTime");
+      const playbackMeterEl = document.getElementById("playbackMeter");
+      const playbackMeterFillEl = document.getElementById("playbackMeterFill");
       const dictationStatusEl = document.getElementById("dictationStatus");
       const evaluateBtn = document.getElementById("evaluateBtn");
       const nextBtn = document.getElementById("nextBtn");
@@ -260,6 +274,11 @@
       let playbackAudio = null;
       let playbackIsPlaying = false;
       let lastPlaybackDuration = 0;
+      let dictationAnalyser = null;
+      let dictationMeterRaf = null;
+      let playbackAudioCtx = null;
+      let playbackAnalyser = null;
+      let playbackMeterRaf = null;
       let speechRecognizer = null;
       let speechPushStream = null;
       let speechTapNode = null;
@@ -893,6 +912,88 @@ Job Title: ${jobTitleValue || "N/A"}
         playbackBtn.textContent = playbackIsPlaying ? "Stop" : "Playback";
       };
 
+      const setMeterState = (meterEl, isActive) => {
+        if (!meterEl) return;
+        meterEl.classList.toggle("active", isActive);
+        meterEl.classList.toggle("inactive", !isActive);
+      };
+
+      const updateMeterFromAnalyser = (analyser, fillEl) => {
+        if (!analyser || !fillEl) return 0;
+        const bufferLength = analyser.fftSize;
+        const data = new Uint8Array(bufferLength);
+        analyser.getByteTimeDomainData(data);
+        let sumSquares = 0;
+        for (let i = 0; i < bufferLength; i += 1) {
+          const normalized = (data[i] - 128) / 128;
+          sumSquares += normalized * normalized;
+        }
+        const rms = Math.sqrt(sumSquares / bufferLength);
+        const level = Math.min(1, rms * 2.5);
+        fillEl.style.width = `${(level * 100).toFixed(1)}%`;
+        return level;
+      };
+
+      const stopDictationMeter = () => {
+        if (dictationMeterRaf) {
+          cancelAnimationFrame(dictationMeterRaf);
+          dictationMeterRaf = null;
+        }
+        if (dictationMeterFillEl) dictationMeterFillEl.style.width = "0%";
+        setMeterState(dictationMeterEl, false);
+        dictationAnalyser = null;
+      };
+
+      const startDictationMeter = () => {
+        if (!audioCtx || !micSourceNode) return;
+        dictationAnalyser = audioCtx.createAnalyser();
+        dictationAnalyser.fftSize = 1024;
+        try {
+          micSourceNode.connect(dictationAnalyser);
+        } catch {}
+        setMeterState(dictationMeterEl, true);
+        const tick = () => {
+          updateMeterFromAnalyser(dictationAnalyser, dictationMeterFillEl);
+          dictationMeterRaf = requestAnimationFrame(tick);
+        };
+        tick();
+      };
+
+      const stopPlaybackMeter = () => {
+        if (playbackMeterRaf) {
+          cancelAnimationFrame(playbackMeterRaf);
+          playbackMeterRaf = null;
+        }
+        if (playbackMeterFillEl) playbackMeterFillEl.style.width = "0%";
+        setMeterState(playbackMeterEl, false);
+        playbackAnalyser = null;
+      };
+
+      const startPlaybackMeter = () => {
+        if (!playbackAudio) return;
+        if (!playbackAudioCtx) {
+          playbackAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (playbackAudioCtx.state === "suspended") {
+          playbackAudioCtx.resume().catch(() => {});
+        }
+        try {
+          playbackAnalyser = playbackAudioCtx.createAnalyser();
+          playbackAnalyser.fftSize = 1024;
+          const sourceNode = playbackAudioCtx.createMediaElementSource(playbackAudio);
+          sourceNode.connect(playbackAnalyser);
+          playbackAnalyser.connect(playbackAudioCtx.destination);
+        } catch {
+          return;
+        }
+        setMeterState(playbackMeterEl, true);
+        const tick = () => {
+          updateMeterFromAnalyser(playbackAnalyser, playbackMeterFillEl);
+          playbackMeterRaf = requestAnimationFrame(tick);
+        };
+        tick();
+      };
+
       const stopPlayback = (options = {}) => {
         const { reset = true } = options;
         if (playbackAudio) {
@@ -903,6 +1004,7 @@ Job Title: ${jobTitleValue || "N/A"}
         }
         playbackIsPlaying = false;
         updatePlaybackButton();
+        stopPlaybackMeter();
         if (reset) {
           updatePlaybackUi(0, lastPlaybackDuration);
         }
@@ -941,6 +1043,7 @@ Job Title: ${jobTitleValue || "N/A"}
           .then(() => {
             playbackIsPlaying = true;
             updatePlaybackButton();
+            startPlaybackMeter();
           })
           .catch((err) => {
             stopPlayback({ reset: true });
@@ -969,6 +1072,8 @@ Job Title: ${jobTitleValue || "N/A"}
         lastResponseRecording = null;
         lastPlaybackRecording = null;
         stopPlayback({ reset: true });
+        stopPlaybackMeter();
+        stopDictationMeter();
         if (playbackBtn) playbackBtn.disabled = true;
         if (playbackWidgetEl) playbackWidgetEl.classList.add("disabled");
         if (lastPlaybackUrl) {
@@ -1205,12 +1310,14 @@ Job Title: ${jobTitleValue || "N/A"}
           isDictating = true;
           manualOverride = false;
           updateDictationUi("Listening...");
+          startDictationMeter();
           logDebug("Dictation started.");
         };
 
         speechRecognizer.sessionStopped = () => {
           isDictating = false;
           updateDictationUi("Dictation stopped.");
+          stopDictationMeter();
           logDebug("Dictation stopped.");
         };
 
@@ -1283,6 +1390,7 @@ Job Title: ${jobTitleValue || "N/A"}
           })
           .catch((err) => {
             updateDictationUi("Dictation error: microphone unavailable");
+            stopDictationMeter();
             logDebug(`Dictation start failed: ${err?.message || String(err)}`);
           });
       };
@@ -1295,6 +1403,7 @@ Job Title: ${jobTitleValue || "N/A"}
         } catch (err) {
           logDebug(`Dictation stop failed: ${err?.message || String(err)}`);
         }
+        stopDictationMeter();
         if (micStream) {
           micStream.getTracks().forEach((track) => track.stop());
           micStream = null;
