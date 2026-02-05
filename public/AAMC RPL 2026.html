@@ -70,11 +70,11 @@
       .assessmentSide { display: grid; gap: 14px; align-content: start; }
       .assessmentSide button { width: 100%; }
       .quizHeaderRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-      .answerRow { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: stretch; position: relative; }
+      .answerWrap { display: grid; grid-template-columns: minmax(0, 1fr) 180px; gap: 12px; align-items: end; }
       .answerStack { display: grid; gap: 6px; grid-template-rows: auto 1fr; min-height: 0; }
-      .answerStack textarea { height: 100%; max-height: 240px; padding-right: 190px; }
-      .answerRow.is-locked textarea { background: #e2e8f0; color: #64748b; }
-      .evaluateFloating { position: absolute; right: 0; bottom: 0; min-width: 170px; }
+      .answerStack textarea { height: 100%; max-height: 240px; }
+      .answerWrap.is-locked textarea { background: #e2e8f0; color: #64748b; }
+      .evaluateSide { align-self: end; min-width: 170px; }
       .nextFloating { position: fixed; right: 24px; bottom: 24px; z-index: 70; }
       .feedbackSection { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
       .hintBtn { background: #0b8f64; }
@@ -205,9 +205,10 @@
         color: var(--text);
       }
       #quizCard {
-        background: #f6f6f6 url("/RPL%20Bot%20Artwork/RPL%20Background.jpg") no-repeat center center;
-        background-size: cover;
-        border-color: var(--border);
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        padding: 0;
       }
       .collectHeader {
         display: grid;
@@ -360,11 +361,10 @@
         .assessmentSide {
           grid-template-columns: repeat(2, minmax(0, 1fr));
         }
-        .answerStack textarea {
-          padding-right: 12px;
+        .answerWrap {
+          grid-template-columns: 1fr;
         }
-        .evaluateFloating {
-          position: static;
+        .evaluateSide {
           width: 100%;
         }
         .nextFloating {
@@ -500,12 +500,12 @@
                 <button id="showHintBtn" class="hintBtn secondary">Show Hint</button>
               </div>
               <div class="questionBox" id="questionText"></div>
-              <div class="answerRow">
+              <div class="answerWrap">
                 <div class="answerStack">
                   <strong>Your answer</strong>
                   <textarea id="answerInput" placeholder="Type your answer here..."></textarea>
                 </div>
-                <button id="evaluateBtn" class="evaluateFloating">Evaluate</button>
+                <button id="evaluateBtn" class="evaluateSide">Evaluate</button>
               </div>
               <div class="feedbackSection">
                 <strong>Feedback</strong>
@@ -614,7 +614,7 @@
       const hintOverlayEl = document.getElementById("hintOverlay");
       const hintCloseBtn = document.getElementById("hintCloseBtn");
       const hintBodyEl = document.getElementById("hintBody");
-      const answerRowEl = document.querySelector(".answerRow");
+      const answerWrapEl = document.querySelector(".answerWrap");
       // const modeToggleEl = document.getElementById("modeToggle");
       // const modeLabelEl = document.getElementById("modeLabel");
 
@@ -642,6 +642,7 @@
       let playbackAudio = null;
       let playbackIsPlaying = false;
       let lastPlaybackDuration = 0;
+      let playbackLocked = false;
       let cameraStream = null;
       let lastPhotoDataUrl = "";
       let dictationAnalyser = null;
@@ -1581,7 +1582,7 @@ Job Title: ${jobTitleValue || "N/A"}
           dictateBtn.disabled = isUiLocked || hintOpen;
         }
         if (playbackBtn) {
-          playbackBtn.disabled = isUiLocked || hintOpen || !lastPlaybackRecording?.blob;
+          playbackBtn.disabled = playbackLocked || isUiLocked || hintOpen || !lastPlaybackRecording?.blob;
         }
         if (playbackWidgetEl) {
           playbackWidgetEl.classList.toggle("disabled", !lastPlaybackRecording?.blob);
@@ -1620,8 +1621,8 @@ Job Title: ${jobTitleValue || "N/A"}
         if (answerInputEl) {
           answerInputEl.disabled = locked;
         }
-        if (answerRowEl) {
-          answerRowEl.classList.toggle("is-locked", locked);
+        if (answerWrapEl) {
+          answerWrapEl.classList.toggle("is-locked", locked);
         }
         if (locked) {
           attemptLockStates = new Map();
@@ -1677,6 +1678,12 @@ Job Title: ${jobTitleValue || "N/A"}
           setButtonsDisabled(false);
           updateDictationUi(dictationStatusEl?.textContent || "Dictation idle.");
           updateEvaluateButtonState();
+          if (currentAttempts > 0 && nextBtn) {
+            nextBtn.disabled = false;
+          }
+          if (attemptLocked) {
+            setAttemptLockState(true);
+          }
         }
       };
 
@@ -1923,6 +1930,7 @@ Job Title: ${jobTitleValue || "N/A"}
           lastPlaybackUrl = "";
         }
         lastPlaybackDuration = 0;
+        playbackLocked = false;
         updatePlaybackUi(0, 0);
         try {
           mediaRecorder = new MediaRecorder(stream);
@@ -1944,10 +1952,12 @@ Job Title: ${jobTitleValue || "N/A"}
             contentType: blob.type || "audio/webm",
           };
           lastPlaybackRecording = lastResponseRecording;
+          playbackLocked = false;
           if (playbackBtn) playbackBtn.disabled = false;
           if (playbackWidgetEl) playbackWidgetEl.classList.remove("disabled");
           lastPlaybackDuration = 0;
           updatePlaybackUi(0, 0);
+          updateDictationUi(dictationStatusEl?.textContent || "Dictation idle.");
           recordedChunks = [];
         };
         try {
@@ -2794,6 +2804,8 @@ END_REVIEW>>>`;
         addChatEntry(`Attempt ${currentAttempts}: ${answer}`, "user");
         setStatus(`Evaluating response (attempt ${currentAttempts} of ${MAX_ATTEMPTS})...`);
         evaluateBtn.disabled = true;
+        playbackLocked = true;
+        updateDictationUi(dictationStatusEl?.textContent || "Dictation idle.");
         setUiLockedState(true);
 
         try {
