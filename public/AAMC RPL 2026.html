@@ -446,34 +446,10 @@
         border-radius: 12px;
       }
       .collectPlaceholder {
-        position: absolute;
-        inset: 0;
-        display: grid;
-        place-items: center;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
         background: #dbe3ec;
-        position: relative;
-      }
-      .collectPlaceholder::before {
-        content: "";
-        width: 78px;
-        height: 78px;
-        border-radius: 50%;
-        background: #95a3b3;
-        position: absolute;
-        top: 42%;
-        left: 50%;
-        transform: translate(-50%, -70%);
-      }
-      .collectPlaceholder::after {
-        content: "";
-        width: 150px;
-        height: 86px;
-        border-radius: 80px 80px 24px 24px;
-        background: #95a3b3;
-        position: absolute;
-        top: 54%;
-        left: 50%;
-        transform: translate(-50%, -10%);
       }
       .collectCard button.secondary {
         background: #ffffff;
@@ -590,7 +566,12 @@
             </div>
             <div class="collectCapture">
               <div class="collectAvatar">
-                <div id="photoPlaceholder" class="collectPlaceholder"></div>
+                <img
+                  id="photoPlaceholder"
+                  class="collectPlaceholder"
+                  src="/RPL%20Bot%20artwork/Temp%20Image.png"
+                  alt="Temporary profile placeholder"
+                />
                 <img id="photoPreview" class="hidden" alt="Captured photo preview" />
               </div>
             </div>
