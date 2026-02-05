@@ -1156,7 +1156,7 @@ Job Title: ${jobTitleValue || "N/A"}
           ContactID: String(ctx.contactId),
           GivenName: ctx.givenName,
           FullTranscript: fullTranscript,
-          currentQuestion: currentQuestionValue,
+          CurrentQuestion: currentQuestionValue,
         };
         logAssessmentDebug("Transcript webhook", "Sending payload");
         const url =
