@@ -1595,6 +1595,7 @@ Job Title: ${jobTitleValue || "N/A"}
             welcomeBodyEl.innerHTML = "";
           }
           if (welcomeContinueBtn) {
+            welcomeContinueBtn.classList.remove("hidden");
             welcomeContinueBtn.textContent = "Start Assessment";
           }
           return;
@@ -1609,6 +1610,7 @@ Job Title: ${jobTitleValue || "N/A"}
             welcomeBodyEl.innerHTML = "<p>Initialising…</p>";
           }
           if (welcomeContinueBtn) {
+            welcomeContinueBtn.classList.remove("hidden");
             welcomeContinueBtn.textContent = "RESUME";
           }
           return;
@@ -1621,6 +1623,7 @@ Job Title: ${jobTitleValue || "N/A"}
           welcomeBodyEl.innerHTML = "";
         }
         if (welcomeContinueBtn) {
+          welcomeContinueBtn.classList.add("hidden");
           welcomeContinueBtn.textContent = "Continue";
         }
         welcomeMode = "new";
@@ -1684,6 +1687,7 @@ Job Title: ${jobTitleValue || "N/A"}
           welcomeBodyEl.innerHTML = "<p>Initialising…</p>";
         }
         if (welcomeContinueBtn) {
+          welcomeContinueBtn.classList.add("hidden");
           welcomeContinueBtn.disabled = true;
         }
         const url =
