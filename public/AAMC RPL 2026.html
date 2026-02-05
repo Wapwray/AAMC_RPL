@@ -2465,21 +2465,14 @@ END_REVIEW>>>`;
 
       nextBtn.addEventListener("click", async () => {
         sendTranscriptOnNext();
-        if (currentIndex + 1 >= questions.length) {
-          setStatus("All questions completed.");
-          headerTitleEl.textContent = "Compliance - Completed";
-          questionTextEl.textContent = "You have completed all questions.";
-          answerInputEl.value = "";
-          nextBtn.disabled = true;
-          return;
-        }
-        currentIndex += 1;
         const ctx = getStudentContext();
+        const isLastQuestion = currentIndex + 1 >= questions.length;
+        const nextQuestionValue = isLastQuestion ? "XXX" : String(currentIndex + 2);
         const payload = {
           FullName: ctx.fullName,
           ContactID: String(ctx.contactId),
           GivenName: ctx.givenName,
-          CurrentQuestion: String(currentIndex + 1),
+          CurrentQuestion: nextQuestionValue,
         };
         const url =
           "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/5403405d1b2543a48ccd83c2d5f703ee/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=vNYYnuckqabWJ9uC_CH0kGTymUyBIutten9INl_-f-s";
@@ -2497,6 +2490,15 @@ END_REVIEW>>>`;
         } catch (error) {
           logDebugDetail("Next question error", error?.message || String(error));
         }
+        if (isLastQuestion) {
+          setStatus("All questions completed.");
+          headerTitleEl.textContent = "Compliance - Completed";
+          questionTextEl.textContent = "You have completed all questions.";
+          answerInputEl.value = "";
+          nextBtn.disabled = true;
+          return;
+        }
+        currentIndex += 1;
         renderQuestion();
         setStatus("Ready.");
       });
