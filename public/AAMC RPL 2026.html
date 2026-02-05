@@ -75,34 +75,41 @@
         gap: 18px;
         align-items: stretch;
         padding-top: 72px;
-        height: calc(100vh - 220px - 72px);
+        height: calc(100vh - 220px - 72px - 24px);
       }
-      .assessmentMain { display: grid; gap: 14px; grid-template-rows: auto auto 1fr auto; min-height: 0; }
-      .assessmentSide { display: grid; gap: 14px; align-content: start; }
+      .assessmentMain { display: grid; gap: 14px; grid-template-rows: auto auto auto 1fr; min-height: 0; }
+      .assessmentSide {
+        display: grid;
+        grid-template-rows: 1fr auto;
+        gap: 14px;
+        align-content: start;
+        height: 100%;
+      }
+      .assessmentControls { display: grid; gap: 14px; align-content: start; }
       .assessmentSide button { width: 100%; }
       .quizHeaderRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
       .answerWrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: end; }
       .answerStack { display: grid; gap: 6px; grid-template-rows: auto 1fr; min-height: 0; }
       .answerStack textarea { height: 100%; max-height: 240px; }
       .answerWrap.is-locked textarea { background: #e2e8f0; color: #64748b; }
-      .evaluateSide { align-self: start; width: 100%; }
-      .nextFloating { position: fixed; right: 24px; bottom: 24px; z-index: 70; }
+      .evaluateSide { align-self: end; width: 100%; }
+      .nextFloating { position: fixed; right: 24px; bottom: 24px; z-index: 70; width: 220px; }
       .feedbackSection { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
       .hintBtn { background: #0b8f64; }
       .hintBtn:hover:not(:disabled) { background: #0a7a55; }
       .actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
       .dictationControls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
       .dictationStatus { font-size: 12px; color: var(--muted); }
-      .audioMeter { position: relative; width: 120px; height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
+      .audioMeter { position: relative; width: 100%; height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
       .audioMeterFill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: #22c55e; transition: width 0.05s linear; }
       .audioMeter.active .audioMeterFill { background: #22c55e; }
       .audioMeter.inactive .audioMeterFill { background: #94a3b8; }
-      .playbackWidget { display: inline-flex; align-items: center; gap: 8px; min-width: 220px; }
-      .playbackTrack { position: relative; width: 160px; height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
+      .playbackWidget { display: grid; gap: 6px; width: 100%; }
+      .playbackTrack { position: relative; width: 100%; height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
       .playbackFill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: #7fb6dc; transition: width 0.05s linear; }
       .playbackIndicator { position: absolute; top: -4px; left: 0%; width: 3px; height: 16px; background: var(--primary-dark); transform: translateX(-50%); border-radius: 2px; transition: left 0.05s linear; }
       .playbackDot { position: absolute; top: 50%; left: 0%; width: 12px; height: 12px; border-radius: 50%; background: var(--primary); transform: translate(-50%, -50%); box-shadow: 0 0 0 2px #ffffff; transition: left 0.05s linear; }
-      .playbackTime { font-size: 11px; color: var(--muted); min-width: 62px; text-align: right; }
+      .playbackTime { font-size: 11px; color: var(--muted); min-width: 0; text-align: left; }
       .playbackWidget.disabled { opacity: 0.5; }
       button { appearance: none; border: none; border-radius: 999px; padding: 10px 16px; font-size: 14px; font-weight: 600; background: var(--primary); color: #ffffff; cursor: pointer; transition: background 0.2s ease; }
       button.secondary { background: #ffffff; color: var(--primary); border: 1px solid #c7d9e8; }
@@ -369,7 +376,7 @@
         .assessmentLayout {
           grid-template-columns: 1fr;
           padding-top: 64px;
-          height: calc(100vh - 220px - 64px);
+          height: calc(100vh - 220px - 64px - 24px);
         }
         .assessmentSide {
           grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -526,23 +533,22 @@
             </div>
             <div class="assessmentSide">
               <button id="evaluateBtn" class="evaluateSide">Evaluate</button>
-              <button id="dictateBtn" class="secondary">Start Transcription</button>
-              <button id="playbackBtn" class="secondary" disabled>Playback</button>
-              <div class="audioMeter inactive" id="dictationMeter" title="Mic level">
-                <div class="audioMeterFill" id="dictationMeterFill"></div>
-              </div>
-              <div class="playbackWidget disabled" id="playbackWidget">
-                <div class="playbackTrack">
-                  <div class="playbackFill" id="playbackFill"></div>
-                  <div class="playbackIndicator" id="playbackIndicator"></div>
-                  <div class="playbackDot" id="playbackDot"></div>
+              <div class="assessmentControls">
+                <button id="dictateBtn" class="secondary">Start Transcription</button>
+                <button id="playbackBtn" class="secondary" disabled>Playback</button>
+                <div class="audioMeter inactive" id="dictationMeter" title="Mic level">
+                  <div class="audioMeterFill" id="dictationMeterFill"></div>
                 </div>
-                <div class="audioMeter inactive" id="playbackMeter" title="Playback level">
-                  <div class="audioMeterFill" id="playbackMeterFill"></div>
+                <div class="playbackWidget disabled" id="playbackWidget">
+                  <div class="playbackTrack">
+                    <div class="playbackFill" id="playbackFill"></div>
+                    <div class="playbackIndicator" id="playbackIndicator"></div>
+                    <div class="playbackDot" id="playbackDot"></div>
+                  </div>
+                  <div class="playbackTime" id="playbackTime">0:00</div>
                 </div>
-                <div class="playbackTime" id="playbackTime">0:00</div>
+                <span class="dictationStatus" id="dictationStatus">Dictation idle.</span>
               </div>
-              <span class="dictationStatus" id="dictationStatus">Dictation idle.</span>
             </div>
           </div>
           <button id="nextBtn" class="secondary nextFloating" disabled>Next</button>
