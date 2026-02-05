@@ -161,6 +161,110 @@
         bottom: 16px;
         left: 16px;
       }
+      .collectCard {
+        background: #2f2f2f;
+        color: #f8fafc;
+        border-color: #3f3f3f;
+      }
+      .collectCard label,
+      .collectCard .status,
+      .collectCard .stepTitle {
+        color: #e2e8f0;
+      }
+      .collectHeader {
+        display: grid;
+        gap: 6px;
+        margin-bottom: 18px;
+      }
+      .collectGreeting {
+        font-size: 18px;
+        font-weight: 600;
+      }
+      .collectSubtitle {
+        font-style: italic;
+        color: #cbd5f5;
+        font-size: 14px;
+      }
+      .collectTop {
+        display: grid;
+        grid-template-columns: 1.2fr 1fr 0.8fr;
+        gap: 16px;
+        align-items: center;
+        margin-bottom: 18px;
+      }
+      .collectBottom {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+      }
+      .collectStep {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 12px;
+        align-items: start;
+      }
+      .stepBadge {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: #f97316;
+        color: #fff;
+        font-weight: 700;
+        display: grid;
+        place-items: center;
+        font-size: 13px;
+      }
+      .stepContent {
+        display: grid;
+        gap: 10px;
+      }
+      .collectPreview {
+        display: grid;
+        gap: 10px;
+        justify-items: center;
+      }
+      .collectVideo {
+        width: 100%;
+        max-width: 260px;
+        aspect-ratio: 4 / 3;
+        border-radius: 12px;
+        border: 1px solid #4b5563;
+        background: #0f172a;
+        object-fit: cover;
+      }
+      .collectSelectRow select,
+      .collectCard input,
+      .collectCard select {
+        background: #ffffff;
+        color: #0f172a;
+      }
+      .collectAction {
+        display: grid;
+        gap: 12px;
+        justify-items: center;
+      }
+      .collectAvatar {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        border: 2px solid #d1d5db;
+        background: rgba(255, 255, 255, 0.08);
+      }
+      .collectCard button.secondary {
+        background: #ffffff;
+        color: #0b6ea9;
+      }
+      .collectCard button {
+        justify-self: start;
+      }
+      @media (max-width: 900px) {
+        .collectTop {
+          grid-template-columns: 1fr;
+        }
+        .collectAction {
+          justify-items: start;
+        }
+      }
     </style>
   </head>
   <body>
@@ -238,31 +342,74 @@
           <div class="status" id="status">Idle.</div>
         </div>
 
-        <div id="setupCard" class="card">
-          <h2 style="margin-top:0;">RPL Test Setup</h2>
-          <div class="formGrid">
-            <div>
-              <label for="fullName">Full name</label>
-              <input id="fullName" type="text" placeholder="Enter full name" />
+        <div id="setupCard" class="card collectCard">
+          <div class="collectHeader">
+            <div class="collectGreeting" id="collectGreeting">Hello and welcome to your RPL Assessment</div>
+            <div class="collectSubtitle">AI-Powered RPL Knowledge &amp; Experience Evaluation</div>
+          </div>
+          <div class="collectTop">
+            <div class="collectStep">
+              <div class="stepBadge">1</div>
+              <div class="stepContent">
+                <div class="stepTitle">
+                  You can do this as many times as you like. First, take your photo. When you are
+                  happy with the result, select “Save Photo”.
+                </div>
+                <button id="takePhotoBtn">Take Photo</button>
+              </div>
             </div>
-            <div>
-              <label for="industry">Industry</label>
-              <select id="industry">
-                <option value="">Select industry</option>
-                <option>Banking</option>
-                <option>Lending</option>
-                <option>Mortgage Broking</option>
-                <option>Finance Broking</option>
-              </select>
+            <div class="collectPreview">
+              <video id="cameraPreview" class="collectVideo" autoplay playsinline muted></video>
+              <img id="photoPreview" class="collectVideo hidden" alt="Captured photo preview" />
+              <div class="collectSelectRow">
+                <select id="cameraSelect">
+                  <option value="">Detecting webcams…</option>
+                </select>
+              </div>
             </div>
-            <div>
-              <label for="jobTitle">Job title</label>
-              <input id="jobTitle" type="text" placeholder="Enter job title" />
+            <div class="collectAction">
+              <div class="collectAvatar"></div>
+              <button id="savePhotoBtn" class="secondary" disabled>Save Photo</button>
             </div>
           </div>
-          <div class="actions" style="margin-top:16px;">
-            <button id="beginBtn">Begin</button>
+          <div class="collectBottom">
+            <div class="collectStep">
+              <div class="stepBadge">2</div>
+              <div class="stepContent">
+                <div class="stepTitle">
+                  From the drop-down list below, choose the industry you work in, and select
+                  “Confirm Industry”.
+                </div>
+                <select id="industry">
+                  <option value="">Select industry</option>
+                  <option>Banking</option>
+                  <option>Lending</option>
+                  <option>Mortgage Broking</option>
+                  <option>Finance Broking</option>
+                </select>
+                <button id="confirmIndustryBtn" class="secondary">Confirm Industry</button>
+              </div>
+            </div>
+            <div class="collectStep">
+              <div class="stepBadge">3</div>
+              <div class="stepContent">
+                <div class="stepTitle">Type in your job title and select “Confirm Job Title”.</div>
+                <input id="jobTitle" type="text" placeholder="Type your job title here" />
+                <button id="confirmJobTitleBtn" class="secondary">Confirm Job Title</button>
+              </div>
+            </div>
+            <div class="collectStep">
+              <div class="stepBadge">4</div>
+              <div class="stepContent">
+                <div class="stepTitle">
+                  You can still update your photo, industry and job title, but if you are ready
+                  please press the button below.
+                </div>
+                <button id="beginBtn">Begin The Assessment</button>
+              </div>
+            </div>
           </div>
+          <canvas id="photoCanvas" class="hidden"></canvas>
         </div>
 
         <div id="quizCard" class="card hidden">
@@ -332,6 +479,15 @@
       const industryEl = document.getElementById("industry");
       const jobTitleEl = document.getElementById("jobTitle");
       const beginBtn = document.getElementById("beginBtn");
+      const collectGreetingEl = document.getElementById("collectGreeting");
+      const cameraSelectEl = document.getElementById("cameraSelect");
+      const takePhotoBtn = document.getElementById("takePhotoBtn");
+      const savePhotoBtn = document.getElementById("savePhotoBtn");
+      const confirmIndustryBtn = document.getElementById("confirmIndustryBtn");
+      const confirmJobTitleBtn = document.getElementById("confirmJobTitleBtn");
+      const cameraPreviewEl = document.getElementById("cameraPreview");
+      const photoPreviewEl = document.getElementById("photoPreview");
+      const photoCanvasEl = document.getElementById("photoCanvas");
 
       const questionTextEl = document.getElementById("questionText");
       const chatHistoryEl = document.getElementById("chatHistory");
@@ -402,6 +558,8 @@
       let playbackAudio = null;
       let playbackIsPlaying = false;
       let lastPlaybackDuration = 0;
+      let cameraStream = null;
+      let lastPhotoDataUrl = "";
       let dictationAnalyser = null;
       let dictationMeterRaf = null;
       let playbackAudioCtx = null;
@@ -431,6 +589,13 @@
         statusEl.textContent = message;
       };
 
+      const updateCollectGreeting = () => {
+        const ctx = getStudentContext();
+        if (collectGreetingEl) {
+          collectGreetingEl.textContent = `Hello ${ctx.fullName} and welcome to your RPL Assessment`;
+        }
+      };
+
       const isAdminDebugEnabled = () => window.location?.hash === "#admin";
 
       const updateDebugVisibility = () => {
@@ -450,6 +615,117 @@
 
       const setMicStatus = (message) => {
         if (micStatusEl) micStatusEl.textContent = message;
+      };
+
+      const stopCameraStream = () => {
+        if (!cameraStream) return;
+        cameraStream.getTracks().forEach((track) => track.stop());
+        cameraStream = null;
+        if (cameraPreviewEl) cameraPreviewEl.srcObject = null;
+      };
+
+      const populateCameras = async () => {
+        if (!cameraSelectEl || !navigator?.mediaDevices?.enumerateDevices) return;
+        try {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const cams = devices.filter((device) => device.kind === "videoinput");
+          if (!cams.length) {
+            cameraSelectEl.innerHTML = "<option value=\"\">No webcams found</option>";
+            cameraSelectEl.disabled = true;
+            return;
+          }
+          cameraSelectEl.disabled = false;
+          const selectedValue = cameraSelectEl.value;
+          cameraSelectEl.innerHTML = "";
+          cams.forEach((cam, index) => {
+            const option = document.createElement("option");
+            option.value = cam.deviceId;
+            option.textContent = cam.label || `Webcam ${index + 1}`;
+            cameraSelectEl.appendChild(option);
+          });
+          if (selectedValue && cams.some((cam) => cam.deviceId === selectedValue)) {
+            cameraSelectEl.value = selectedValue;
+          } else {
+            cameraSelectEl.value = cams[0].deviceId;
+          }
+        } catch (error) {
+          logDebug(`Camera list error: ${error?.message || String(error)}`);
+        }
+      };
+
+      const startCamera = async () => {
+        if (!navigator?.mediaDevices?.getUserMedia) {
+          setStatus("Camera access is not supported in this browser.");
+          return;
+        }
+        const deviceId = cameraSelectEl?.value;
+        stopCameraStream();
+        try {
+          const constraints = {
+            video: deviceId ? { deviceId: { exact: deviceId } } : true,
+            audio: false,
+          };
+          cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+          if (cameraPreviewEl) cameraPreviewEl.srcObject = cameraStream;
+          if (photoPreviewEl) photoPreviewEl.classList.add("hidden");
+          setStatus("Camera ready. Press Take Photo again to capture.");
+        } catch (error) {
+          setStatus(error?.message || String(error));
+        }
+      };
+
+      const capturePhoto = () => {
+        if (!cameraStream || !cameraPreviewEl || !photoCanvasEl) return;
+        const track = cameraStream.getVideoTracks()[0];
+        const settings = track.getSettings();
+        const width = settings.width || cameraPreviewEl.videoWidth || 1280;
+        const height = settings.height || cameraPreviewEl.videoHeight || 720;
+        photoCanvasEl.width = width;
+        photoCanvasEl.height = height;
+        const context = photoCanvasEl.getContext("2d");
+        context.drawImage(cameraPreviewEl, 0, 0, width, height);
+        lastPhotoDataUrl = photoCanvasEl.toDataURL("image/jpeg", 0.9);
+        if (photoPreviewEl) {
+          photoPreviewEl.src = lastPhotoDataUrl;
+          photoPreviewEl.classList.remove("hidden");
+        }
+        if (savePhotoBtn) savePhotoBtn.disabled = false;
+        stopCameraStream();
+        setStatus("Photo captured. You can save it now.");
+      };
+
+      const savePhoto = async () => {
+        const photoWebhookUrl = "";
+        if (!photoWebhookUrl) {
+          setStatus("No photo webhook configured.");
+          return;
+        }
+        if (!lastPhotoDataUrl) {
+          setStatus("Capture a photo before saving.");
+          return;
+        }
+        if (savePhotoBtn) savePhotoBtn.disabled = true;
+        setStatus("Sending photo...");
+        try {
+          const payload = {
+            imageDataUrl: lastPhotoDataUrl,
+            timestamp: new Date().toISOString(),
+          };
+          const response = await fetch(photoWebhookUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          if (!response.ok) {
+            const text = await response.text();
+            throw new Error(`Webhook error ${response.status}: ${text}`);
+          }
+          setStatus("Photo saved successfully.");
+        } catch (error) {
+          setStatus(error?.message || String(error));
+        } finally {
+          if (savePhotoBtn) savePhotoBtn.disabled = false;
+        }
       };
 
       const isNoTranscriptResponse = (value) => {
@@ -1985,16 +2261,20 @@ END_REVIEW>>>`;
       };
 
       beginBtn.addEventListener("click", async () => {
-        fullName = fullNameEl.value.trim();
+        const ctx = getStudentContext();
+        fullName = fullNameEl ? fullNameEl.value.trim() : "";
+        if (!fullName) {
+          fullName = ctx.fullName || DEFAULT_FULL_NAME;
+        }
         industry = industryEl.value.trim();
         jobTitle = jobTitleEl.value.trim();
 
-        if (!fullName || !industry || !jobTitle) {
+        if (!industry || !jobTitle) {
           setStatus("Please complete all fields.");
           return;
         }
 
-        firstName = fullName.split(" ").filter(Boolean)[0] || fullName;
+        firstName = ctx.givenName || fullName.split(" ").filter(Boolean)[0] || fullName;
         assessmentStartAt = new Date();
         setStatus("Loading questions...");
         beginBtn.disabled = true;
@@ -2033,12 +2313,14 @@ END_REVIEW>>>`;
         if (initStatusEl) initStatusEl.textContent = "Initialising…";
         applyUrlStudentContext();
         updateStudentContextBanner();
+        updateCollectGreeting();
         initFullTranscript();
         updateDebugVisibility();
         window.addEventListener("hashchange", updateDebugVisibility);
         await loadPromptTemplates();
         await sendStudentContextOnLoad();
         await populateMicrophones();
+        await populateCameras();
         if (initStatusEl) initStatusEl.textContent = "Ready.";
         finishInitialisation();
       };
@@ -2047,6 +2329,7 @@ END_REVIEW>>>`;
       if (appShellEl) appShellEl.classList.add("hidden");
 
       applyUrlStudentContext();
+      updateCollectGreeting();
       loadWelcomeWebhook();
 
       welcomeContinueBtn?.addEventListener("click", async () => {
@@ -2063,6 +2346,24 @@ END_REVIEW>>>`;
 
       dictateStartBtn?.addEventListener("click", () => startDictation());
       dictateStopBtn?.addEventListener("click", () => stopDictation());
+      takePhotoBtn?.addEventListener("click", () => {
+        if (!cameraStream) {
+          startCamera();
+          return;
+        }
+        capturePhoto();
+      });
+      savePhotoBtn?.addEventListener("click", () => savePhoto());
+      confirmIndustryBtn?.addEventListener("click", () => {
+        setStatus("Industry confirmed.");
+      });
+      confirmJobTitleBtn?.addEventListener("click", () => {
+        setStatus("Job title confirmed.");
+      });
+      cameraSelectEl?.addEventListener("change", () => {
+        if (cameraStream) startCamera();
+      });
+      navigator?.mediaDevices?.addEventListener?.("devicechange", () => populateCameras());
       playbackBtn?.addEventListener("click", () => {
         if (!lastPlaybackRecording?.blob) {
           setStatus("No recording available for playback.");
