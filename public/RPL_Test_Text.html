@@ -53,6 +53,12 @@
       .actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
       .dictationControls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
       .dictationStatus { font-size: 12px; color: var(--muted); }
+      .playbackWidget { display: inline-flex; align-items: center; gap: 8px; min-width: 220px; }
+      .playbackTrack { position: relative; width: 160px; height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
+      .playbackFill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: #7fb6dc; transition: width 0.05s linear; }
+      .playbackDot { position: absolute; top: 50%; left: 0%; width: 12px; height: 12px; border-radius: 50%; background: var(--primary); transform: translate(-50%, -50%); box-shadow: 0 0 0 2px #ffffff; transition: left 0.05s linear; }
+      .playbackTime { font-size: 11px; color: var(--muted); min-width: 62px; text-align: right; }
+      .playbackWidget.disabled { opacity: 0.5; }
       .debugBox { border: 1px dashed var(--border); border-radius: 12px; padding: 12px; background: #ffffff; font-size: 12px; color: var(--muted); white-space: pre-wrap; min-height: 80px; }
       button { appearance: none; border: none; border-radius: 999px; padding: 10px 16px; font-size: 14px; font-weight: 600; background: var(--primary); color: #ffffff; cursor: pointer; transition: background 0.2s ease; }
       button.secondary { background: #ffffff; color: var(--primary); border: 1px solid #c7d9e8; }
@@ -154,7 +160,14 @@
               <div class="dictationControls" style="margin:8px 0 6px;">
                 <button id="dictateStartBtn" class="secondary">Start dictation</button>
                 <button id="dictateStopBtn" class="secondary" disabled>Stop dictation</button>
-                 <button id="playbackBtn" class="secondary" disabled>Playback</button>
+                <button id="playbackBtn" class="secondary" disabled>Playback</button>
+                <div class="playbackWidget disabled" id="playbackWidget">
+                  <div class="playbackTrack">
+                    <div class="playbackFill" id="playbackFill"></div>
+                    <div class="playbackDot" id="playbackDot"></div>
+                  </div>
+                  <div class="playbackTime" id="playbackTime">0:00</div>
+                </div>
                 <span class="dictationStatus" id="dictationStatus">Dictation idle.</span>
               </div>
               <textarea id="answerInput" placeholder="Type your answer here..."></textarea>
@@ -205,6 +218,10 @@
       const dictateStartBtn = document.getElementById("dictateStartBtn");
       const dictateStopBtn = document.getElementById("dictateStopBtn");
       const playbackBtn = document.getElementById("playbackBtn");
+      const playbackWidgetEl = document.getElementById("playbackWidget");
+      const playbackFillEl = document.getElementById("playbackFill");
+      const playbackDotEl = document.getElementById("playbackDot");
+      const playbackTimeEl = document.getElementById("playbackTime");
       const dictationStatusEl = document.getElementById("dictationStatus");
       const evaluateBtn = document.getElementById("evaluateBtn");
       const nextBtn = document.getElementById("nextBtn");
@@ -237,6 +254,9 @@
       let lastResponseRecording = null;
       let lastPlaybackRecording = null;
       let lastPlaybackUrl = "";
+      let playbackAudio = null;
+      let playbackIsPlaying = false;
+      let lastPlaybackDuration = 0;
       let speechRecognizer = null;
       let speechPushStream = null;
       let speechTapNode = null;
@@ -838,7 +858,84 @@ Job Title: ${jobTitleValue || "N/A"}
         }
         if (dictateStartBtn) dictateStartBtn.disabled = isDictating;
         if (dictateStopBtn) dictateStopBtn.disabled = !isDictating;
-         if (playbackBtn) playbackBtn.disabled = !lastPlaybackRecording?.blob;
+        if (playbackBtn) playbackBtn.disabled = !lastPlaybackRecording?.blob;
+        if (playbackWidgetEl) playbackWidgetEl.classList.toggle("disabled", !lastPlaybackRecording?.blob);
+        updatePlaybackButton();
+      };
+
+      const formatPlaybackTime = (value) => {
+        if (!Number.isFinite(value) || value < 0) return "0:00";
+        const total = Math.floor(value);
+        const minutes = Math.floor(total / 60);
+        const seconds = String(total % 60).padStart(2, "0");
+        return `${minutes}:${seconds}`;
+      };
+
+      const updatePlaybackUi = (current, duration) => {
+        const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : 0;
+        const safeCurrent = Number.isFinite(current) && current >= 0 ? current : 0;
+        const ratio = safeDuration ? Math.min(1, safeCurrent / safeDuration) : 0;
+        const percent = `${(ratio * 100).toFixed(2)}%`;
+        if (playbackFillEl) playbackFillEl.style.width = percent;
+        if (playbackDotEl) playbackDotEl.style.left = percent;
+        if (playbackTimeEl) {
+          const durationLabel = safeDuration ? formatPlaybackTime(safeDuration) : "0:00";
+          playbackTimeEl.textContent = `${formatPlaybackTime(safeCurrent)} / ${durationLabel}`;
+        }
+      };
+
+      const updatePlaybackButton = () => {
+        if (!playbackBtn) return;
+        playbackBtn.textContent = playbackIsPlaying ? "Stop" : "Playback";
+      };
+
+      const stopPlayback = (options = {}) => {
+        const { reset = true } = options;
+        if (playbackAudio) {
+          try { playbackAudio.pause(); } catch {}
+          if (reset) {
+            try { playbackAudio.currentTime = 0; } catch {}
+          }
+        }
+        playbackIsPlaying = false;
+        updatePlaybackButton();
+        if (reset) {
+          updatePlaybackUi(0, lastPlaybackDuration);
+        }
+      };
+
+      const startPlayback = () => {
+        if (!lastPlaybackRecording?.blob) return;
+        if (!lastPlaybackUrl) {
+          lastPlaybackUrl = URL.createObjectURL(lastPlaybackRecording.blob);
+        }
+        if (playbackAudio) {
+          try { playbackAudio.pause(); } catch {}
+        }
+        playbackAudio = new Audio(lastPlaybackUrl);
+        playbackAudio.onloadedmetadata = () => {
+          lastPlaybackDuration = playbackAudio.duration || 0;
+          updatePlaybackUi(0, lastPlaybackDuration);
+        };
+        playbackAudio.ontimeupdate = () => {
+          updatePlaybackUi(playbackAudio.currentTime || 0, playbackAudio.duration || lastPlaybackDuration || 0);
+        };
+        playbackAudio.onended = () => {
+          stopPlayback({ reset: true });
+        };
+        playbackAudio.onerror = () => {
+          stopPlayback({ reset: true });
+          setStatus("Unable to play recording.");
+        };
+        playbackAudio.play()
+          .then(() => {
+            playbackIsPlaying = true;
+            updatePlaybackButton();
+          })
+          .catch((err) => {
+            stopPlayback({ reset: true });
+            setStatus(err?.message || "Unable to play recording.");
+          });
       };
 
       const blobToBase64 = (blob) => new Promise((resolve, reject) => {
@@ -860,12 +957,16 @@ Job Title: ${jobTitleValue || "N/A"}
         if (!stream || typeof MediaRecorder === "undefined") return;
         recordedChunks = [];
         lastResponseRecording = null;
-         lastPlaybackRecording = null;
-         if (playbackBtn) playbackBtn.disabled = true;
-         if (lastPlaybackUrl) {
-           URL.revokeObjectURL(lastPlaybackUrl);
-           lastPlaybackUrl = "";
-         }
+        lastPlaybackRecording = null;
+        stopPlayback({ reset: true });
+        if (playbackBtn) playbackBtn.disabled = true;
+        if (playbackWidgetEl) playbackWidgetEl.classList.add("disabled");
+        if (lastPlaybackUrl) {
+          URL.revokeObjectURL(lastPlaybackUrl);
+          lastPlaybackUrl = "";
+        }
+        lastPlaybackDuration = 0;
+        updatePlaybackUi(0, 0);
         try {
           mediaRecorder = new MediaRecorder(stream);
         } catch (err) {
@@ -885,8 +986,11 @@ Job Title: ${jobTitleValue || "N/A"}
             blob,
             contentType: blob.type || "audio/webm",
           };
-           lastPlaybackRecording = lastResponseRecording;
-           if (playbackBtn) playbackBtn.disabled = false;
+          lastPlaybackRecording = lastResponseRecording;
+          if (playbackBtn) playbackBtn.disabled = false;
+          if (playbackWidgetEl) playbackWidgetEl.classList.remove("disabled");
+          lastPlaybackDuration = 0;
+          updatePlaybackUi(0, 0);
           recordedChunks = [];
         };
         try {
@@ -1291,12 +1395,16 @@ Job Title: ${jobTitleValue || "N/A"}
         questionTextEl.textContent = question.field_5 || question.Title || "";
         answerInputEl.value = "";
         lastResponseRecording = null;
-         lastPlaybackRecording = null;
-         if (playbackBtn) playbackBtn.disabled = true;
-         if (lastPlaybackUrl) {
-           URL.revokeObjectURL(lastPlaybackUrl);
-           lastPlaybackUrl = "";
-         }
+        lastPlaybackRecording = null;
+        stopPlayback({ reset: true });
+        if (playbackBtn) playbackBtn.disabled = true;
+        if (playbackWidgetEl) playbackWidgetEl.classList.add("disabled");
+        if (lastPlaybackUrl) {
+          URL.revokeObjectURL(lastPlaybackUrl);
+          lastPlaybackUrl = "";
+        }
+        lastPlaybackDuration = 0;
+        updatePlaybackUi(0, 0);
         currentAttempts = 0;
         currentResponses = [];
         evaluateBtn.disabled = false;
@@ -1495,25 +1603,17 @@ END_REVIEW>>>`;
 
       dictateStartBtn?.addEventListener("click", () => startDictation());
       dictateStopBtn?.addEventListener("click", () => stopDictation());
-        playbackBtn?.addEventListener("click", () => {
-          if (!lastPlaybackRecording?.blob) {
-            setStatus("No recording available for playback.");
-            return;
-          }
-          if (!lastPlaybackUrl) {
-            lastPlaybackUrl = URL.createObjectURL(lastPlaybackRecording.blob);
-          }
-          const audio = new Audio(lastPlaybackUrl);
-          audio.onended = () => {
-            if (lastPlaybackUrl) {
-              URL.revokeObjectURL(lastPlaybackUrl);
-              lastPlaybackUrl = "";
-            }
-          };
-          audio.play().catch((err) => {
-            setStatus(err?.message || "Unable to play recording.");
-          });
-        });
+      playbackBtn?.addEventListener("click", () => {
+        if (!lastPlaybackRecording?.blob) {
+          setStatus("No recording available for playback.");
+          return;
+        }
+        if (playbackIsPlaying) {
+          stopPlayback({ reset: true });
+          return;
+        }
+        startPlayback();
+      });
       micSelectEl?.addEventListener("change", (event) => {
         const value = event.target?.value || "";
         localStorage.setItem(MIC_STORAGE_KEY, value);
