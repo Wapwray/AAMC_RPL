@@ -22,13 +22,17 @@
         --camera-gap: 10px;
       }
       * { box-sizing: border-box; }
+      html, body {
+        height: 100%;
+        overflow: hidden;
+      }
       body {
         margin: 0;
         background: var(--bg) url("/RPL%20Bot%20Artwork/RPL%20Background.jpg") no-repeat center center fixed;
         background-size: cover;
         color: var(--text);
       }
-      .page { padding: 24px 24px 260px; }
+      .page { padding: 24px; height: 100%; overflow: hidden; }
       .shell { max-width: none; width: 100%; margin: 0; display: grid; gap: 18px; }
       .header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
       .header h1 { margin: 0; font-size: 20px; font-weight: 700; }
@@ -65,16 +69,23 @@
       .assessmentDebugTitle { font-size: 13px; font-weight: 700; color: var(--text); }
       .assessmentDebugLog { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 12px; line-height: 1.45; white-space: pre-wrap; max-height: 200px; overflow: auto; background: #f8fafc; border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
       .quizHeader { font-size: 18px; font-weight: 700; margin: 0 0 8px; }
-      .assessmentLayout { display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 18px; align-items: stretch; height: calc(100vh - 220px); }
+      .assessmentLayout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 220px;
+        gap: 18px;
+        align-items: stretch;
+        padding-top: 72px;
+        height: calc(100vh - 220px - 72px);
+      }
       .assessmentMain { display: grid; gap: 14px; grid-template-rows: auto auto 1fr auto; min-height: 0; }
       .assessmentSide { display: grid; gap: 14px; align-content: start; }
       .assessmentSide button { width: 100%; }
       .quizHeaderRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-      .answerWrap { display: grid; grid-template-columns: minmax(0, 1fr) 180px; gap: 12px; align-items: end; }
+      .answerWrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: end; }
       .answerStack { display: grid; gap: 6px; grid-template-rows: auto 1fr; min-height: 0; }
       .answerStack textarea { height: 100%; max-height: 240px; }
       .answerWrap.is-locked textarea { background: #e2e8f0; color: #64748b; }
-      .evaluateSide { align-self: end; min-width: 170px; }
+      .evaluateSide { align-self: start; width: 100%; }
       .nextFloating { position: fixed; right: 24px; bottom: 24px; z-index: 70; }
       .feedbackSection { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
       .hintBtn { background: #0b8f64; }
@@ -357,6 +368,8 @@
         }
         .assessmentLayout {
           grid-template-columns: 1fr;
+          padding-top: 64px;
+          height: calc(100vh - 220px - 64px);
         }
         .assessmentSide {
           grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -505,7 +518,6 @@
                   <strong>Your answer</strong>
                   <textarea id="answerInput" placeholder="Type your answer here..."></textarea>
                 </div>
-                <button id="evaluateBtn" class="evaluateSide">Evaluate</button>
               </div>
               <div class="feedbackSection">
                 <strong>Feedback</strong>
@@ -513,6 +525,7 @@
               </div>
             </div>
             <div class="assessmentSide">
+              <button id="evaluateBtn" class="evaluateSide">Evaluate</button>
               <button id="dictateBtn" class="secondary">Start Transcription</button>
               <button id="playbackBtn" class="secondary" disabled>Playback</button>
               <div class="audioMeter inactive" id="dictationMeter" title="Mic level">
