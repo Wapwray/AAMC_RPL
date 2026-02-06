@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RPL Report Fix</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+        --bg: #f3f7fb;
+        --card: #ffffff;
+        --border: #d8e2ee;
+        --text: #0f172a;
+        --muted: #5b6b7f;
+        --primary: #1f6fb2;
+        --primary-dark: #155a91;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--text); }
+      .page { padding: 24px; }
+      .shell { max-width: 1200px; margin: 0 auto; display: grid; gap: 18px; }
+      h1 { margin: 0; font-size: 22px; }
+      .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 18px; box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08); }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+      label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 6px; }
+      input, textarea { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font: inherit; background: #ffffff; }
+      textarea { min-height: 180px; resize: vertical; }
+      .actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+      button { appearance: none; border: none; border-radius: 999px; padding: 10px 16px; font-size: 14px; font-weight: 600; background: var(--primary); color: #ffffff; cursor: pointer; transition: background 0.2s ease; }
+      button.secondary { background: #ffffff; color: var(--primary); border: 1px solid #c7d9e8; }
+      button:disabled { opacity: 0.6; cursor: not-allowed; }
+      button:hover:not(:disabled) { background: var(--primary-dark); }
+      button.secondary:hover:not(:disabled) { background: #eef6ff; }
+      .status { font-size: 13px; color: var(--muted); }
+      .previewWrap { display: grid; gap: 10px; }
+      .previewFrame { width: 100%; min-height: 520px; border: 1px solid var(--border); border-radius: 10px; background: #ffffff; }
+      .inlineRow { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+      .inlineRow input[type="file"] { padding: 8px; }
+      .rawOutput { min-height: 180px; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="shell">
+        <div class="card">
+          <h1>RPL Report Fix</h1>
+          <p class="status">Upload a transcript, add student details, and generate a preview of the final report.</p>
+        </div>
+
+        <div class="card">
+          <div class="inlineRow">
+            <div>
+              <label for="transcriptFile">Transcript file (.txt)</label>
+              <input id="transcriptFile" type="file" accept=".txt" />
+            </div>
+            <div class="status" id="fileStatus">No file loaded.</div>
+          </div>
+          <div style="margin-top: 16px;" class="grid">
+            <div>
+              <label for="fullName">Full name</label>
+              <input id="fullName" type="text" placeholder="Student full name" />
+            </div>
+            <div>
+              <label for="contactId">Contact ID</label>
+              <input id="contactId" type="text" placeholder="Contact ID" />
+            </div>
+            <div>
+              <label for="industry">Industry</label>
+              <input id="industry" type="text" placeholder="Industry" />
+            </div>
+            <div>
+              <label for="jobTitle">Job title</label>
+              <input id="jobTitle" type="text" placeholder="Job title" />
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <label for="transcriptText">Transcript text</label>
+          <textarea id="transcriptText" placeholder="Paste the assessment transcript here..."></textarea>
+        </div>
+
+        <div class="card">
+          <div class="actions">
+            <button id="generateBtn">Generate report preview</button>
+            <button id="downloadBtn" class="secondary" disabled>Download HTML</button>
+          </div>
+          <p class="status" id="statusText">Idle.</p>
+        </div>
+
+        <div class="card previewWrap">
+          <label>Report preview</label>
+          <iframe id="previewFrame" class="previewFrame" title="Report preview"></iframe>
+        </div>
+
+        <div class="card">
+          <label for="rawOutput">Raw HTML output</label>
+          <textarea id="rawOutput" class="rawOutput" readonly></textarea>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const transcriptFileEl = document.getElementById("transcriptFile");
+      const fileStatusEl = document.getElementById("fileStatus");
+      const transcriptTextEl = document.getElementById("transcriptText");
+      const fullNameEl = document.getElementById("fullName");
+      const contactIdEl = document.getElementById("contactId");
+      const industryEl = document.getElementById("industry");
+      const jobTitleEl = document.getElementById("jobTitle");
+      const generateBtn = document.getElementById("generateBtn");
+      const downloadBtn = document.getElementById("downloadBtn");
+      const statusTextEl = document.getElementById("statusText");
+      const previewFrameEl = document.getElementById("previewFrame");
+      const rawOutputEl = document.getElementById("rawOutput");
+
+      let lastReportHtml = "";
+
+      const setStatus = (message) => {
+        statusTextEl.textContent = message;
+      };
+
+      const buildReviewText = () => {
+        const fullName = fullNameEl.value.trim() || "Not stated";
+        const contactId = contactIdEl.value.trim() || "Not stated";
+        const industry = industryEl.value.trim() || "Not stated";
+        const jobTitle = jobTitleEl.value.trim() || "Not stated";
+        const transcript = transcriptTextEl.value.trim();
+        const metaBlock =
+`Name: ${fullName}
+Contact ID: ${contactId}
+Industry: ${industry}
+Job Title: ${jobTitle}`;
+        return `${metaBlock}\n\n${transcript}`.trim();
+      };
+
+      const buildFinalReviewPrompt = (reviewText) => {
+        return `You are an expert reviewer in Australia for the ${industryEl.value.trim() || "Not stated in the Review"} industry. Use Australian English and spelling.
+
+SOURCE OF TRUTH
+Use ONLY the content inside the REVIEW block below. Do not use outside knowledge.
+If a detail is missing, write exactly: Not stated in the Review.
+
+STATUS RULE
+- Satisfactory = every question is ultimately satisfactory (including after follow-ups recorded in the source).
+- Discussion Required = at least one question remains unsatisfactory or unanswered in the final state.
+
+OUTPUT RULES
+- Produce valid HTML only (no code fences/CSS/JS).
+- Follow the structure EXACTLY as below; do not add other sections.
+- Keep tone factual and neutral.
+- Do NOT include recommendations, next steps, guidance, or action items.
+
+CONDITIONALS (do NOT render these lines in the output; they are just instructions)
+- If there are NO initially-unsatisfactory questions, in the “Questions Where the Student Did Not Give a Satisfactory Answer” section output ONLY:
+  “All questions were ultimately answered satisfactorily.” and do NOT include any <article> blocks.
+- If there ARE any initially-unsatisfactory questions, output one <article> block per such question (as shown), then proceed to the satisfactory list.
+
+HTML STRUCTURE (fill placeholders ONLY from the REVIEW; comments below are invisible in browsers)
+
+<u><strong>RPL Assessment Review Report</strong></u>
+
+<section>
+  <p><strong>Name:</strong>  Student Name </p>
+  <p><strong>Industry:</strong>  Industry </p>
+  <p><strong>Job Title:</strong>  Job Title </p>
+</section>
+
+<u><strong>Executive Summary — [Satisfactory | Discussion Required]</strong></u>
+<p>
+  2–5 sentences stating this is an RPL assessment review; summarising what was
+  evaluated at a high level (e.g., regulatory knowledge, ethics, client service,
+  workload management, professional development) using Australian terminology;
+  and giving a neutral overall appraisal consistent with the selected status.
+  Only include details present in the REVIEW; if a required detail is missing,
+  write: Not stated in the Review.
+</p>
+
+<u><strong>Questions Where the Student Did Not Give a Satisfactory Answer</strong></u>
+<!-- If none: output only the next paragraph line; omit all <article> blocks. -->
+<p>All questions were ultimately answered satisfactorily.</p>
+
+<!-- If there were initially-unsatisfactory questions, DELETE the single line above
+     and output one <article> block per question using this pattern: -->
+<!--
+<article>
+  <u><strong>Question [#]: [Short question text]</strong></u>
+  <p><strong>Why listed here:</strong> Initially required further detail before being deemed satisfactory, or remains unsatisfactory.</p>
+  <p><strong>Student’s Initial Response:</strong> [Concise paraphrase of the student’s first answer]</p>
+  <p><strong>AssessorBot Feedback:</strong> [Key feedback requesting additions/clarifications]</p>
+  <p><strong>Student’s Follow-up Response:</strong> [Concise paraphrase of the follow-up; if none, write: Not stated in the Review]</p>
+  <p><strong>AssessorBot Final Comment/Outcome:</strong> [Outcome summary; note whether the answer became satisfactory or still needs discussion]</p>
+</article>
+-->
+
+<u><strong>Questions Where the Student Gave a Satisfactory Answer</strong></u>
+<ul>
+  <!-- List each question that was satisfactory in the final state -->
+  <li><strong>Question [#]:</strong> [One-line description of what the student demonstrated or identified]</li>
+</ul>
+
+REVIEW
+<<<BEGIN_REVIEW
+${reviewText}
+END_REVIEW>>>`;
+      };
+
+      const callTextModel = async (prompt) => {
+        const response = await fetch("/api/analysis/chat", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-rpl-mode": "router",
+          },
+          body: JSON.stringify({
+            prompt,
+            temperature: 0.2,
+            max_tokens: 800,
+          }),
+        });
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(`Model error: ${response.status} ${response.statusText} ${text}`.trim());
+        }
+        const json = await response.json();
+        const content = json?.content || json?.response || json?.text;
+        if (typeof content === "string" && content.trim()) return content.trim();
+        const raw = json?.raw || {};
+        const rawContent =
+          raw?.choices?.[0]?.message?.content ||
+          raw?.choices?.[0]?.text ||
+          raw?.content ||
+          raw?.response ||
+          raw?.text;
+        if (typeof rawContent === "string" && rawContent.trim()) return rawContent.trim();
+        const messages = Array.isArray(json?.messages) ? json.messages : [];
+        const last = messages.length ? messages[messages.length - 1] : null;
+        const text = last?.text || last?.content || "";
+        if (!text) throw new Error("No response content returned.");
+        return String(text).trim();
+      };
+
+      const updatePreview = (html) => {
+        lastReportHtml = html || "";
+        rawOutputEl.value = lastReportHtml;
+        previewFrameEl.srcdoc = lastReportHtml;
+        downloadBtn.disabled = !lastReportHtml;
+      };
+
+      transcriptFileEl.addEventListener("change", () => {
+        const file = transcriptFileEl.files?.[0];
+        if (!file) {
+          fileStatusEl.textContent = "No file loaded.";
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+          transcriptTextEl.value = String(reader.result || "");
+          fileStatusEl.textContent = `Loaded ${file.name}`;
+        };
+        reader.onerror = () => {
+          fileStatusEl.textContent = "Unable to read the selected file.";
+        };
+        reader.readAsText(file);
+      });
+
+      generateBtn.addEventListener("click", async () => {
+        const reviewText = buildReviewText();
+        if (!reviewText) {
+          setStatus("Please provide a transcript.");
+          return;
+        }
+        setStatus("Generating report...");
+        generateBtn.disabled = true;
+        downloadBtn.disabled = true;
+        try {
+          const prompt = buildFinalReviewPrompt(reviewText);
+          const html = await callTextModel(prompt);
+          updatePreview(html);
+          setStatus("Report ready.");
+        } catch (err) {
+          updatePreview("");
+          setStatus(err?.message || "Unable to generate the report.");
+        } finally {
+          generateBtn.disabled = false;
+        }
+      });
+
+      downloadBtn.addEventListener("click", () => {
+        if (!lastReportHtml) return;
+        const blob = new Blob([lastReportHtml], { type: "text/html;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "RPL_Final_Report.html";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      });
+    </script>
+  </body>
+</html>
