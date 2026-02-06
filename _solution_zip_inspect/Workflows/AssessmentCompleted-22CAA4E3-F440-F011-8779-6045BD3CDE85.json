@@ -1,0 +1,254 @@
+{
+  "properties": {
+    "connectionReferences": {
+      "shared_sharepointonline-2": {
+        "api": {
+          "name": "shared_sharepointonline"
+        },
+        "connection": {
+          "connectionReferenceLogicalName": "new_sharedsharepointonline_45c67"
+        },
+        "runtimeSource": "invoker"
+      },
+      "shared_commondataserviceforapps": {
+        "api": {
+          "name": "shared_commondataserviceforapps"
+        },
+        "connection": {
+          "connectionReferenceLogicalName": "new_sharedcommondataserviceforapps_7a36e"
+        },
+        "runtimeSource": "embedded"
+      },
+      "shared_sharepointonline-3": {
+        "api": {
+          "name": "shared_sharepointonline"
+        },
+        "connection": {
+          "connectionReferenceLogicalName": "new_sharedsharepointonline_08267"
+        },
+        "runtimeSource": "invoker"
+      }
+    },
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "undefined",
+      "parameters": {
+        "$authentication": {
+          "defaultValue": {},
+          "type": "SecureObject"
+        },
+        "$connections": {
+          "defaultValue": {},
+          "type": "Object"
+        }
+      },
+      "triggers": {
+        "manual": {
+          "type": "Request",
+          "kind": "PowerAppV2",
+          "inputs": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "text_1": {
+                  "description": "Please enter your input",
+                  "title": "Name",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "text_2": {
+                  "description": "Please enter your input",
+                  "title": "Email Address",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "text": {
+                  "description": "Please enter your input",
+                  "title": "Assessment",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "text_3": {
+                  "description": "Please enter your input",
+                  "title": "Date",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "text_4": {
+                  "description": "Please enter your input",
+                  "title": "Industry",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "text_5": {
+                  "description": "Please enter your input",
+                  "title": "Title",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                }
+              },
+              "required": [
+                "text_1",
+                "text_2",
+                "text",
+                "text_3",
+                "text_4",
+                "text_5"
+              ]
+            }
+          },
+          "metadata": {
+            "operationMetadataId": "0c589c41-7123-4456-86ae-3ad61707feb2"
+          }
+        }
+      },
+      "actions": {
+        "Create_Assessment_Completed": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "parameters": {
+              "dataset": "https://wraymedia.sharepoint.com/sites/AssessorBotStoredContent",
+              "folderPath": "/Shared Documents/Completed Assessment Flags",
+              "name": "@{triggerBody()?['text_1']} -  @{triggerBody()?['text_2']}- Assessment Completed.txt",
+              "body": "Name: @{triggerBody()?['text_1']}\nEmail: @{triggerBody()?['text_2']}\nAssessment: @{triggerBody()?['text']}\nDate: @{triggerBody()?['text_3']}\nIndustry: @{triggerBody()?['text_4']}\nJob Title: @{triggerBody()?['text_5']}\n"
+            },
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+              "operationId": "CreateFile",
+              "connectionName": "shared_sharepointonline-2"
+            }
+          },
+          "runAfter": {},
+          "runtimeConfiguration": {
+            "contentTransfer": {
+              "transferMode": "Chunked"
+            }
+          },
+          "metadata": {
+            "operationMetadataId": "1132db48-b66c-47ed-a80d-6176968ce8cd"
+          }
+        },
+        "Run_a_prompt": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "parameters": {
+              "recordId": "eff611d7-169d-4122-bd90-df84faa07a11",
+              "item/requestv2/Industry": "@triggerBody()?['text_4']",
+              "item/requestv2/Review": "@{body('Get_Transcript')}",
+              "item/requestv2/Student_20Name": "@triggerBody()?['text_1']",
+              "item/requestv2/Job_20Title": "@triggerBody()?['text_5']"
+            },
+            "host": {
+              "apiId": "providers/Microsoft.ProcessSimple/operationGroups/aibuilder",
+              "operationId": "aibuilderpredict_customprompt",
+              "connectionName": "shared_commondataserviceforapps"
+            }
+          },
+          "runAfter": {
+            "Get_Transcript": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "af3326ca-8f35-4253-b25e-1f7661235319",
+            "flowSystemMetadata": {
+              "portalOperationApiDisplayNameOverride": "AI Builder",
+              "portalOperationIconOverride": "https://content.powerapps.com/resource/makerx/static/pauto/images/designeroperations/aiBuilderNew.51dbdb6b.png",
+              "portalOperationBrandColorOverride": "#0A76C4",
+              "portalOperationApiTierOverride": "Standard"
+            }
+          }
+        },
+        "Get_file_metadata_using_path": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "parameters": {
+              "dataset": "https://wraymedia.sharepoint.com/sites/AssessorBotStoredContent",
+              "path": "/Shared Documents/RPL - Full Transcripts/Richard Wray-richard@wraymediaconsulting.com-Full Transcript.txt"
+            },
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+              "operationId": "GetFileMetadataByPath",
+              "connectionName": "shared_sharepointonline-3"
+            }
+          },
+          "runAfter": {
+            "Create_Assessment_Completed": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "0eefe14e-1f40-49a8-b4f0-6d7b7b712e7a"
+          }
+        },
+        "Get_Transcript": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "parameters": {
+              "dataset": "https://wraymedia.sharepoint.com/sites/AssessorBotStoredContent",
+              "id": "@outputs('Get_file_metadata_using_path')?['body/Id']",
+              "inferContentType": true
+            },
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+              "operationId": "GetFileContent",
+              "connectionName": "shared_sharepointonline-3"
+            }
+          },
+          "runAfter": {
+            "Get_file_metadata_using_path": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "%252fShared%2bDocuments%252fRichard%2bWray%2b-%2brichard%2540wraymediaconsulting.com%252fTracking%252fRichard%2bWray%2b-%2brichard%2540wraymediaconsulting.com%2b-%2bAssessment%2bStarted.txt": "/Shared Documents/Richard Wray - richard@wraymediaconsulting.com/Tracking/Richard Wray - richard@wraymediaconsulting.com - Assessment Started.txt",
+            "operationMetadataId": "9066f1fa-143a-4a6b-b77b-1057f8565258",
+            "%252fShared%2bDocuments%252fFull%2bTranscript.txt": "/Shared Documents/Full Transcript.txt",
+            "%252fShared%2bDocuments%252fMichelle%2bBackup%252fFull%2bTranscript.txt": "/Shared Documents/Michelle Backup/Full Transcript.txt",
+            "%252fShared%2bDocuments%252fMichelle%2bFirth%2b-%2bmfirth%2540aamctraining.edu.au%252fAssessment%252fFull%2bTranscript.txt": "/Shared Documents/Michelle Firth - mfirth@aamctraining.edu.au/Assessment/Full Transcript.txt",
+            "%252fShared%2bDocuments%252fFull%2bTranscripts%252fFull%2bTranscript.txt": "/Shared Documents/Full Transcripts/Full Transcript.txt",
+            "%252fShared%2bDocuments%252fRPL%2b-%2bFull%2bTranscripts%252fRichard%2bWray%2b-%2brichard%2540wraymediaconsulting.com%2b-%2bFull%2bTranscript.txt": "/Shared Documents/RPL - Full Transcripts/Richard Wray - richard@wraymediaconsulting.com - Full Transcript.txt",
+            "%252fShared%2bDocuments%252fRPL%2b-%2bFull%2bTranscripts%252fRichard%2bWray-richard%2540wraymediaconsulting.com-Full%2bTranscript.txt": "/Shared Documents/RPL - Full Transcripts/Richard Wray-richard@wraymediaconsulting.com-Full Transcript.txt"
+          }
+        },
+        "Create_file": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "parameters": {
+              "dataset": "https://wraymedia.sharepoint.com/sites/AssessorBotStoredContent",
+              "folderPath": "/Shared Documents/RPL - Word Assessments",
+              "name": "@{triggerBody()?['text_1']} - @{triggerBody()?['text_2']} - RPL Assessment - @{triggerBody()?['text_3']}.html",
+              "body": "@outputs('Run_a_prompt')?['body/responsev2/predictionOutput/text']"
+            },
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+              "operationId": "CreateFile",
+              "connectionName": "shared_sharepointonline-3"
+            }
+          },
+          "runAfter": {
+            "Run_a_prompt": [
+              "Succeeded"
+            ]
+          },
+          "runtimeConfiguration": {
+            "contentTransfer": {
+              "transferMode": "Chunked"
+            }
+          },
+          "metadata": {
+            "operationMetadataId": "c08d08cb-9a6c-4528-bd44-2b69027c4d72"
+          }
+        }
+      }
+    },
+    "templateName": null
+  },
+  "schemaVersion": "1.0.0.0"
+}

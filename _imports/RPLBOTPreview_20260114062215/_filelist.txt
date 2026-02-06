@@ -1,0 +1,9 @@
+C:\Users\wapwr\AAMC_RPL\_imports\RPLBOTPreview_20260114062215\Microsoft.PowerApps
+C:\Users\wapwr\AAMC_RPL\_imports\RPLBOTPreview_20260114062215\_filelist.txt
+C:\Users\wapwr\AAMC_RPL\_imports\RPLBOTPreview_20260114062215\manifest.json
+C:\Users\wapwr\AAMC_RPL\_imports\RPLBOTPreview_20260114062215\Microsoft.PowerApps\apps
+C:\Users\wapwr\AAMC_RPL\_imports\RPLBOTPreview_20260114062215\Microsoft.PowerApps\apps\2624514214644620555
+C:\Users\wapwr\AAMC_RPL\_imports\RPLBOTPreview_20260114062215\Microsoft.PowerApps\apps\2624514214644620555\2624514214644620555.json
+C:\Users\wapwr\AAMC_RPL\_imports\RPLBOTPreview_20260114062215\Microsoft.PowerApps\apps\2624514214644620555\N0d84ac52-e961-49f7-990d-ab5feae189a4-document.msapp
+C:\Users\wapwr\AAMC_RPL\_imports\RPLBOTPreview_20260114062215\Microsoft.PowerApps\apps\2624514214644620555\N8e3b2d0c-1d5d-42da-861c-e3dd9157df16-logoSmallFile
+C:\Users\wapwr\AAMC_RPL\_imports\RPLBOTPreview_20260114062215\Microsoft.PowerApps\apps\2624514214644620555\N9d534bf2-74dd-4baa-a6b2-02bddda2ca97-identity.json

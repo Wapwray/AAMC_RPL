@@ -1,0 +1,468 @@
+# ************************************************************************************************
+# Warning: YAML source code for Canvas Apps should only be used to review changes made within Power Apps Studio and for minor edits (Preview).
+# Use the maker portal to create and edit your Power Apps.
+# 
+# The schema file for Canvas Apps is available at https://go.microsoft.com/fwlink/?linkid=2304907
+# 
+# For more information, visit https://go.microsoft.com/fwlink/?linkid=2292623
+# ************************************************************************************************
+Screens:
+  Assessment Screen:
+    Properties:
+      OnVisible: |+
+        =UpdateContext({varEnableNextQuestion: false});
+        Set(varHintVisible, false);
+        Set(varChatHistoryHeight, 345);
+        Set(showAnswerInstruction, true);  
+        Set(enableAnswerBox, true);
+        Set(varTimerOn, false);
+
+        Set(varChatWindow,"");
+
+        Set(CurrentQuestionSummary,{ Text: "THIS IS THE QUESTION - FROM THE START" });
+
+        Set(CurrentConversationBuffer, ""); 
+        Set(TempCurrentConversationBuffer,"");
+
+        Set(varEditText, true);
+        Set(varMicOn,true);
+        Set(varAnswerLength, 0);
+
+        Set(Transcribed1,"");
+        Set(Attempt1, { Text: "" });
+        Set(Transcribed2,"");
+        Set(Attempt2, { Text: "" });
+        Set(Transcribed3,"");
+        Set(Attempt3, { Text: "" });
+
+        Set(CurrentFeedback,"");
+
+        Set(varRecording, false);
+
+        Set(varFirstName,
+            If(
+                !IsBlank(User().FullName),
+                Trim(First(Split(User().FullName, " ")).Value),
+                "User"
+            )
+        );
+
+        // Step 2: Load the questions collection
+        ClearCollect(colQuestions, 'RPL Spreadsheet - List Version For Upload');
+
+        // Step 3: Only proceed if questions are available
+        If(
+            CountRows(colQuestions) > 0,
+
+            // Step 4: Set total number of questions
+            Set(TotalQuestions, CountRows(colQuestions));
+
+            // Step 5: Determine which question number to start on
+            Set(
+                varQuestionNumber,
+                If(
+                    varResumeMode = true && !IsBlank(varAssessmentQuestion),
+                    Value(varAssessmentQuestion),
+                    1
+                )
+            );
+
+            // Step 6: Load the current question and related metadata
+            // If(
+            //    IsBlank(TranscriptionsText),
+            //   Set(TranscriptionsText, "")
+            // );
+
+        Set(TranscriptionsText, "");
+
+        Set(EditableText, TranscriptionsText);
+
+        Set(
+        PriorAnswers,
+               {
+                   EditableText: EditableText,
+                    TranscriptionsText: TranscriptionsText
+                }
+         );
+
+            Set(CurrentEvaluation, "");
+            Set(CurrentQuestionAttempt, 1);
+
+            Set(
+                CurrentQuestionText,
+                LookUp(
+                    colQuestions,
+                    Value('Question Number') = varQuestionNumber,
+                    'Question Details'
+                )
+            );
+
+            Set(
+                CurrentHintText,
+                LookUp(
+                    colQuestions,
+                    Value('Question Number') = varQuestionNumber,
+                    Hints
+                )
+            );
+
+            Set(
+                CurrentPromptOutline,
+                LookUp(
+                    colQuestions,
+                    Value('Question Number') = varQuestionNumber,
+                    'Prompt Outline'
+                )
+            );
+
+            Set(
+                CurrentObjective,
+                LookUp(
+                    colQuestions,
+                    Value('Question Number') = varQuestionNumber,
+                    Objective
+                )
+            );
+
+            Set(varCurrentQuestionStartTime, Now());
+            Set(varCurrentQuestionFinishTime, Now());
+            Set(varDuration, Now());
+            Set(varAttempt1StartTime, Now());
+
+            // Step 7: Set screen-specific UI flags
+            UpdateContext({ varEnablePlayback: false });
+            UpdateContext({ varEnableEvaluate: false });
+        );
+
+        // Step 8: Load transcript from Power Automate
+        Set(FullTranscriptBuffer, TranscriptCollectorLive.Run(User().FullName, User().Email));
+    Children:
+      - Grey Background_1:
+          Control: Image@2.2.3
+          Properties:
+            Fill: =RGBA(106, 106, 106, 1)
+            Height: =768
+            Image: =RPL_Background_1920x1080
+            Width: =1366
+      - Top Left XXX Image_1:
+          Control: Image@2.2.3
+          Properties:
+            FlipVertical: =true
+            Height: =189
+            Image: =XXX_no_white_bg
+            Width: =236
+            X: |+
+              =-50
+            Y: |+
+              =-30
+      - Bottom Left XXX Image_1:
+          Control: Image@2.2.3
+          Properties:
+            Height: =189
+            Image: =XXX_no_white_bg
+            Width: =236
+            X: |+
+              =-50
+            Y: |+
+              =599
+      - LightBulb Background:
+          Control: Image@2.2.3
+          Properties:
+            Height: =757
+            Image: =Lightbulb_transparent
+            Width: =233
+            X: =1126
+            Y: =11
+      - Logo - Black_2:
+          Control: Image@2.2.3
+          Properties:
+            Height: =157
+            Image: ='2024_logo_no_black_bg'
+            Width: =210
+            X: =1120
+            Y: |+
+              =-20
+
+      - Button_Next Question:
+          Control: Button@0.0.45
+          Properties:
+            Align: =Align.Justify
+            Appearance: ='ButtonCanvas.Appearance'.Primary
+            BorderRadius: =999
+            DisplayMode: |-
+              =If(varEnableNextQuestion, DisplayMode.Edit, DisplayMode.Disabled)
+              // If(CurrentQuestionAttempt > 1, DisplayMode.Edit, DisplayMode.Disabled)
+            Font: =Font.'Segoe UI'
+            FontColor: =RGBA(255, 255, 255, 1)
+            FontSize: =22
+            Height: =58
+            OnSelect: "=// Update FullTranscriptBuffer with new content (but keep the original header untouched)\r\n\r\nSet(CurrentQuestionSummary, 'Assessor Question Summary'.Predict(\r\n    User().FullName,\r\n    JobTitleVariable,\r\n    Transcribed2,\r\n    varFirstName,\r\n    Attempt1.Text,\r\n    Transcribed3,\r\n    Attempt2.Text,\r\n    Transcribed1,\r\n    SelectedIndustry,\r\n    CurrentQuestionText,\r\n    CurrentObjective\r\n));\r\n\r\n\r\nSet(\r\n    FullTranscriptBuffer,\r\n    {\r\n        fulltranscript: \r\n            FullTranscriptBuffer.fulltranscript & // Preserves the original header\r\n            \"Question \" & Text(varQuestionNumber) & \": \" & CurrentQuestionText & Char(10) &\r\n            \"Summary: \" & CurrentQuestionSummary.Text & Char(10) & Char(10) &\r\n            CurrentConversationBuffer\r\n    }\r\n);\r\n\r\n// Send updated full transcript to the flow\r\nIf(\r\n    !IsBlank(User().FullName) && \r\n    !IsBlank(User().Email) && \r\n    !IsBlank(FullTranscriptBuffer.fulltranscript),\r\n\r\n    TranscriptUpdater.Run(\r\n        User().FullName,\r\n        User().Email,\r\n        FullTranscriptBuffer.fulltranscript\r\n    )\r\n);\r\n\r\n\r\nSet(Transcribed1,\"\");\r\nSet(Attempt1, { Text: \"\" });\r\nSet(Transcribed2,\"\");\r\nSet(Attempt2, { Text: \"\" });\r\nSet(Transcribed3,\"\");\r\nSet(Attempt3, { Text: \"\" });\r\nSet(TranscriptionsText,\"\");\r\nSet(EditableText,\"\");\r\n// Increment the question number\r\nSet(varQuestionNumber, varQuestionNumber + 1);\r\n\r\n// Ensure all inputs are valid before calling the flow\r\nIf(\r\n    !IsBlank(Q1UserDetails) && !IsBlank(User().Email) && !IsBlank(User().FullName) && !IsBlank(varQuestionNumber),\r\n    SaveCurrentQuestionNumber.Run(\r\n        Q1UserDetails,\r\n        User().Email,\r\n        User().FullName,\r\n        Text(varQuestionNumber) // Ensure it's passed as text\r\n    )\r\n);\r\n\r\n// Check if we are at the end of the question list\r\nIf(\r\n    varQuestionNumber > TotalQuestions,\r\n    Navigate('Final Screen', ScreenTransition.Fade),\r\n    \r\n    // Otherwise, load the next question\r\n    Set(\r\n        CurrentQuestionText,\r\n        LookUp(\r\n            'RPL Spreadsheet - List Version For Upload',\r\n            'Question Number' = Text(varQuestionNumber),\r\n            'Question Details'\r\n        )\r\n    );\r\n    \r\n    Set(\r\n        CurrentHintText,\r\n        LookUp(\r\n            'RPL Spreadsheet - List Version For Upload',\r\n            'Question Number' = Text(varQuestionNumber),\r\n            Hints\r\n        )\r\n    );\r\n\r\n    Set(TranscriptionsText, \"\");\r\n    Set(EditableText, TranscriptionsText);\r\n    Set(CurrentEvaluation, \"\");\r\n    Set(CurrentQuestionAttempt, 1);\r\n\r\n    Set(\r\n        CurrentPromptOutline,\r\n        LookUp(\r\n            'RPL Spreadsheet - List Version For Upload',\r\n            'Question Number' = Text(varQuestionNumber),\r\n            'Prompt Outline'\r\n        )\r\n    );\r\n\r\n    Set(\r\n        CurrentObjective,\r\n        LookUp(\r\n            'RPL Spreadsheet - List Version For Upload',\r\n            'Question Number' = Text(varQuestionNumber),\r\n            Objective\r\n        )\r\n    );\r\n\r\n    Set(\r\n        varAttempt1StartTime,\r\n        Now()\r\n    )\r\n);\r\n\r\nSet(showAnswerInstruction, true);  \r\nSet(enableAnswerBox, true);\r\nSet(varChatHistoryHeight, 345);\r\nSet(varMicOn,true);\r\nSet(varChatWindow,\"\");\r\n\r\n UpdateContext({varEnableEvaluate: false});\r\nUpdateContext({varEnableEvaluate: false});\r\nSet(CurrentChat,0);\r\n\r\nUpdateContext({varEnableNextQuestion: false});"
+            Text: ="Next"
+            Width: =164
+            X: =1160
+            Y: =670
+      - TextCanvas3_1:
+          Control: Text@0.0.51
+          Properties:
+            Align: ='TextCanvas.Align'.Start
+            BorderStyle: =BorderStyle.None
+            Fill: =RGBA(242, 242, 242, 1)
+            Font: =Font.'Segoe UI'
+            Height: =133
+            PaddingBottom: =5
+            PaddingLeft: =5
+            PaddingRight: =5
+            PaddingTop: =5
+            Size: =18
+            Text: =CurrentQuestionText
+            VerticalAlign: =VerticalAlign.Top
+            Width: =1092
+            X: =41
+            Y: =116
+      - Button_Evaluate:
+          Control: Button@0.0.45
+          Properties:
+            Appearance: ='ButtonCanvas.Appearance'.Primary
+            BorderRadius: =999
+            DisplayMode: =If(varEnableEvaluate, DisplayMode.Edit, DisplayMode.Disabled)
+            Font: =Font.'Segoe UI'
+            FontColor: =RGBA(255, 255, 255, 1)
+            FontSize: =22
+            Height: =58
+            OnSelect: "=UpdateContext({varEnableNextQuestion: false});\r\nUpdateContext({varEnableEvaluate: false});\r\nSet(showAnswerInstruction, false);  \r\nSet(varEnableEvaluate, false);\r\nSet(varMicOn,false);\r\nSet(varEnablePlayback, false);\r\nSet(varEnableNextQuestion, false);\r\n\r\nUpdateContext({varTimerOn: false});\r\n// --------------------------\r\n// Start assessment recording\r\n// --------------------------\r\nSet(CurrentUserEmail, User().Email);\r\nSet(CurrentUserName, User().FullName);\r\n\r\nAssessmentStartedYes.Run(CurrentUserName, CurrentUserEmail, \"Yes\");\r\nSet(TranscriptionsText, EditableText);\r\nSet(CurrentEvaluation, \"EVALUATING - PLEASE WAIT\");\r\n\r\n// --------------------------\r\n// Handle Attempt 1\r\n// --------------------------\r\nIf(CurrentQuestionAttempt = 1,\r\n    Set(Transcribed1, TranscriptionsText);\r\n    Set(Attempt1, 'Assessor Prompt 1'.Predict(\r\n        CurrentUserName,\r\n        JobTitleVariable,\r\n        varFirstName,\r\n        Transcribed1,\r\n        SelectedIndustry,\r\n        CurrentQuestionText,\r\n        CurrentObjective\r\n    ));\r\n    Set(CurrentEvaluation, Attempt1.Text);\r\n    Set(CurrentFeedback, Attempt1.Text);\r\n    Set(varAttempt1FinishTime, Now());\r\n    Set(\r\n        AttemptDuration,\r\n        \"Total Time Taken: \" &\r\n        Text(Int(DateDiff(varAttempt1StartTime, varAttempt1FinishTime, TimeUnit.Minutes) / 60), \"00\") & \":\" &\r\n        Text(Mod(DateDiff(varAttempt1StartTime, varAttempt1FinishTime, TimeUnit.Minutes), 60), \"00\") & \":\" &\r\n        Text(Mod(DateDiff(varAttempt1StartTime, varAttempt1FinishTime, TimeUnit.Seconds), 60), \"00\")\r\n    );\r\n    Set(CurrentChat, 1);\r\n    Set(showAnswerInstruction, true);  \r\nSet(enableAnswerBox, true);\r\nSet(varMicOn,true);\r\n);\r\n\r\n// --------------------------\r\n// Handle Attempt 2\r\n// --------------------------\r\nIf(CurrentQuestionAttempt = 2,\r\n    Set(Transcribed2, TranscriptionsText);\r\n    Set(Attempt2, 'Assessor Prompt 2'.Predict(\r\n        CurrentUserName,\r\n        JobTitleVariable,\r\n        Transcribed2,\r\n        Attempt1.Text,\r\n        varFirstName,\r\n        Transcribed1,\r\n        SelectedIndustry,\r\n        CurrentQuestionText,\r\n        CurrentObjective\r\n    ));\r\n    Set(CurrentEvaluation, Attempt2.Text);\r\n    Set(CurrentFeedback, Attempt2.Text);\r\n    Set(varAttempt2StartTime, varAttempt1FinishTime);\r\n    Set(varAttempt2FinishTime, Now());\r\n    Set(\r\n        AttemptDuration,\r\n        \"Total Time Taken: \" &\r\n        Text(Int(DateDiff(varAttempt2StartTime, varAttempt2FinishTime, TimeUnit.Minutes) / 60), \"00\") & \":\" &\r\n        Text(Mod(DateDiff(varAttempt2StartTime, varAttempt2FinishTime, TimeUnit.Minutes), 60), \"00\") & \":\" &\r\n        Text(Mod(DateDiff(varAttempt2StartTime, varAttempt2FinishTime, TimeUnit.Seconds), 60), \"00\")\r\n    );\r\n    Set(CurrentChat, 2);\r\n    Set(showAnswerInstruction, true);  \r\nSet(enableAnswerBox, true);\r\nSet(varMicOn,true);\r\n);\r\n\r\n// --------------------------\r\n// Handle Attempt 3\r\n// --------------------------\r\nIf(CurrentQuestionAttempt = 3,\r\n\r\nSet(showAnswerInstruction, false);  \r\nSet(enableAnswerBox, false);\r\nSet(varChatHistoryHeight, 497);\r\nSet(varMicOn,false);\r\n\r\n\r\n\r\n\r\n    Set(Transcribed3, TranscriptionsText);\r\n    Set(Attempt3, 'Assessor Prompt 3'.Predict(\r\n        CurrentUserName,\r\n        JobTitleVariable,\r\n        Transcribed2,\r\n        varFirstName,\r\n        Attempt1.Text,\r\n        Transcribed3,\r\n        Attempt2.Text,\r\n        Transcribed1,\r\n        SelectedIndustry,\r\n        CurrentQuestionText,\r\n        CurrentObjective\r\n    ));\r\n    Set(CurrentEvaluation, Attempt3.Text);\r\n    Set(CurrentFeedback, \"Thank you for your final response. Please move to the next question\");\r\n    Set(varAttempt3StartTime, varAttempt2FinishTime);\r\n    Set(varAttempt3FinishTime, Now());\r\n    Set(\r\n        AttemptDuration,\r\n        \"Total Time Taken: \" &\r\n        Text(Int(DateDiff(varAttempt3StartTime, varAttempt3FinishTime, TimeUnit.Minutes) / 60), \"00\") & \":\" &\r\n        Text(Mod(DateDiff(varAttempt3StartTime, varAttempt3FinishTime, TimeUnit.Minutes), 60), \"00\") & \":\" &\r\n        Text(Mod(DateDiff(varAttempt3StartTime, varAttempt3FinishTime, TimeUnit.Seconds), 60), \"00\")\r\n    );\r\n    Set(CurrentChat, 3)\r\n);\r\n\r\nSet(\r\n    CurrentConversationBuffer,\r\n    \r\n    \"-----------------------------\" & Char(10) &\r\n    CurrentQuestionText & Char(10) & Char(10) &\r\n\r\n    If(!IsBlank(Transcribed1),\r\n        varFirstName & \" (Attempt 1):\" & Char(10) &\r\n        Transcribed1 & Char(10) &\r\n        \"AssessorBot:\" & Char(10) &\r\n        Attempt1.Text & Char(10) &\r\n        \"Submitted: \" & Text(varAttempt1FinishTime, \"dd mmm yyyy HH:mm:ss\") & Char(10) & Char(10),\r\n        \"\"\r\n    ) &\r\n\r\n    If(!IsBlank(Transcribed2),\r\n        varFirstName & \" (Attempt 2):\" & Char(10) &\r\n        Transcribed2 & Char(10) &\r\n        \"AssessorBot:\" & Char(10) &\r\n        Attempt2.Text & Char(10) &\r\n        \"Submitted: \" & Text(varAttempt2FinishTime, \"dd mmm yyyy HH:mm:ss\") & Char(10) & Char(10),\r\n        \"\"\r\n    ) &\r\n\r\n    If(!IsBlank(Transcribed3),\r\n        varFirstName & \" (Attempt 3):\" & Char(10) &\r\n        Transcribed3 & Char(10) &\r\n        \"AssessorBot:\" & Char(10) &\r\n        Attempt3.Text & Char(10) &\r\n        \"Submitted: \" & Text(varAttempt3FinishTime, \"dd mmm yyyy HH:mm:ss\") & Char(10) & Char(10),\r\n        \"\"\r\n    ) &\r\n\r\n    \"-----------------------------\" & Char(10)\r\n);\r\n\r\n\r\n// --------------------------\r\n// Prepare metadata\r\n// --------------------------\r\nSet(Q1UserDetails,\r\n    varQuestionNumber & \" - \" & CurrentUserName & \" \" & AssessmentName & \" : \" &\r\n    LookUp(\r\n        'RPL Spreadsheet - List Version For Upload',\r\n        'Question Number' = varQuestionNumber,\r\n        Section\r\n    ) & \" Question \" & varQuestionNumber & \" - Attempt \" & CurrentQuestionAttempt\r\n);\r\n\r\nSet(StorageEmail, CurrentUserEmail);\r\n\r\n// Ensure StringB64Var1 is valid before saving\r\nIf(\r\n    !varRecordingHappened,\r\n    Set(StringB64Var1, \"NoAudioAvailable\")\r\n);\r\n\r\n// Proceed with save only if all required fields are present\r\nIf(\r\n    !IsBlank(CurrentUserEmail) && !IsBlank(TranscriptionsText) && !IsBlank(CurrentEvaluation),\r\n    SaveContentToAssessorStorage.Run(\r\n        Q1UserDetails,\r\n        StorageEmail,\r\n        StringB64Var1,\r\n        CurrentUserName,\r\n        TranscriptionsText,\r\n        CurrentEvaluation\r\n    ),\r\n    Notify(\"Save failed: Email, Transcription, or Evaluation is missing.\", NotificationType.Error)\r\n);\r\n\r\n\r\n// --------------------------\r\n// Progress to next attempt\r\n// --------------------------\r\nIf(CurrentQuestionAttempt < 3,\r\n    Set(CurrentQuestionAttempt, CurrentQuestionAttempt + 1)\r\n);\r\n\r\n\r\n\r\n// --------------------------\r\n// Clear editable field at end\r\n// --------------------------\r\nSet(EditableText, \"\");\r\n\r\n\r\nSet(varRecordingHappened, false);\r\n\r\nSet(\r\n    varChatWindow,\r\n    \r\n    If(\r\n        CurrentChat >= 1,\r\n        varFirstName & \" - \" & Transcribed1 & Char(10) &\r\n        \"AssessorBot - \" & Attempt1.Text & Char(10) & Char(10),\r\n        \"\"\r\n    ) &\r\n\r\n    If(\r\n        CurrentChat >= 2,\r\n        varFirstName & \" - \" & Transcribed2 & Char(10) &\r\n        \"AssessorBot - \" & Attempt2.Text & Char(10) & Char(10),\r\n        \"\"\r\n    ) &\r\n\r\n    If(\r\n        CurrentChat >= 3,\r\n        varFirstName & \" - \" & Transcribed3 & Char(10) &\r\n        \"AssessorBot - \" & Attempt3.Text & Char(10) & Char(10),\r\n        \"\"\r\n    );\r\n);\r\n\r\nUpdateContext({varEnableNextQuestion: true});\r\n\r\n\r\n\r\n\r\n\r\n\r\n"
+            Text: ="Evaluate"
+            Width: =168
+            X: =1162
+            Y: =487
+      - Button_Transcribe:
+          Control: Button@0.0.45
+          Properties:
+            Appearance: ='ButtonCanvas.Appearance'.Primary
+            BorderColor: =ColorValue("#009999")
+            BorderRadius: =999
+            DisplayMode: =If(varEnablePlayback, DisplayMode.Edit, DisplayMode.Disabled)
+            Font: =Font.'Segoe UI'
+            FontColor: =RGBA(255, 255, 255, 1)
+            FontSize: =22
+            Height: =58
+            OnSelect: "=Set(showAnswerInstruction, false);  \r\nSet(varEnableEvaluate, false);\r\nSet(varMicOn,false);\r\nSet(varEnablePlayback, false);\r\nSet(varEnableEvaluate, false);\r\nSet(varEnableNextQuestion, false);\r\nUpdateContext({varEnablePlayback: false});\r\n\r\n\r\n\r\nSet(TranscriptionsText,\"TRANSCRIBING - PLEASE WAIT\");\r\nSet(RecordingStatus, \"Recording has content\");\r\n\r\n        Set(NowVar,Now());\r\n        Set(TempRecordingVar,Microphone1.Audio);\r\n        Set(TempJason,JSON(Microphone1.Audio,JSONFormat.IncludeBinaryData));\r\n        Set(StringB64Var1,Mid(TempJason,25,Len(TempJason)-25));\r\n        Set(Q1UserDetails, User().FullName & \" - \" & Now() & \" - \" & User().Email & \" - \" & \"Question 1\");\r\n        Set(flowResonse, 'AzureTextTranscription1.0'.Run(Q1UserDetails,\", \",StringB64Var1));\r\n\r\n\r\n     //   Set(TranscribedQ1, flowResonseQ1.transcribedtextx);\r\n     //   Set(TranscriptionsText,TranscribedQ1);\r\n\r\n       \r\n\r\n\r\n        If (CurrentQuestionAttempt = 1,\r\n\r\n      Set(Transcribed1, flowResonse.transcribedtextx);\r\n      Set(EditableText,Transcribed1);\r\n      Set(TranscriptionsText, EditableText);\r\n\r\n      \r\n\r\n        );\r\n\r\n                \r\n        If (CurrentQuestionAttempt = 2,\r\n\r\n        Set(Transcribed2, flowResonse.transcribedtextx);    \r\n        Set(EditableText, Concatenate(Char(10), Transcribed2));\r\n         Set(TranscriptionsText, EditableText);\r\n\r\n        );\r\n\r\n     If (CurrentQuestionAttempt = 3,\r\n        \r\n        Set(Transcribed3, flowResonse.transcribedtextx);\r\n        Set(EditableText, Concatenate(EditableText, Char(10), Transcribed3));\r\n        Set(TranscriptionsText, EditableText);\r\n\r\n        );\r\n\r\n       \r\n\r\n        Set(varEditText, true);\r\n        Set(varRecordingHappened, true);\r\n\r\n         UpdateContext({varEnableEvaluate: true});\r\nSet(enableAnswerBox, true);\r\n\r\nSet(showAnswerInstruction, true);  \r\nSet(varEnableEvaluate, true);\r\nSet(varMicOn,true);\r\nSet(varEnablePlayback, true);\r\nSet(varEnableEvaluate, true);\r\nSet(varEnableNextQuestion, true);\r\n\r\n        \r\n"
+            Text: ="Transcribe"
+            Width: =164
+            X: =1161
+            Y: =371
+      - Assessment Name. Section and Question Number:
+          Control: Label@2.5.1
+          Properties:
+            FontWeight: =FontWeight.Bold
+            Height: =46
+            Size: =20
+            Text: |+
+              =
+              LookUp(
+                  colQuestions,
+                  Value('Question Number') = Value(varQuestionNumber),
+                  Section
+              ) & 
+              "- Question " & Text(varQuestionNumber) & 
+              " of " & Text(TotalQuestions) & 
+              " - Attempt " & Text(CurrentQuestionAttempt)
+            Width: =1080
+            X: =40
+            Y: =32
+      - TranscriptionLabel:
+          Control: Label@2.5.1
+          Properties:
+            AutoHeight: =true
+            FontWeight: =FontWeight.Bold
+            Height: =43
+            Text: ="Chat History"
+            Width: =511
+            X: =41
+            Y: =268
+      - Audio_Background:
+          Control: Button@0.0.45
+          Properties:
+            Appearance: ='ButtonCanvas.Appearance'.Primary
+            BorderRadius: =999
+            DisplayMode: =If(varEnablePlayback, DisplayMode.Edit, DisplayMode.Disabled)
+            Font: =Font.'Segoe UI'
+            FontColor: =RGBA(122, 138, 143, 1)
+            FontSize: =22
+            Height: =82
+            OnSelect: =
+            Text: =
+            Width: =174
+            X: =1162
+            Y: =239
+      - Dummy Audio Control:
+          Control: Image@2.2.3
+          Properties:
+            Image: ='Fake Audio Control'
+            ImagePosition: =ImagePosition.Fill
+            Width: =172
+            X: =1162
+            Y: =232
+      - Audio1:
+          Control: Audio@2.3.1
+          Properties:
+            BorderColor: =ColorValue("#009999")
+            BorderStyle: =BorderStyle.None
+            DisplayMode: =If(varEnablePlayback, DisplayMode.Edit, DisplayMode.Disabled)
+            Fill: |+
+              =ColorValue("#009999")
+            FocusedBorderColor: =ColorValue("#009999")
+            Height: =66
+            Media: =Microphone1.Audio
+            Visible: |+
+              =varEnablePlayback = true
+            Width: =136
+            X: =1181
+            Y: =249
+      - Microphone_Background:
+          Control: Button@0.0.45
+          Properties:
+            Appearance: ='ButtonCanvas.Appearance'.Primary
+            BorderRadius: =999
+            DisplayMode: =If(varMicOn, DisplayMode.Edit, DisplayMode.Disabled)
+            Font: =Font.'Segoe UI'
+            FontColor: =RGBA(255, 255, 255, 1)
+            FontSize: =22
+            Height: =82
+            OnSelect: =
+            Text: =
+            Width: =174
+            X: =1155
+            Y: =116
+      - Microphone1:
+          Control: Microphone@2.2.0
+          Properties:
+            BorderColor: |+
+              =ColorValue("#6A6A6A")
+            BorderStyle: =BorderStyle.None
+            DisabledBorderColor: =RGBA(0, 153, 153, 1)
+            DisplayMode: =If(varMicOn, DisplayMode.Edit, DisplayMode.Disabled)
+            Fill: |+
+              =ColorValue("#009999")
+            FocusedBorderColor: =ColorValue("#6A6A6A")
+            FocusedBorderThickness: =
+            Height: =63
+            HoverBorderColor: =ColorValue("#009999")
+            HoverFill: =ColorValue("#009999")
+            ImagePosition: =ImagePosition.Center
+            OnSelect: |+
+              =Set(varRecording, true);
+              Set(varEditText, false);
+            OnStop: |+
+              =UpdateContext({varEnablePlayback: true});
+              Set(TempRecordingVar, Microphone1.Audio);
+              Set(varRecording, false);
+
+              Set(showAnswerInstruction, false);  
+              Set(varEnableEvaluate, false);
+
+            PressedBorderColor: =ColorValue("#009999")
+            PressedColor: =ColorValue("#6A6A6A")
+            PressedFill: =ColorValue("#6A6A6A")
+            Width: =139
+            X: =1173
+            Y: =126
+      - AnswerBox:
+          Control: Classic/TextInput@2.3.2
+          Properties:
+            Default: =EditableText
+            DisplayMode: =
+            Height: =82
+            Mode: =TextMode.MultiLine
+            OnChange: |+
+              =Set(EditableText, Self.Text);
+              UpdateContext({varTimerOn: true});
+              UpdateContext({varEnablePlayback: false});
+              UpdateContext({varEnableEvaluate: true});
+            OnSelect: |+
+              =UpdateContext({varTimerOn: true});
+              // UpdateContext({varEnableEvaluate: true});
+            Visible: =enableAnswerBox
+            Width: =1092
+            X: =41
+            Y: =646
+      - Chat History:
+          Control: Text@0.0.51
+          Properties:
+            Align: ='TextCanvas.Align'.Start
+            BorderStyle: =BorderStyle.None
+            Fill: =RGBA(242, 242, 242, 1)
+            Font: =Font.'Segoe UI'
+            Height: =284
+            PaddingBottom: =5
+            PaddingLeft: =5
+            PaddingRight: =5
+            PaddingTop: =5
+            Size: =15
+            Text: =varChatWindow
+            VerticalAlign: =VerticalAlign.Top
+            Width: =1103
+            X: =40
+            Y: =300
+      - AnswerInstruction:
+          Control: Label@2.5.1
+          Properties:
+            FontWeight: =FontWeight.Bold
+            Height: =57
+            Text: ="Type your answer in the box below or use the microphone and transcribe buttons and then press Evaluate when ready.  You must give at least one answer before moving to the next question"
+            Visible: =showAnswerInstruction
+            Width: =1006
+            X: =41
+            Y: =589
+      - QuestionLengthTimer:
+          Control: Timer@2.1.0
+          Properties:
+            AutoPause: =false
+            AutoStart: =true
+            Duration: =500
+            OnTimerEnd: |+
+              =Set(varAnswerLength, Len(Trim(AnswerBox.Text)));
+              UpdateContext({ varEnableEvaluate: varAnswerLength > 0 })
+
+
+            Repeat: =true
+            Start: =varTimerOn
+            Visible: =false
+            Width: =68
+            X: =1004
+            Y: =32
+      - ButtonCanvas1:
+          Control: Button@0.0.45
+          Properties:
+            Height: =24
+            OnSelect: |+
+              =Set(varHintVisible, !varHintVisible)
+            Text: |
+              =If(varHintVisible, "Hide Hint", "Show Hint")
+            Width: =109
+            X: =937
+            Y: =79
+      - HintContainer:
+          Control: GroupContainer@1.3.0
+          Variant: ManualLayout
+          Properties:
+            Height: =136
+            Visible: =varHintVisible
+            Width: =440
+            X: =703
+            Y: =96
+          Children:
+            - TextCanvas3_2:
+                Control: Text@0.0.51
+                Properties:
+                  Align: ='TextCanvas.Align'.Start
+                  BorderStyle: =BorderStyle.None
+                  Fill: =RGBA(242, 242, 242, 1)
+                  Font: =Font.'Segoe UI'
+                  Height: =136
+                  PaddingBottom: =5
+                  PaddingLeft: =5
+                  PaddingTop: =5
+                  Size: =15
+                  Text: =CurrentHintText
+                  VerticalAlign: =VerticalAlign.Top
+                  Width: =440

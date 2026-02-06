@@ -1,0 +1,21 @@
+{
+  "Themes": [
+    {
+      "EntityName": "PowerAppsTheme",
+      "ThemeName": "PowerAppsTheme"
+    },
+    {
+      "EntityName": "AAMC Theme",
+      "ThemeName": "AAMC Theme",
+      "BasePaletteColor": "#009999",
+      "HueTorsion": 0,
+      "Vibrancy": 0,
+      "ThemePrimaryColorLocked": true,
+      "Font": "Segoe UI"
+    },
+    {
+      "EntityName": "PlatinumTheme",
+      "ThemeName": "PlatinumTheme"
+    }
+  ]
+}

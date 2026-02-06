@@ -1,0 +1,64 @@
+# ************************************************************************************************
+# Warning: YAML source code for Canvas Apps should only be used to review changes made within Power Apps Studio and for minor edits (Preview).
+# Use the maker portal to create and edit your Power Apps.
+# 
+# The schema file for Canvas Apps is available at https://go.microsoft.com/fwlink/?linkid=2304907
+# 
+# For more information, visit https://go.microsoft.com/fwlink/?linkid=2292623
+# ************************************************************************************************
+Screens:
+  Final Screen:
+    Properties:
+      OnVisible: |+
+        =
+
+
+
+
+    Children:
+      - Grey Background_2:
+          Control: Image@2.2.3
+          Properties:
+            Height: =768
+            Image: =RPL_Background_1920x1080
+            Width: =1366
+      - Top Left XXX Image_2:
+          Control: Image@2.2.3
+          Properties:
+            FlipVertical: =true
+            Height: =189
+            Image: =XXX_no_white_bg
+            Width: =236
+            X: =-50
+            Y: =-30
+      - Bottom Left XXX Image_2:
+          Control: Image@2.2.3
+          Properties:
+            Height: =189
+            Image: =XXX_no_white_bg
+            Width: =236
+            X: =-50
+            Y: =599
+      - Logo - Black_3:
+          Control: Image@2.2.3
+          Properties:
+            Height: =157
+            Image: ='2024_logo_no_black_bg'
+            Width: =210
+            X: =1120
+      - Label1:
+          Control: Label@2.5.1
+          Properties:
+            Align: =Align.Center
+            FontWeight: =FontWeight.Bold
+            Height: =386
+            Size: =30
+            Text: |-
+              ="You have now completed the assessment.
+
+              An assessor will be in touch shortly via email.
+
+              You can now close down this application"
+            Width: =891
+            X: =237
+            Y: =94

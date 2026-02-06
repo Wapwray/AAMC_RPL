@@ -1,0 +1,409 @@
+# ************************************************************************************************
+# Warning: YAML source code for Canvas Apps should only be used to review changes made within Power Apps Studio and for minor edits (Preview).
+# Use the maker portal to create and edit your Power Apps.
+# 
+# The schema file for Canvas Apps is available at https://go.microsoft.com/fwlink/?linkid=2304907
+# 
+# For more information, visit https://go.microsoft.com/fwlink/?linkid=2292623
+# ************************************************************************************************
+Screens:
+  Data Capture Screen:
+    Properties:
+      Fill: =RGBA(43, 43, 43, 1)
+      OnVisible: "=\r\n\r\n\r\n \r\n    Set(AssessmentName, \"RPL\");\r\n    Set(varShowImage, true);\r\n    Set(SelectedIndustry,\" \");\r\n    Set(JobTitleVariable,\"\");\r\n    Set(varPicture,'AAMC Logo');\r\n    Set(varPic2,'PersonIcon_transparent');\r\n    Set(varIconBackground, false);\r\n    Set(varIconImage, true);\r\n    Set(varCameraChoice, 0);\r\n    \r\n    UpdateContext({varEnableSavePhoto: false});\r\n    UpdateContext({varPhotoCover: true});\r\n    UpdateContext({varEnableIndustry: false});\r\n    UpdateContext({varConfirmIndustry: false});\r\n    UpdateContext({varEnableJobTitle: false});\r\n    UpdateContext({varConfirmJobTitle: false});\r\n    UpdateContext({varStartAssessment: false});\r\n"
+    Children:
+      - Bottom Right - XXX:
+          Control: Image@2.2.3
+          Properties:
+            Height: =203
+            Image: ='XXX Bottom Right'
+            ImagePosition: =ImagePosition.Stretch
+            Width: =286
+            X: =1105
+            Y: =565
+      - txtJobTitle:
+          Control: Classic/TextInput@2.3.2
+          Properties:
+            Default: =""
+            DisplayMode: =If(varEnableJobTitle, DisplayMode.Edit, DisplayMode.Disabled)
+            Height: =42
+            HintText: ="Type your job title here"
+            OnChange: |-
+              =// UpdateContext({varConfirmJobTitle: true});
+              // Set(JobTitleVariable, 'txtJobTitle'.Text);
+            OnSelect: |-
+              =UpdateContext({varConfirmJobTitle: true});
+            Width: =406
+            X: =491
+            Y: =589
+      - IndustryDropdown:
+          Control: Classic/DropDown@2.3.1
+          Properties:
+            Default: =First(Sort('Industry List - RPL', Industry, SortOrder.Ascending)).Industry
+            DisplayMode: =If(varEnableIndustry, DisplayMode.Edit, DisplayMode.Disabled)
+            Height: =44
+            Items: =Sort('Industry List - RPL', Industry,SortOrder.Ascending)
+            Items.Value: =Title
+            OnChange: =Set(SelectedIndustry, IndustryDropdown.Selected.Industry);
+            OnSelect: |-
+              =Set(SelectedIndustry, IndustryDropdown.Selected.Industry);
+              UpdateContext({varConfirmIndustry: true});
+            Width: =388
+            X: =48
+            Y: =588
+      - Move To Assessment:
+          Control: Button@0.0.45
+          Properties:
+            Appearance: ='ButtonCanvas.Appearance'.Primary
+            BorderRadius: =999
+            DisplayMode: =If(varStartAssessment, DisplayMode.Edit, DisplayMode.Disabled)
+            Font: =Font.'Segoe UI'
+            FontColor: =RGBA(255, 255, 255, 1)
+            FontSize: =22
+            Height: =55
+            OnSelect: |+
+              =// Save photo and job details
+              Set(AssessmentStartDate,Now());
+              SaveAssessmentPhoto.Run(CleanBase64Image, User().FullName, AssessmentName, DateStamp, User().Email);
+              SaveJobDetails.Run(User().FullName, User().Email, SelectedIndustry, JobTitleVariable);
+
+
+              Set(TranscriptHeader,
+                  "=============================" & Char(10) &
+                  "Assessment Transcript" & Char(10) &
+                  "=============================" & Char(10) &
+                  "Name: " & User().FullName & Char(10) &
+                  "Email: " & User().Email & Char(10) &
+                  "Assessment: " & AssessmentName & Char(10) &
+                  "Date: " & Text(DateStamp, "dd mmm yyyy") & Char(10) &
+                  "Initial Start Date: " & Text(AssessmentStartDate, "dd mmm yyyy hh:mm:ss") & Char(10) &  // ← ADDED LINE
+                  "Industry: " & SelectedIndustry & Char(10) &
+                  "Job Title: " & JobTitleVariable & Char(10) &
+                  "=============================" & Char(10) & Char(10)
+              );
+
+
+              // Store it in FullTranscriptBuffer
+              Set(FullTranscriptBuffer,
+                  { fulltranscript: TranscriptHeader }
+              );
+
+              // Send transcript header to flow (optional but ensures file is initialized)
+              TranscriptUpdater.Run(
+                  User().FullName,
+                  User().Email,
+                  FullTranscriptBuffer.fulltranscript
+              );
+
+              // Set question number to 1
+              Set(varQuestionNumber, 1);
+
+              AssessmentStartedYes.Run(
+                  User().FullName,
+                  User().Email,
+                  "Yes - " & Text(Now(), "dd mm yyyy HH:mm:ss")
+              );
+
+
+              // Finally, navigate to the assessment screen
+              Navigate('Assessment Screen', ScreenTransition.Cover);
+            Text: ="Begin The Assessment"
+            Width: =391
+            X: =939
+            Y: =582
+      - Confirm Job Title:
+          Control: Button@0.0.45
+          Properties:
+            Appearance: ='ButtonCanvas.Appearance'.Primary
+            BorderRadius: =999
+            DisplayMode: =If(varConfirmJobTitle, DisplayMode.Edit, DisplayMode.Disabled)
+            Font: =Font.'Segoe UI'
+            FontColor: =RGBA(255, 255, 255, 1)
+            FontSize: =22
+            Height: =55
+            OnSelect: |+
+              =    Set(JobTitleVariable, 'txtJobTitle'.Text);
+                  UpdateContext({varStartAssessment: true});
+            Text: ="Confirm Job Title"
+            Width: =254
+            X: =556
+            Y: =689
+      - Confirm Industry:
+          Control: Button@0.0.45
+          Properties:
+            Appearance: ='ButtonCanvas.Appearance'.Primary
+            BorderRadius: =999
+            DisplayMode: =If(varConfirmIndustry, DisplayMode.Edit, DisplayMode.Disabled)
+            Font: =Font.'Segoe UI'
+            FontColor: =RGBA(255, 255, 255, 1)
+            FontSize: =22
+            Height: =55
+            OnSelect: |-
+              =UpdateContext({varEnableJobTitle: true});
+            Text: ="Confirm Industry"
+            Width: =255
+            X: =115
+            Y: =689
+      - Welcome Message:
+          Control: Label@2.5.1
+          Properties:
+            Color: =RGBA(255, 255, 255, 1)
+            DisabledColor: =RGBA(233, 207, 206, 0.01)
+            FontWeight: =FontWeight.Semibold
+            Height: =57
+            Size: =20
+            Text: ="Hello " & User().FullName & " and welcome to your "
+            Width: =818
+            X: =48
+            Y: =25
+      - Photo Message 2:
+          Control: Label@2.5.1
+          Properties:
+            AutoHeight: =true
+            Color: =RGBA(255, 255, 255, 1)
+            FontWeight: =FontWeight.Bold
+            Height: =208
+            Size: =12
+            Text: |-
+              ="You can do this as many times as you like.
+              First, take your photo.  When you are happy with the result, select
+              “Save Photo”."
+            Width: =326
+            X: =110
+            Y: =146
+      - Save Photo:
+          Control: Button@0.0.45
+          Properties:
+            Align: =Align.Center
+            Appearance: ='ButtonCanvas.Appearance'.Primary
+            BorderRadius: =999
+            DisplayMode: =If(varEnableSavePhoto, DisplayMode.Edit, DisplayMode.Disabled)
+            Font: =Font.'Segoe UI'
+            FontColor: =RGBA(255, 255, 255, 1)
+            FontSize: =22
+            Height: =70
+            OnSelect: |+
+              =// Step 1: Convert the image to JSON format including binary data
+              Set(ImageJSON, JSON(varPicture, JSONFormat.IncludeBinaryData));
+
+              // Step 2: Remove the prefix "data:image/jpeg;base64," from the base64 string
+              Set(Base64Image, Mid(ImageJSON, 24, Len(ImageJSON) - 23));
+
+              // Step 3: Remove any trailing quotes (if they exist)
+              Set(CleanBase64Image, Substitute(Base64Image, """", ""));
+
+              UpdateContext({varEnableIndustry: true});
+
+            Text: ="Save Photo"
+            Width: =325
+            X: =833
+            Y: =343
+      - Camera0:
+          Control: Camera@2.4.0
+          Properties:
+            Camera: =varCameraChoice
+            Height: =185
+            StreamRate: =100
+            Width: =325
+            X: =457
+            Y: =146
+      - TakenPhoto:
+          Control: Image@2.2.3
+          Properties:
+            DisplayMode: =If(varEnableSavePhoto, DisplayMode.Edit, DisplayMode.Disabled)
+            Fill: =RGBA(0, 0, 0, 1)
+            Height: =185
+            Image: =varPic2
+            Visible: =varIconBackground
+            Width: =325
+            X: =833
+            Y: =146
+      - Logo - Black_1:
+          Control: Image@2.2.3
+          Properties:
+            Height: =157
+            Image: ='2024_logo_reverse_Transparent_HR (1)'
+            Width: =210
+            X: =1120
+            Y: |+
+              =-20
+      - Welcome Message_1:
+          Control: Label@2.5.1
+          Properties:
+            AutoHeight: =true
+            Color: =RGBA(255, 255, 255, 1)
+            DisabledColor: =RGBA(233, 207, 206, 0.01)
+            FontWeight: =FontWeight.Semibold
+            Height: =72
+            Italic: =true
+            Size: =20
+            Text: ="AI-Powered RPL Knowledge & Experience Evaluation"
+            Width: =804
+            X: =48
+            Y: =93
+      - Photo Message 2_1:
+          Control: Label@2.5.1
+          Properties:
+            AutoHeight: =true
+            Color: =RGBA(255, 255, 255, 1)
+            FontWeight: =FontWeight.Bold
+            Height: =208
+            Size: =12
+            Text: |-
+              ="From the drop-down list below, choose
+              the industry you work in, and select
+              “Confirm Industry”."
+            Width: =326
+            X: =110
+            Y: =490
+      - Photo Message 2_2:
+          Control: Label@2.5.1
+          Properties:
+            AutoHeight: =true
+            Color: =RGBA(255, 255, 255, 1)
+            FontWeight: =FontWeight.Bold
+            Height: =208
+            Size: =12
+            Text: |-
+              ="Type in your job title and select
+              “Confirm Job Title”"
+            Width: =347
+            X: =553
+            Y: =495
+      - Photo Message 2_3:
+          Control: Label@2.5.1
+          Properties:
+            AutoHeight: =true
+            Color: =RGBA(255, 255, 255, 1)
+            FontWeight: =FontWeight.Bold
+            Height: =208
+            Size: =12
+            Text: ="You can still update your photo, industry and job title, but if you are ready please press the button below"
+            Width: =329
+            X: =1008
+            Y: =490
+      - Circle1:
+          Control: Circle@2.3.0
+          Properties:
+            Fill: |+
+              =ColorValue("#EB6934")
+            Height: =52
+            Width: =62
+            X: =45
+            Y: =148
+      - Circle_Label_1:
+          Control: Label@2.5.1
+          Properties:
+            Align: =Align.Center
+            Color: =RGBA(255, 255, 255, 1)
+            DisplayMode: =DisplayMode.View
+            FontWeight: =FontWeight.Bold
+            Height: =52
+            Size: =14
+            Text: ="1"
+            Width: =62
+            X: =44
+            Y: =145
+      - Circle3:
+          Control: Circle@2.3.0
+          Properties:
+            Fill: |
+              =ColorValue("#EB6934")
+            Height: =52
+            Width: =62
+            X: =47
+            Y: =495
+      - Circle_Label_3:
+          Control: Label@2.5.1
+          Properties:
+            Align: =Align.Center
+            Color: =RGBA(255, 255, 255, 1)
+            DisplayMode: =DisplayMode.View
+            FontWeight: =FontWeight.Bold
+            Height: =52
+            Size: =14
+            Text: ="2"
+            Width: =62
+            X: =47
+            Y: =495
+      - Circle4:
+          Control: Circle@2.3.0
+          Properties:
+            Fill: |+
+              =ColorValue("#EB6934")
+
+            Height: =52
+            Width: =62
+            X: =491
+            Y: =495
+      - Circle_Label_4:
+          Control: Label@2.5.1
+          Properties:
+            Align: =Align.Center
+            Color: =RGBA(255, 255, 255, 1)
+            DisplayMode: =DisplayMode.View
+            FontWeight: =FontWeight.Bold
+            Height: =52
+            Size: =14
+            Text: ="3"
+            Width: =62
+            X: =491
+            Y: =495
+      - Circle5:
+          Control: Circle@2.3.0
+          Properties:
+            Fill: |
+              =ColorValue("#EB6934")
+            Height: =52
+            Width: =62
+            X: =947
+            Y: =495
+      - Circle_Label_5:
+          Control: Label@2.5.1
+          Properties:
+            Align: =Align.Center
+            Color: =RGBA(255, 255, 255, 1)
+            DisplayMode: =DisplayMode.View
+            FontWeight: =FontWeight.Bold
+            Height: =52
+            Size: =14
+            Text: ="4"
+            Width: =62
+            X: =947
+            Y: =495
+      - Audio_Start_Background:
+          Control: Button@0.0.45
+          Properties:
+            Appearance: ='ButtonCanvas.Appearance'.Primary
+            BorderRadius: =999
+            Font: =Font.'Segoe UI'
+            FontColor: =RGBA(255, 255, 255, 1)
+            FontSize: =22
+            Height: =74
+            OnSelect: "=UpdateContext({varPicture: Camera0.Stream});\nSet(varShowImage, false);\nUpdateContext({varEnableSavePhoto: true});\nUpdateContext({varPhotoCover: false});\nSet(DateStamp, Day(Now()) &\"-\"& Month(Now()) &\"-\"& Year(Now()));\nSet(varPic2,varPicture);\nSet(varIconBackground, true);\nSet(varIconImage, false);\n \n\n"
+            Text: ="Take Photo"
+            Width: =325
+            X: =94
+            Y: =265
+      - ddCamera_1:
+          Control: Classic/DropDown@2.3.1
+          Properties:
+            Default: =First(Sort('Industry List - RPL', Industry, SortOrder.Ascending)).Industry
+            DisplayMode: =
+            Height: =62
+            Items: =Camera0.AvailableDevices
+            Items.Value: =Name
+            OnChange: =Set(varCameraChoice,ddCamera_1.Selected.Id);
+            OnSelect: =
+            Width: =325
+            X: =457
+            Y: =347
+      - Image2:
+          Control: Image@2.2.3
+          Properties:
+            Height: =186
+            Image: =PersonIcon_transparent
+            Visible: =varIconImage
+            Width: =325
+            X: =833
+            Y: =146

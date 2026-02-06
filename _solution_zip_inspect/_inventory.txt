@@ -1,0 +1,83 @@
+Total files: 23
+
+Top-level entries:
+
+Name
+----        
+CanvasApps  
+Workflows   
+_inventory.…
+[Content_Ty…
+customizati…
+solution.xml
+
+
+
+Largest 50 files:
+
+FullName
+--------    
+C:\Users\wa…
+C:\Users\wa…
+C:\Users\wa…
+C:\Users\wa…
+C:\Users\wa…
+C:\Users\wa…
+C:\Users\wa…
+C:\Users\wa…
+C:\Users\wa…
+C:\Users\wa…
+C:\Users\wa…
+C:\Users\wa…
+C:\Users\wa…
+C:\Users\wa…
+C:\Users\wa…
+C:\Users\wa…
+C:\Users\wa…
+C:\Users\wa…
+C:\Users\wa…
+C:\Users\wa…
+C:\Users\wa…
+C:\Users\wa…
+C:\Users\wa…
+
+
+
+File extensions summary:
+
+Name   Count
+----   -----
+.json     18
+.xml       3
+           1
+.msapp     1
+
+
+
+Paths matching key patterns (msapp/canvasapp/customizations/solution)
+--- *.msapp ---
+C:\Users\wapwr\AAMC_RPL\_solution_zip_inspect\CanvasApps\new_aamcrplbotv11e_377a9_DocumentUri.msapp
+
+--- *CanvasApp* ---
+C:\Users\wapwr\AAMC_RPL\_solution_zip_inspect\CanvasApps\new_aamcrplbotv11e_377a9_AdditionalUris0_identity.json
+C:\Users\wapwr\AAMC_RPL\_solution_zip_inspect\CanvasApps\new_aamcrplbotv11e_377a9_BackgroundImageUri
+C:\Users\wapwr\AAMC_RPL\_solution_zip_inspect\CanvasApps\new_aamcrplbotv11e_377a9_DocumentUri.msapp
+
+--- *canvas* ---
+C:\Users\wapwr\AAMC_RPL\_solution_zip_inspect\CanvasApps\new_aamcrplbotv11e_377a9_AdditionalUris0_identity.json
+C:\Users\wapwr\AAMC_RPL\_solution_zip_inspect\CanvasApps\new_aamcrplbotv11e_377a9_BackgroundImageUri
+C:\Users\wapwr\AAMC_RPL\_solution_zip_inspect\CanvasApps\new_aamcrplbotv11e_377a9_DocumentUri.msapp
+
+--- *customizations* ---
+C:\Users\wapwr\AAMC_RPL\_solution_zip_inspect\customizations.xml
+
+--- *solution.xml* ---
+C:\Users\wapwr\AAMC_RPL\_solution_zip_inspect\solution.xml
+
+--- *manifest.json* ---
+
+--- *.cdsproj ---
+
+--- *.sln ---
+
+

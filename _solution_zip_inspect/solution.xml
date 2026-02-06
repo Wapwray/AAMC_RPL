@@ -1,0 +1,114 @@
+<ImportExportXml version="9.2.25113.161" SolutionPackageVersion="9.2" languagecode="1033" generatedBy="CrmLive" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" OrganizationVersion="9.2.25113.161" OrganizationSchemaType="Standard" CRMServerServiceabilityVersion="9.2.25113.00161">
+  <SolutionManifest>
+    <UniqueName>AAMCRPLBOTV1_1eSolution</UniqueName>
+    <LocalizedNames>
+      <LocalizedName description="AAMC RPL BOT V1_1e Solution" languagecode="1033" />
+    </LocalizedNames>
+    <Descriptions />
+    <Version>1.0.0.2</Version>
+    <Managed>1</Managed>
+    <Publisher>
+      <UniqueName>DefaultPublisherorgabbc9455</UniqueName>
+      <LocalizedNames>
+        <LocalizedName description="Default Publisher for orgabbc9455" languagecode="1033" />
+      </LocalizedNames>
+      <Descriptions>
+        <Description description="Default publisher for this organization" languagecode="1033" />
+      </Descriptions>
+      <EMailAddress xsi:nil="true"></EMailAddress>
+      <SupportingWebsiteUrl xsi:nil="true"></SupportingWebsiteUrl>
+      <CustomizationPrefix>new</CustomizationPrefix>
+      <CustomizationOptionValuePrefix>10000</CustomizationOptionValuePrefix>
+      <Addresses>
+        <Address>
+          <AddressNumber>1</AddressNumber>
+          <AddressTypeCode xsi:nil="true"></AddressTypeCode>
+          <City xsi:nil="true"></City>
+          <County xsi:nil="true"></County>
+          <Country xsi:nil="true"></Country>
+          <Fax xsi:nil="true"></Fax>
+          <FreightTermsCode xsi:nil="true"></FreightTermsCode>
+          <ImportSequenceNumber xsi:nil="true"></ImportSequenceNumber>
+          <Latitude xsi:nil="true"></Latitude>
+          <Line1 xsi:nil="true"></Line1>
+          <Line2 xsi:nil="true"></Line2>
+          <Line3 xsi:nil="true"></Line3>
+          <Longitude xsi:nil="true"></Longitude>
+          <Name xsi:nil="true"></Name>
+          <PostalCode xsi:nil="true"></PostalCode>
+          <PostOfficeBox xsi:nil="true"></PostOfficeBox>
+          <PrimaryContactName xsi:nil="true"></PrimaryContactName>
+          <ShippingMethodCode xsi:nil="true"></ShippingMethodCode>
+          <StateOrProvince xsi:nil="true"></StateOrProvince>
+          <Telephone1 xsi:nil="true"></Telephone1>
+          <Telephone2 xsi:nil="true"></Telephone2>
+          <Telephone3 xsi:nil="true"></Telephone3>
+          <TimeZoneRuleVersionNumber xsi:nil="true"></TimeZoneRuleVersionNumber>
+          <UPSZone xsi:nil="true"></UPSZone>
+          <UTCOffset xsi:nil="true"></UTCOffset>
+          <UTCConversionTimeZoneCode xsi:nil="true"></UTCConversionTimeZoneCode>
+        </Address>
+        <Address>
+          <AddressNumber>2</AddressNumber>
+          <AddressTypeCode xsi:nil="true"></AddressTypeCode>
+          <City xsi:nil="true"></City>
+          <County xsi:nil="true"></County>
+          <Country xsi:nil="true"></Country>
+          <Fax xsi:nil="true"></Fax>
+          <FreightTermsCode xsi:nil="true"></FreightTermsCode>
+          <ImportSequenceNumber xsi:nil="true"></ImportSequenceNumber>
+          <Latitude xsi:nil="true"></Latitude>
+          <Line1 xsi:nil="true"></Line1>
+          <Line2 xsi:nil="true"></Line2>
+          <Line3 xsi:nil="true"></Line3>
+          <Longitude xsi:nil="true"></Longitude>
+          <Name xsi:nil="true"></Name>
+          <PostalCode xsi:nil="true"></PostalCode>
+          <PostOfficeBox xsi:nil="true"></PostOfficeBox>
+          <PrimaryContactName xsi:nil="true"></PrimaryContactName>
+          <ShippingMethodCode xsi:nil="true"></ShippingMethodCode>
+          <StateOrProvince xsi:nil="true"></StateOrProvince>
+          <Telephone1 xsi:nil="true"></Telephone1>
+          <Telephone2 xsi:nil="true"></Telephone2>
+          <Telephone3 xsi:nil="true"></Telephone3>
+          <TimeZoneRuleVersionNumber xsi:nil="true"></TimeZoneRuleVersionNumber>
+          <UPSZone xsi:nil="true"></UPSZone>
+          <UTCOffset xsi:nil="true"></UTCOffset>
+          <UTCConversionTimeZoneCode xsi:nil="true"></UTCConversionTimeZoneCode>
+        </Address>
+      </Addresses>
+    </Publisher>
+    <RootComponents>
+      <RootComponent type="29" id="{0fe46caf-f54c-f011-8779-6045bd3cde85}" behavior="0" />
+      <RootComponent type="29" id="{22427c7b-31b8-ef11-b8e8-000d3ae1e1c7}" behavior="0" />
+      <RootComponent type="29" id="{22caa4e3-f440-f011-8779-6045bd3cde85}" behavior="0" />
+      <RootComponent type="29" id="{3317e78f-80b7-ef11-b8e8-000d3ae1e1c7}" behavior="0" />
+      <RootComponent type="29" id="{59161a9c-38c0-ef11-b8e8-000d3ae1e1c7}" behavior="0" />
+      <RootComponent type="29" id="{646c8501-f34c-f011-8779-6045bd3cde85}" behavior="0" />
+      <RootComponent type="29" id="{66a7b303-deb8-ef11-b8e8-000d3ae1e1c7}" behavior="0" />
+      <RootComponent type="29" id="{86381d10-a1b8-ef11-b8e8-000d3ae1e1c7}" behavior="0" />
+      <RootComponent type="29" id="{942fc956-17c0-ef11-b8e8-000d3ae1e1c7}" behavior="0" />
+      <RootComponent type="29" id="{99e976bc-29c0-ef11-b8e8-000d3ae1e1c7}" behavior="0" />
+      <RootComponent type="29" id="{b298335e-a354-f011-bec1-6045bd3cde85}" behavior="0" />
+      <RootComponent type="29" id="{b9b7796b-7eb7-ef11-b8e8-000d3ae1e1c7}" behavior="0" />
+      <RootComponent type="29" id="{dc83b728-cb26-ef11-840a-002248e1d405}" behavior="0" />
+      <RootComponent type="29" id="{e57e9d0a-52bf-ef11-b8e8-000d3ae1e1c7}" behavior="0" />
+      <RootComponent type="29" id="{e6fb7ad1-d74c-f011-8779-6045bd3cde85}" behavior="0" />
+      <RootComponent type="29" id="{fae0f638-bd4c-f011-8779-6045bd3cde85}" behavior="0" />
+      <RootComponent type="29" id="{fdc70702-ccb7-ef11-b8e8-000d3ae1e1c7}" behavior="0" />
+      <RootComponent type="300" schemaName="new_aamcrplbotv11e_377a9" behavior="0" />
+      <RootComponent type="401" id="{672a5344-fefb-4cd2-855c-5b081a805fae}" behavior="0" />
+      <RootComponent type="401" id="{a30e55b9-c334-4468-9fae-cd53ac827c73}" behavior="0" />
+      <RootComponent type="401" id="{b910836e-c03b-4023-b73e-2d06e412aaeb}" behavior="0" />
+      <RootComponent type="401" id="{d8b5ebcd-668c-462f-8b57-144d95ea9ddf}" behavior="0" />
+    </RootComponents>
+    <MissingDependencies>
+      <MissingDependency>
+        <Required type="1" schemaName="msdyn_aimodel" displayName="AI Model" solution="msdyn_AISolution (202509.2.2.1)">
+          <package appName="PowerAI" version="202509.2.2.1">msdyn_AISolutionAnchor (202509.2.2.1)</package>
+        </Required>
+        <Dependent type="300" schemaName="new_aamcrplbotv11e_377a9" displayName="AAMC RPL BOT V1_1e" />
+      </MissingDependency>
+    </MissingDependencies>
+  </SolutionManifest>
+</ImportExportXml>

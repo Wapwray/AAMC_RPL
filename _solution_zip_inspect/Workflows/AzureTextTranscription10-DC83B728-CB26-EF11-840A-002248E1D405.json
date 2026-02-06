@@ -1,0 +1,184 @@
+{
+  "properties": {
+    "connectionReferences": {},
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "1.0.0.0",
+      "parameters": {
+        "$authentication": {
+          "defaultValue": {},
+          "type": "SecureObject"
+        },
+        "$connections": {
+          "defaultValue": {},
+          "type": "Object"
+        }
+      },
+      "triggers": {
+        "manual": {
+          "type": "Request",
+          "kind": "PowerAppV2",
+          "inputs": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "title": "FileName",
+                  "type": "string",
+                  "x-ms-dynamically-added": true,
+                  "description": "Please enter your input",
+                  "x-ms-content-hint": "TEXT"
+                },
+                "text_1": {
+                  "title": "Duration",
+                  "type": "string",
+                  "x-ms-dynamically-added": true,
+                  "description": "Please enter your input",
+                  "x-ms-content-hint": "TEXT"
+                },
+                "text_2": {
+                  "title": "Base64File",
+                  "type": "string",
+                  "x-ms-dynamically-added": true,
+                  "description": "Please enter your input",
+                  "x-ms-content-hint": "TEXT"
+                }
+              },
+              "required": [
+                "text",
+                "text_1",
+                "text_2"
+              ]
+            }
+          },
+          "metadata": {
+            "operationMetadataId": "eef485db-fafe-4c85-868f-e341e96c46e9"
+          }
+        }
+      },
+      "actions": {
+        "Initialize_variable": {
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "Base64ToAudio",
+                "type": "string",
+                "value": "@triggerBody()['text_2']"
+              }
+            ]
+          },
+          "runAfter": {},
+          "metadata": {
+            "operationMetadataId": "88a2614a-39c2-4517-9fa8-109ba28f19b2"
+          }
+        },
+        "Respond_to_a_Power_App_or_flow": {
+          "type": "Response",
+          "kind": "PowerApp",
+          "inputs": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "transcribedtextx": {
+                  "title": "transcribedTextX",
+                  "x-ms-dynamically-added": true,
+                  "type": "string"
+                }
+              },
+              "additionalProperties": {}
+            },
+            "statusCode": 200,
+            "body": {
+              "transcribedtextx": "@{body('Parse_JSON')?['text']}\n"
+            }
+          },
+          "runAfter": {
+            "Parse_JSON": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "a25348e7-7af5-4549-af92-7afc3f8f0172"
+          }
+        },
+        "HTTP": {
+          "type": "Http",
+          "inputs": {
+            "uri": "https://azureopenaispeechjuneeastus2.openai.azure.com/openai/deployments/wmcazureopenaiwhisper/audio/transcriptions?api-version=2024-02-01",
+            "method": "POST",
+            "headers": {
+              "api-key": "ad9273f27ba347008ea66d0ce191e5c0",
+              "Content-Type": "multipart/form-data"
+            },
+            "body": "@outputs('Compose')",
+            "retryPolicy": {
+              "type": "exponential",
+              "count": 5,
+              "interval": "PT30S",
+              "minimumInterval": "PT20S",
+              "maximumInterval": "PT2M"
+            }
+          },
+          "runAfter": {
+            "Compose": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "3d412e73-bee1-44bd-829e-7a96ce6eebbb"
+          }
+        },
+        "Compose": {
+          "type": "Compose",
+          "inputs": {
+            "$content-type": "multipart/form-data",
+            "$multipart": [
+              {
+                "headers": {
+                  "Content-Disposition": "form-data; name=\"file\"; filename=\"@{triggerBody()?['text']}.mp3\""
+                },
+                "body": {
+                  "$Content-type": "audio/webm",
+                  "$content": "@triggerBody()['text_2']"
+                }
+              }
+            ]
+          },
+          "runAfter": {
+            "Initialize_variable": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "f8498708-b3c2-4d30-92ab-98e2693819d2"
+          }
+        },
+        "Parse_JSON": {
+          "type": "ParseJson",
+          "inputs": {
+            "content": "@body('HTTP')",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "runAfter": {
+            "HTTP": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "8cde4612-cdd9-4d57-b4ca-c8c9bc9946a8"
+          }
+        }
+      }
+    },
+    "templateName": null
+  },
+  "schemaVersion": "1.0.0.0"
+}

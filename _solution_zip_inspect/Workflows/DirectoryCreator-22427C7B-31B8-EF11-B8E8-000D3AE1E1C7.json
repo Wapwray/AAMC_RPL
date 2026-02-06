@@ -1,0 +1,403 @@
+{
+  "properties": {
+    "connectionReferences": {
+      "shared_sharepointonline-1": {
+        "api": {
+          "name": "shared_sharepointonline"
+        },
+        "connection": {
+          "connectionReferenceLogicalName": "new_sharedsharepointonline_d5196"
+        },
+        "runtimeSource": "invoker"
+      }
+    },
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "1.0.0.0",
+      "parameters": {
+        "$authentication": {
+          "defaultValue": {},
+          "type": "SecureObject"
+        },
+        "$connections": {
+          "defaultValue": {},
+          "type": "Object"
+        }
+      },
+      "triggers": {
+        "manual": {
+          "type": "Request",
+          "kind": "PowerAppV2",
+          "inputs": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "description": "Please enter your input",
+                  "title": "UserName",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "text_4": {
+                  "description": "Please enter your input",
+                  "title": "Email Address",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                }
+              },
+              "required": [
+                "text",
+                "text_4"
+              ]
+            }
+          },
+          "metadata": {
+            "operationMetadataId": "eef485db-fafe-4c85-868f-e341e96c46e9"
+          }
+        }
+      },
+      "actions": {
+        "Get_files_(properties_only)": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "parameters": {
+              "dataset": "https://wraymedia.sharepoint.com/sites/AssessorBotStoredContent",
+              "table": "bba26ab5-c9d7-45ae-9d69-a0b814cbb5f7",
+              "folderPath": "/Shared Documents/@{triggerBody()?['text']} - @{triggerBody()?['text_4']}/Tracking",
+              "viewScopeOption": "RecursiveAll"
+            },
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+              "operationId": "GetFileItems",
+              "connectionName": "shared_sharepointonline-1"
+            }
+          },
+          "runAfter": {
+            "Create_Tracking_Folder": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "eb926ea1-36ea-4027-b7bf-91b46d4cda95"
+          }
+        },
+        "Count_Files_In_Directory": {
+          "type": "Compose",
+          "inputs": "@length(body('Get_files_(properties_only)')?['value'])\r\n",
+          "runAfter": {
+            "Get_files_(properties_only)": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "804ca5ae-1550-4798-a638-f006cfc72849"
+          }
+        },
+        "Condition": {
+          "type": "If",
+          "expression": {
+            "and": [
+              {
+                "equals": [
+                  "@outputs('Count_Files_In_Directory')",
+                  0
+                ]
+              }
+            ]
+          },
+          "actions": {
+            "Create_Question_Status": {
+              "type": "OpenApiConnection",
+              "inputs": {
+                "parameters": {
+                  "dataset": "https://wraymedia.sharepoint.com/sites/AssessorBotStoredContent",
+                  "folderPath": "/Shared Documents/@{triggerBody()?['text']} - @{triggerBody()?['text_4']}/Tracking",
+                  "name": "@{triggerBody()?['text']} - @{triggerBody()?['text_4']} - Current Question.txt",
+                  "body": "1"
+                },
+                "host": {
+                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                  "operationId": "CreateFile",
+                  "connectionName": "shared_sharepointonline-1"
+                }
+              },
+              "runAfter": {
+                "Create_Photo_Folder_Job_Details": [
+                  "Succeeded"
+                ]
+              },
+              "runtimeConfiguration": {
+                "contentTransfer": {
+                  "transferMode": "Chunked"
+                }
+              },
+              "metadata": {
+                "operationMetadataId": "1132db48-b66c-47ed-a80d-6176968ce8cd"
+              }
+            },
+            "Create_Photo_Folder": {
+              "type": "OpenApiConnection",
+              "inputs": {
+                "parameters": {
+                  "dataset": "https://wraymedia.sharepoint.com/sites/AssessorBotStoredContent",
+                  "table": "bba26ab5-c9d7-45ae-9d69-a0b814cbb5f7",
+                  "parameters/path": "@{triggerBody()?['text']} - @{triggerBody()?['text_4']}/Photo"
+                },
+                "host": {
+                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                  "operationId": "CreateNewFolder",
+                  "connectionName": "shared_sharepointonline-1"
+                }
+              },
+              "runAfter": {
+                "Create_Assessment_Folder": [
+                  "Succeeded"
+                ]
+              },
+              "metadata": {
+                "operationMetadataId": "38361b78-7355-40ce-9a50-e8818be55fdb"
+              }
+            },
+            "Create_Assessment_Folder": {
+              "type": "OpenApiConnection",
+              "inputs": {
+                "parameters": {
+                  "dataset": "https://wraymedia.sharepoint.com/sites/AssessorBotStoredContent",
+                  "table": "bba26ab5-c9d7-45ae-9d69-a0b814cbb5f7",
+                  "parameters/path": "@{triggerBody()?['text']} - @{triggerBody()?['text_4']}/Assessment"
+                },
+                "host": {
+                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                  "operationId": "CreateNewFolder",
+                  "connectionName": "shared_sharepointonline-1"
+                }
+              },
+              "metadata": {
+                "operationMetadataId": "38361b78-7355-40ce-9a50-e8818be55fdb"
+              }
+            },
+            "Create_Photo_Folder_Job_Details": {
+              "type": "OpenApiConnection",
+              "inputs": {
+                "parameters": {
+                  "dataset": "https://wraymedia.sharepoint.com/sites/AssessorBotStoredContent",
+                  "table": "bba26ab5-c9d7-45ae-9d69-a0b814cbb5f7",
+                  "parameters/path": "@{triggerBody()?['text']} - @{triggerBody()?['text_4']}/Job Details"
+                },
+                "host": {
+                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                  "operationId": "CreateNewFolder",
+                  "connectionName": "shared_sharepointonline-1"
+                }
+              },
+              "runAfter": {
+                "Create_Photo_Folder": [
+                  "Succeeded"
+                ]
+              },
+              "metadata": {
+                "operationMetadataId": "38361b78-7355-40ce-9a50-e8818be55fdb"
+              }
+            },
+            "Create_Assessment_Started": {
+              "type": "OpenApiConnection",
+              "inputs": {
+                "parameters": {
+                  "dataset": "https://wraymedia.sharepoint.com/sites/AssessorBotStoredContent",
+                  "folderPath": "/Shared Documents/@{triggerBody()?['text']} - @{triggerBody()?['text_4']}/Tracking",
+                  "name": "@{triggerBody()?['text']} - @{triggerBody()?['text_4']} - Assessment Started.txt",
+                  "body": "\"No\""
+                },
+                "host": {
+                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                  "operationId": "CreateFile",
+                  "connectionName": "shared_sharepointonline-1"
+                }
+              },
+              "runAfter": {
+                "Create_Question_Status": [
+                  "Succeeded"
+                ]
+              },
+              "runtimeConfiguration": {
+                "contentTransfer": {
+                  "transferMode": "Chunked"
+                }
+              },
+              "metadata": {
+                "operationMetadataId": "1132db48-b66c-47ed-a80d-6176968ce8cd"
+              }
+            },
+            "Set_variable_1": {
+              "type": "SetVariable",
+              "inputs": {
+                "name": "UserAlreadyStarted",
+                "value": false
+              },
+              "runAfter": {
+                "Create_Rolling_Transcript": [
+                  "Succeeded"
+                ]
+              },
+              "metadata": {
+                "operationMetadataId": "e6ee3f58-0901-4274-b3ef-15483fbcba0c"
+              }
+            },
+            "Respond_to_a_Power_App_or_flow-copy": {
+              "type": "Response",
+              "kind": "PowerApp",
+              "inputs": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "userrestarted": {
+                      "title": "UserRestarted",
+                      "x-ms-dynamically-added": true,
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": {}
+                },
+                "statusCode": 200,
+                "body": {
+                  "userrestarted": "@{variables('UserAlreadyStarted')}"
+                }
+              },
+              "runAfter": {
+                "Set_variable_1": [
+                  "Succeeded"
+                ]
+              },
+              "metadata": {
+                "operationMetadataId": "9c605bcc-b04c-4b35-b135-741a090ccd0a"
+              }
+            },
+            "Create_Rolling_Transcript": {
+              "type": "OpenApiConnection",
+              "inputs": {
+                "parameters": {
+                  "dataset": "https://wraymedia.sharepoint.com/sites/AssessorBotStoredContent",
+                  "folderPath": "/Shared Documents/RPL - Full Transcripts",
+                  "name": "@{triggerBody()?['text']}-@{triggerBody()?['text_4']}-Full Transcript.txt",
+                  "body": "@{triggerBody()?['text']} - Full Conversation Transcript"
+                },
+                "host": {
+                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                  "operationId": "CreateFile",
+                  "connectionName": "shared_sharepointonline-1"
+                }
+              },
+              "runAfter": {
+                "Create_Assessment_Started": [
+                  "Succeeded"
+                ]
+              },
+              "runtimeConfiguration": {
+                "contentTransfer": {
+                  "transferMode": "Chunked"
+                }
+              },
+              "metadata": {
+                "operationMetadataId": "1132db48-b66c-47ed-a80d-6176968ce8cd"
+              }
+            }
+          },
+          "else": {
+            "actions": {
+              "Respond_to_a_Power_App_or_flow": {
+                "type": "Response",
+                "kind": "PowerApp",
+                "inputs": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "userrestarted": {
+                        "title": "UserRestarted",
+                        "x-ms-dynamically-added": true,
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": {}
+                  },
+                  "statusCode": 200,
+                  "body": {
+                    "userrestarted": "@{variables('UserAlreadyStarted')}"
+                  }
+                },
+                "runAfter": {
+                  "Set_variable": [
+                    "Succeeded"
+                  ]
+                },
+                "metadata": {
+                  "operationMetadataId": "9c605bcc-b04c-4b35-b135-741a090ccd0a"
+                }
+              },
+              "Set_variable": {
+                "type": "SetVariable",
+                "inputs": {
+                  "name": "UserAlreadyStarted",
+                  "value": true
+                },
+                "metadata": {
+                  "operationMetadataId": "ad5eaf40-2187-4eb2-8784-8e8ab5717080"
+                }
+              }
+            }
+          },
+          "runAfter": {
+            "Count_Files_In_Directory": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "70e0c3c1-0bdd-49d1-8a4e-f743c353b24d"
+          }
+        },
+        "Create_Tracking_Folder": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "parameters": {
+              "dataset": "https://wraymedia.sharepoint.com/sites/AssessorBotStoredContent",
+              "table": "bba26ab5-c9d7-45ae-9d69-a0b814cbb5f7",
+              "parameters/path": "@{triggerBody()?['text']} - @{triggerBody()?['text_4']}/Tracking"
+            },
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+              "operationId": "CreateNewFolder",
+              "connectionName": "shared_sharepointonline-1"
+            }
+          },
+          "runAfter": {
+            "Initialize_variable": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "38361b78-7355-40ce-9a50-e8818be55fdb"
+          }
+        },
+        "Initialize_variable": {
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "UserAlreadyStarted",
+                "type": "boolean",
+                "value": false
+              }
+            ]
+          },
+          "runAfter": {},
+          "metadata": {
+            "operationMetadataId": "4d201f09-db8c-42dd-bb2f-1515a2560968"
+          }
+        }
+      }
+    },
+    "templateName": null
+  },
+  "schemaVersion": "1.0.0.0"
+}

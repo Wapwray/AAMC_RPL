@@ -1,0 +1,187 @@
+# ************************************************************************************************
+# Warning: YAML source code for Canvas Apps should only be used to review changes made within Power Apps Studio and for minor edits (Preview).
+# Use the maker portal to create and edit your Power Apps.
+# 
+# The schema file for Canvas Apps is available at https://go.microsoft.com/fwlink/?linkid=2304907
+# 
+# For more information, visit https://go.microsoft.com/fwlink/?linkid=2292623
+# ************************************************************************************************
+Screens:
+  Welcome Screen:
+    Properties:
+      OnVisible: |+
+        =// Initialise assessment state
+        Set(varAssessmentQuestion, 1);
+        Set(FullTranscript, "");
+        Set(varAssessmentStart, "No");
+        Set(varWelcomeMessage, "Initialising - Please Wait");
+
+        // Begin flow loading state
+        Set(varFlowRunning, true);
+
+        // Retrieve user restart info from directory
+        Set(varUserRestarted, DirectoryCreator.Run(User().FullName, User().Email));
+        Set(varStarted, varUserRestarted.userrestarted);
+
+        // Retrieve assessment results and store
+        Set(varAssessmentResults, CheckAssessmentStarted.Run(User().FullName, User().Email));
+
+        // Retrieve user restart info from directory again (if needed)
+        Set(varUserRestarted, DirectoryCreator.Run(User().FullName, User().Email));
+        Set(varStarted, varUserRestarted.userrestarted);
+
+        // Extract result values
+        Set(varAssessmentStarted, Left(Text(varAssessmentResults.assessmentstartedanswer), 3));
+        Set(varAssessmentQuestionX, Value(varAssessmentResults.assessmentquestionnumber));
+        Set(varAssessmentQuestion, varAssessmentQuestionX);
+
+        // Generate welcome message
+        Set(
+            varWelcomeMessage,
+            If(
+                Lower(varAssessmentStarted) = "yes",
+                "Hello " & User().FullName & " and welcome back to your RPL Assessment",
+                "Hello " & User().FullName & " and welcome to your RPL Assessment"
+            )
+        );
+
+        // Pre-fill question text if resuming
+        If(
+            Lower(varAssessmentStarted) = "yes",
+            Set(
+                CurrentQuestionText,
+                LookUp(
+                    'RPL Spreadsheet - List Version For Upload',
+                    'Question Number' = varAssessmentQuestion,
+                    'Question Details'
+                )
+            )
+        );
+
+        // Prepare resume message
+        Set(
+            varResumeMessage,
+            If(
+                Lower(varAssessmentStarted) = "yes",
+                "It looks like you had already started this assessment and were on question "
+                & varAssessmentQuestion & Char(10) & Char(10) &
+                "Press the RESUME button to continue"
+            )
+        );
+
+        // Flow loading complete
+        Set(varFlowRunning, false);
+    Children:
+      - Grey Background:
+          Control: Image@2.2.3
+          Properties:
+            DisplayMode: =DisplayMode.View
+            Height: =768
+            Image: =RPL_Background_1920x1080
+            Width: =1366
+      - Welcome Message_New_User:
+          Control: Label@2.5.1
+          Properties:
+            Align: =Align.Center
+            FontWeight: =FontWeight.Bold
+            Height: =124
+            Size: =20
+            Text: =varWelcomeMessage
+            Width: =750
+            X: =322
+            Y: =35
+      - Start_Button (New User):
+          Control: Button@0.0.45
+          Properties:
+            Align: =Align.Center
+            BorderRadius: =999
+            DisplayMode: |+
+              =If(varFlowRunning, DisplayMode.Disabled, DisplayMode.Edit)
+            Font: =Font.'Segoe UI'
+            Height: =70
+            OnSelect: =Navigate('Data Capture Screen', ScreenTransition.None);
+            Text: ="START ASSESSMENT"
+            Visible: |-
+              =If(
+                  varAssessmentStarted = "Yes",
+                 false,
+                  true
+              )
+            Width: =174
+            X: =1156
+            Y: =669
+      - Welcome Message_Returning_User:
+          Control: Label@2.5.1
+          Properties:
+            Align: =Align.Center
+            AutoHeight: =true
+            Height: =258
+            Size: =20
+            Text: =varResumeMessage
+            Width: =1179
+            X: =93
+            Y: =195
+      - Resume_Button:
+          Control: Button@0.0.45
+          Properties:
+            Align: =Align.Center
+            Appearance: ='ButtonCanvas.Appearance'.Primary
+            BorderRadius: |+
+              =999
+            DisplayMode: =If(varFlowRunning, DisplayMode.Disabled, DisplayMode.Edit)
+            Font: =Font.'Segoe UI'
+            FontColor: =RGBA(255, 255, 255, 1)
+            FontSize: =20
+            Height: =70
+            IconStyle: ='ButtonCanvas.IconStyle'.Filled
+            OnSelect: |+
+              =Set(varResumeMode, true);
+              Set(varQuestionNumber, Value(varAssessmentQuestion)); 
+
+              Set(varStudentDetails,LoadJobDetailsandIndustry.Run(User().FullName, User().Email));
+              Set(SelectedIndustry,varStudentDetails.industry);
+              Set(JobTitleVariable,varStudentDetails.jobtitle);
+
+              Set(FullTranscriptBuffer,TranscriptCollectorLive.Run(User().FullName,User().Email));
+              Navigate('Assessment Screen', ScreenTransition.None);
+
+
+            Text: ="RESUME"
+            Visible: |-
+              =If(
+                  varAssessmentStarted = "Yes",
+                  true,
+                  false
+              )
+            Width: =174
+            X: =596
+            Y: =368
+      - Logo - Black:
+          Control: Image@2.2.3
+          Properties:
+            Height: =157
+            Image: ='2024_logo_no_black_bg'
+            Width: =210
+            X: =1120
+            Y: =-20
+      - Bottom Left XXX Image:
+          Control: Image@2.2.3
+          Properties:
+            Height: =189
+            Image: =XXX_no_white_bg
+            Width: =236
+            X: =-50
+            Y: |+
+              =599
+
+      - Top Left XXX Image:
+          Control: Image@2.2.3
+          Properties:
+            FlipVertical: =true
+            Height: =189
+            Image: =XXX_no_white_bg
+            Width: =236
+            X: |+
+              =-50
+            Y: |+
+              =-30
