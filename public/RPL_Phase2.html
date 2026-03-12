@@ -1,0 +1,684 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AAMC RPL Quiz - V1.0</title>
+    <script src="https://cdn.jsdelivr.net/npm/microsoft-cognitiveservices-speech-sdk@1.41.0/distrib/browser/microsoft.cognitiveservices.speech.sdk.bundle-min.js"></script>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        --bg: #f4f6f9;
+        --card: #ffffff;
+        --text: #0f172a;
+        --muted: #64748b;
+        --border: #e2e8f0;
+        --primary: #0b6ea9;
+        --primary-dark: #095c8b;
+        --camera-width: 286px;
+        --camera-height: 198px;
+        --camera-select-height: 42px;
+        --camera-gap: 10px;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        height: 100%;
+        overflow: hidden;
+      }
+      body {
+        margin: 0;
+        background: var(--bg) url("/RPL%20Bot%20Artwork/RPL%20Background.jpg") no-repeat center center fixed;
+        background-size: cover;
+        color: var(--text);
+      }
+      .page { padding: 24px; height: 100%; overflow: hidden; }
+      .shell { max-width: none; width: 100%; margin: 0; display: grid; gap: 18px; }
+      .header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+      .header h1 { margin: 0; font-size: 20px; font-weight: 700; }
+      .status { font-size: 13px; color: var(--muted); }
+      .progressRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+      .progressRow h1 { margin: 0; font-size: 20px; font-weight: 700; }
+      .card { width: 100%; background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 18px; box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08); }
+      .flatCard { background: transparent; border: none; box-shadow: none; padding: 0; }
+      .studentContext { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: baseline; justify-content: space-between; }
+      .studentContext__name { font-weight: 700; font-size: 15px; }
+      .studentContext__meta { font-size: 13px; color: var(--muted); }
+      .micSelectRow { margin-top: 12px; display: grid; gap: 6px; }
+      .micSelectHint { font-size: 12px; color: var(--muted); }
+      /* .modeToggleRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+      .modeLabel { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+      .toggleWrap { display: inline-flex; align-items: center; gap: 10px; }
+      .toggleSwitch { position: relative; width: 52px; height: 28px; background: #dbe7f2; border-radius: 999px; cursor: pointer; border: 1px solid #c7d9e8; }
+      .toggleSwitch input { position: absolute; opacity: 0; width: 0; height: 0; }
+      .toggleKnob { position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; background: #ffffff; border-radius: 50%; box-shadow: 0 2px 6px rgba(15, 23, 42, 0.2); transition: transform 0.2s ease; }
+      .toggleSwitch input:checked + .toggleKnob { transform: translateX(24px); }
+      .modeValue { font-weight: 600; font-size: 13px; color: var(--text); } */
+      .formGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+      label { font-size: 13px; color: var(--muted); }
+      input, select, textarea { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font: inherit; background: #ffffff; }
+      textarea { resize: vertical; min-height: 120px; overflow: auto; }
+      .questionBox { border: 1px solid var(--border); border-radius: 12px; padding: 12px; min-height: 90px; max-height: 160px; overflow: auto; background: #ffffff; }
+      .chatHistory { border: 1px solid var(--border); border-radius: 12px; padding: 12px; min-height: 220px; height: 100%; overflow: auto; background: #ffffff; }
+      .chatEntry { padding: 10px 12px; border-radius: 10px; margin-bottom: 10px; font-size: 14px; line-height: 1.45; }
+      .chatEntry:last-child { margin-bottom: 0; }
+      .chatEntry.user { background: #eef6ff; border: 1px solid #d7e7ff; }
+      .chatEntry.ai { background: #f8fafc; border: 1px solid var(--border); }
+      .assessmentDebug { border: 1px solid var(--border); border-radius: 12px; background: #ffffff; padding: 12px; }
+      .assessmentDebugHeader { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+      .assessmentDebugTitle { font-size: 13px; font-weight: 700; color: var(--text); }
+      .assessmentDebugLog { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 12px; line-height: 1.45; white-space: pre-wrap; max-height: 200px; overflow: auto; background: #f8fafc; border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
+      .quizHeader { font-size: 18px; font-weight: 700; margin: 0 0 8px; }
+      .assessmentLayout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 220px;
+        grid-template-rows: auto auto auto 1fr;
+        gap: 14px 18px;
+        align-items: stretch;
+        padding-top: 72px;
+        height: calc(100vh - 220px - 72px);
+      }
+      .assessmentMain { display: contents; }
+      .assessmentSide { display: contents; }
+      .assessmentControls {
+        display: grid;
+        gap: 14px;
+        align-content: start;
+        grid-column: 2;
+        grid-row: 2;
+      }
+      .assessmentSide button { width: 100%; }
+      .quizHeaderRow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        grid-column: 1;
+        grid-row: 1;
+      }
+      .questionBox { grid-column: 1; grid-row: 2; }
+      .answerWrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: end; }
+      .answerWrap { grid-column: 1; grid-row: 3; }
+      .answerStack { display: grid; gap: 6px; grid-template-rows: auto 1fr; min-height: 0; }
+      .answerStack textarea { height: 100%; max-height: 240px; }
+      .answerWrap.is-locked textarea { background: #e2e8f0; color: #64748b; }
+      .evaluateSide {
+        align-self: end;
+        width: 100%;
+        grid-column: 2;
+        grid-row: 3;
+      }
+      .nextFloating { position: fixed; right: 24px; bottom: 24px; z-index: 70; width: 220px; }
+      .feedbackSection {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        min-height: 0;
+        grid-column: 1;
+        grid-row: 4;
+      }
+      .hintBtn { background: #0b8f64; }
+      .hintBtn:hover:not(:disabled) { background: #0a7a55; }
+      .actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+      .dictationControls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+      .dictationStatus { display: none; }
+      .audioMeter { position: relative; width: 100%; height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
+      .audioMeterFill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: #22c55e; transition: width 0.05s linear; }
+      .audioMeter.active .audioMeterFill { background: #22c55e; }
+      .audioMeter.inactive .audioMeterFill { background: #94a3b8; }
+      .playbackWidget { display: grid; gap: 6px; width: 100%; }
+      .playbackTrack { position: relative; width: 100%; height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
+      .playbackFill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: #7fb6dc; transition: width 0.05s linear; }
+      .playbackIndicator { position: absolute; top: -4px; left: 0%; width: 3px; height: 16px; background: var(--primary-dark); transform: translateX(-50%); border-radius: 2px; transition: left 0.05s linear; }
+      .playbackDot { position: absolute; top: 50%; left: 0%; width: 12px; height: 12px; border-radius: 50%; background: var(--primary); transform: translate(-50%, -50%); box-shadow: 0 0 0 2px #ffffff; transition: left 0.05s linear; }
+      .playbackTime { font-size: 11px; color: var(--muted); min-width: 0; text-align: left; }
+      .playbackWidget.disabled { opacity: 0.5; }
+      button { appearance: none; border: none; border-radius: 999px; padding: 10px 16px; font-size: 14px; font-weight: 600; background: var(--primary); color: #ffffff; cursor: pointer; transition: background 0.2s ease; }
+      button.secondary { background: #ffffff; color: var(--primary); border: 1px solid #c7d9e8; }
+      button:disabled { opacity: 0.55; cursor: not-allowed; }
+      button:hover:not(:disabled) { background: var(--primary-dark); }
+      button.secondary:hover:not(:disabled) { background: #eef6ff; }
+      .hidden { display: none !important; }
+      .pageTitleRow { display: flex; align-items: center; justify-content: flex-start; gap: 12px; flex-wrap: wrap; }
+      .floatingButtonGroup { position: static; z-index: 50; display: flex; gap: 10px; flex-wrap: wrap; }
+      .hintOverlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.6);
+        display: grid;
+        place-items: center;
+        z-index: 90;
+        padding: 20px;
+      }
+      .hintModal {
+        width: min(520px, 92vw);
+        background: #ffffff;
+        border-radius: 16px;
+        border: 1px solid var(--border);
+        box-shadow: 0 20px 40px rgba(15, 23, 42, 0.2);
+        padding: 20px;
+        display: grid;
+        gap: 12px;
+      }
+      .hintHeader { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+      .hintTitle { font-weight: 700; font-size: 16px; }
+      .hintBody { font-size: 14px; line-height: 1.5; color: var(--text); }
+      .finalisingOverlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.55);
+        display: grid;
+        place-items: center;
+        z-index: 95;
+        padding: 20px;
+      }
+      .finalisingModal {
+        width: min(420px, 90vw);
+        background: #ffffff;
+        border-radius: 16px;
+        border: 1px solid var(--border);
+        box-shadow: 0 20px 40px rgba(15, 23, 42, 0.2);
+        padding: 22px 20px;
+        text-align: center;
+        display: grid;
+        gap: 8px;
+      }
+      .finalisingTitle {
+        font-weight: 700;
+        font-size: 18px;
+      }
+      .finalisingBody {
+        font-size: 15px;
+        color: var(--muted);
+      }
+      .pageTitle {
+        font-size: 22px;
+        font-weight: 700;
+        margin: 0 0 16px;
+      }
+      .welcomeScreen {
+        position: relative;
+        overflow: hidden;
+        background: #f6f6f6;
+      }
+      .welcomeContent {
+        position: relative;
+        z-index: 2;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        padding: 48px 18px 36px;
+      }
+      .welcomeTitle {
+        font-weight: 700;
+        font-size: 20px;
+      }
+      .welcomeSubtext {
+        font-size: 15px;
+        color: var(--muted);
+      }
+      .welcomeBody {
+        font-size: 16px;
+        line-height: 1.6;
+        color: var(--text);
+      }
+      .welcomeBody p {
+        margin: 0 0 8px;
+      }
+      .welcomeBody p:last-child {
+        margin-bottom: 0;
+      }
+      .completionScreen {
+        position: relative;
+        overflow: hidden;
+        background: #f6f6f6;
+      }
+      .completionContent {
+        position: relative;
+        z-index: 2;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        padding: 56px 18px 42px;
+      }
+      .completionTitle {
+        font-weight: 700;
+        font-size: 20px;
+      }
+      .completionBody {
+        font-size: 16px;
+        line-height: 1.6;
+        color: var(--text);
+      }
+      .welcomeLogo {
+        position: absolute;
+        top: 18px;
+        right: 22px;
+        width: 160px;
+        height: auto;
+        z-index: 3;
+      }
+      .appLogo {
+        position: fixed;
+        top: 18px;
+        right: 22px;
+        width: 160px;
+        height: auto;
+        z-index: 6;
+      }
+      .welcomeArt {
+        position: absolute;
+        width: 120px;
+        height: auto;
+        z-index: 1;
+      }
+      .welcomeArt.topLeft {
+        top: 16px;
+        left: 16px;
+        transform: rotate(180deg);
+      }
+      .welcomeArt.bottomLeft {
+        bottom: 16px;
+        left: 16px;
+      }
+      .collectCard {
+        background: #f6f6f6 url("/RPL%20Bot%20Artwork/RPL%20Background.jpg") no-repeat center center;
+        background-size: cover;
+        color: var(--text);
+        border-color: var(--border);
+      }
+      #setupCard {
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        padding: 0;
+      }
+      .collectCard label,
+      .collectCard .status,
+      .collectCard .stepTitle {
+        color: var(--text);
+      }
+      #quizCard {
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        padding: 0;
+      }
+      .collectHeader {
+        display: grid;
+        gap: 6px;
+        margin-bottom: 18px;
+      }
+      .collectGreeting {
+        font-size: 18px;
+        font-weight: 600;
+      }
+      .collectSubtitle {
+        font-style: italic;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .collectTop {
+        display: grid;
+        grid-template-columns: minmax(240px, 1fr) minmax(280px, 1fr) minmax(280px, 1fr);
+        gap: 28px;
+        align-items: start;
+        justify-items: center;
+        margin-top: 12px;
+        margin-bottom: 20px;
+      }
+      .collectBottom {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(240px, 1fr));
+        gap: 24px;
+        align-items: start;
+        justify-items: center;
+        margin-top: 10vh;
+      }
+      .collectStep {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 12px;
+        align-items: start;
+      }
+      .collectTop .collectStep:first-child .stepBadge {
+        align-self: start;
+        margin-top: 2px;
+      }
+      .collectTop .collectStep:first-child .stepContent {
+        margin-top: 0;
+      }
+      .collectTop .stepContent button {
+        width: 100%;
+        max-width: 220px;
+      }
+      .stepBadge {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: #f97316;
+        color: #fff;
+        font-weight: 700;
+        display: grid;
+        place-items: center;
+        font-size: 13px;
+      }
+      .stepContent {
+        display: grid;
+        gap: 10px;
+        max-width: 320px;
+      }
+      .collectBottom .stepTitle {
+        min-height: 56px;
+      }
+      .collectBottom .stepContent {
+        margin-top: 6px;
+      }
+      .collectBottom .stepContent {
+        width: 100%;
+        max-width: 280px;
+      }
+      .collectBottom .stepContent select,
+      .collectBottom .stepContent input,
+      .collectBottom .stepContent button {
+        width: 100%;
+      }
+      .collectPreview {
+        display: grid;
+        gap: var(--camera-gap);
+        justify-items: center;
+        grid-template-rows: var(--camera-height) var(--camera-select-height);
+        margin-top: 6px;
+      }
+      .collectCapture {
+        display: grid;
+        gap: 12px;
+        justify-items: center;
+        align-content: start;
+        margin-top: 6px;
+      }
+      .collectVideo {
+        width: 100%;
+        max-width: var(--camera-width);
+        height: var(--camera-height);
+        border-radius: 12px;
+        border: 1px solid #4b5563;
+        background: #0f172a;
+        object-fit: cover;
+      }
+      .collectSelectRow {
+        width: 100%;
+        max-width: var(--camera-width);
+        height: var(--camera-select-height);
+        display: grid;
+        align-items: center;
+      }
+      .collectSelectRow select,
+      .collectCard input,
+      .collectCard select {
+        background: #ffffff;
+        color: #0f172a;
+      }
+      .collectAction {
+        display: grid;
+        gap: 12px;
+        justify-items: center;
+      }
+      .collectAvatar {
+        width: 100%;
+        max-width: var(--camera-width);
+        height: calc(var(--camera-height) + var(--camera-select-height) + var(--camera-gap));
+        border-radius: 12px;
+        border: 1px solid #cbd5e1;
+        background: #e2e8f0;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        position: relative;
+      }
+      .collectAvatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 12px;
+      }
+      .collectPlaceholder {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        background: #dbe3ec;
+      }
+      .collectCard button.secondary {
+        background: #ffffff;
+        color: #0b6ea9;
+      }
+      .collectCard button {
+        justify-self: start;
+      }
+      @media (max-width: 900px) {
+        .collectTop {
+          grid-template-columns: 1fr;
+        }
+        .collectAction {
+          justify-items: start;
+        }
+        .assessmentLayout {
+          grid-template-columns: 1fr;
+          padding-top: 64px;
+          height: calc(100vh - 220px - 64px);
+        }
+        .assessmentSide {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .answerWrap {
+          grid-template-columns: 1fr;
+        }
+        .evaluateSide {
+          width: 100%;
+        }
+        .nextFloating {
+          position: static;
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div id="welcomeScreen" class="card welcomeScreen" style="margin:0 0 18px;">
+        <img
+          class="welcomeLogo"
+          src="/RPL%20Bot%20Artwork/2024_logo_black_transparent_outline_HRES.png"
+          alt="AAMC Training Group"
+        />
+        
+        <div class="welcomeContent">
+          <div class="welcomeTitle" id="welcomeTitle">Welcome to the AAMC RPL Quiz</div>
+          <div class="welcomeBody" id="welcomeBody">
+            <p>Initialising…</p>
+          </div>
+          <button id="welcomeContinueBtn" disabled>Continue</button>
+        </div>
+      </div>
+
+      <div id="completionScreen" class="card completionScreen hidden" style="margin:0 0 18px;">
+        <img
+          class="welcomeLogo"
+          src="/RPL%20Bot%20Artwork/2024_logo_black_transparent_outline_HRES.png"
+          alt="AAMC Training Group"
+        />
+        <div class="completionContent">
+          <div class="completionTitle" id="completionTitle">Thank you for completing your assessment</div>
+          <div class="completionBody" id="completionBody">
+            An assessor will be in contact. You can now close your browser window.
+          </div>
+        </div>
+      </div>
+
+      <div id="postWelcomePage" class="hidden">
+        <img
+          class="appLogo"
+          src="/RPL%20Bot%20Artwork/2024_logo_black_transparent_outline_HRES.png"
+          alt="AAMC Training Group"
+        />
+        <div class="pageTitleRow">
+          <div class="pageTitle" id="postWelcomeTitle">Collect User Data</div>
+        </div>
+        <div id="initScreen" class="card" style="margin:0 0 18px;">
+          <div style="font-weight:700; margin-bottom:6px;">Initialising</div>
+          <div class="status" id="initStatus">Please wait while we prepare your assessment.</div>
+        </div>
+
+        <div class="shell hidden" id="appShell">
+          <div class="header hidden">
+            <div style="font-weight:700; text-decoration:underline;">AAMC RPL Quiz - V1.0</div>
+          </div>
+
+        <div class="progressRow hidden" id="progressRow"></div>
+
+        <div id="setupCard" class="card collectCard">
+          <div class="collectHeader">
+            <div class="collectGreeting" id="collectGreeting">Hello and welcome to your RPL Assessment</div>
+            <div class="collectSubtitle">AI-Powered RPL Knowledge &amp; Experience Evaluation</div>
+          </div>
+          <div class="status" id="status">Idle.</div>
+          <div class="collectTop">
+            <div class="collectStep">
+              <div class="stepBadge">1</div>
+              <div class="stepContent">
+                <div class="stepTitle">
+                  You can do this as many times as you like. First, take your photo. When you are
+                  happy with the result, continue to confirm your details below.
+                </div>
+                <button id="takePhotoBtn">Take Photo</button>
+              </div>
+            </div>
+            <div class="collectPreview">
+              <video id="cameraPreview" class="collectVideo" autoplay playsinline muted></video>
+              <div class="collectSelectRow">
+                <select id="cameraSelect">
+                  <option value="">Detecting webcams…</option>
+                </select>
+              </div>
+            </div>
+            <div class="collectCapture">
+              <div class="collectAvatar">
+                <img
+                  id="photoPlaceholder"
+                  class="collectPlaceholder"
+                  src="/RPL%20Bot%20artwork/Temp%20Image.png"
+                  alt="Temporary profile placeholder"
+                />
+                <img id="photoPreview" class="hidden" alt="Captured photo preview" />
+              </div>
+            </div>
+          </div>
+          <div class="collectBottom">
+            <div class="collectStep">
+              <div class="stepBadge">2</div>
+              <div class="stepContent">
+                <div class="stepTitle">
+                  From the drop-down list below, choose the industry you work in, and select
+                  “Confirm Industry”.
+                </div>
+                <select id="industry">
+                  <option value="">Select industry</option>
+                  <option>Banking</option>
+                  <option>Lending</option>
+                  <option>Mortgage Broking</option>
+                  <option>Finance Broking</option>
+                </select>
+                <button id="confirmIndustryBtn" class="secondary">Confirm Industry</button>
+              </div>
+            </div>
+            <div class="collectStep">
+              <div class="stepBadge">3</div>
+              <div class="stepContent">
+                <div class="stepTitle">Type in your job title and select “Confirm Job Title”.</div>
+                <input id="jobTitle" type="text" placeholder="Type your job title here" />
+                <button id="confirmJobTitleBtn" class="secondary">Confirm Job Title</button>
+              </div>
+            </div>
+            <div class="collectStep">
+              <div class="stepBadge">4</div>
+              <div class="stepContent">
+                <div class="stepTitle">
+                  You can still update your photo, industry and job title, but if you are ready
+                  please press the button below.
+                </div>
+                <button id="beginBtn">Begin The Assessment</button>
+              </div>
+            </div>
+          </div>
+          <canvas id="photoCanvas" class="hidden"></canvas>
+        </div>
+
+        <div id="quizCard" class="card hidden">
+          <div class="assessmentLayout">
+            <div class="assessmentMain">
+              <div class="quizHeaderRow">
+                <div class="quizHeader" id="headerTitle">Compliance - Question 1 of 0 - Attempt 1</div>
+                <button id="showHintBtn" class="hintBtn secondary">Show Hint</button>
+              </div>
+              <div class="questionBox" id="questionText"></div>
+              <div class="answerWrap">
+                <div class="answerStack">
+                  <strong>Your answer</strong>
+                  <textarea id="answerInput" placeholder="Type your answer here..."></textarea>
+                </div>
+              </div>
+              <div class="feedbackSection">
+                <strong>Feedback</strong>
+                <div class="chatHistory" id="chatHistory"></div>
+              </div>
+            </div>
+            <div class="assessmentSide">
+              <button id="evaluateBtn" class="evaluateSide">Evaluate</button>
+              <div class="assessmentControls">
+                <button id="dictateBtn" class="secondary">Start Transcription</button>
+                <button id="playbackBtn" class="secondary" disabled>Playback</button>
+                <div class="audioMeter inactive" id="dictationMeter" title="Mic level">
+                  <div class="audioMeterFill" id="dictationMeterFill"></div>
+                </div>
+                <div class="playbackWidget disabled" id="playbackWidget">
+                  <div class="playbackTrack">
+                    <div class="playbackFill" id="playbackFill"></div>
+                    <div class="playbackIndicator" id="playbackIndicator"></div>
+                    <div class="playbackDot" id="playbackDot"></div>
+                  </div>
+                  <div class="playbackTime" id="playbackTime">0:00</div>
+                </div>
+                <span class="dictationStatus" id="dictationStatus">Dictation idle.</span>
+              </div>
+            </div>
+          </div>
+          <button id="nextBtn" class="secondary nextFloating" disabled>Next</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="hintOverlay" class="hintOverlay hidden" role="dialog" aria-modal="true" aria-labelledby="hintTitle">
+      <div class="hintModal">
+        <div class="hintHeader">
+          <div class="hintTitle" id="hintTitle">Hint</div>
+          <button id="hintCloseBtn" class="secondary">Close</button>
+        </div>
+        <div class="hintBody" id="hintBody">No hint available.</div>
+      </div>
+    </div>
+
+    <div id="finalisingOverlay" class="finalisingOverlay hidden" role="alertdialog" aria-modal="true" aria-live="assertive">
+      <div class="finalisingModal">
+        <div class="finalisingTitle">Please wait.</div>
+        <div class="finalisingBody">We are finalising your results.</div>
+      </div>
+    </div>
+
+    <script>
+...TRUNCATED_FOR_BREVITY...
+    </script>
+  </body>
+</html>
