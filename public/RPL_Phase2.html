@@ -262,7 +262,13 @@
       }
       .welcomeTools .ctSelectors {
         margin-top: 0;
-        width: min(760px, 100%);
+        width: min(1000px, 100%);
+        grid-template-columns: repeat(3, minmax(160px, 1fr)) auto;
+      }
+      .ctFilterCell {
+        display: grid;
+        gap: 6px;
+        align-items: end;
       }
       .welcomeTools .questionsPreviewWrap {
         width: 100%;
@@ -634,8 +640,12 @@
                 <option>FNSINC514</option>
               </select>
             </div>
+            <div class="ctFilterCell">
+              <button id="questionFilterBtn" type="button" class="secondary">Question Filter</button>
+            </div>
           </div>
           <button id="welcomeContinueBtn" disabled>Continue</button>
+          <div style="font-size:15px; font-weight:700; margin-top:4px; text-align:left;">All Questions</div>
           <div class="questionsPreviewWrap" id="questionsPreviewWrap">
             <div class="questionsPreviewEmpty" id="questionsPreviewEmpty">Questions preview will appear here after loading.</div>
             <table class="questionsPreviewTable hidden" id="questionsPreviewTable">
@@ -654,11 +664,26 @@
               <tbody id="questionsPreviewBody"></tbody>
             </table>
           </div>
-          <div class="assessmentDebug" id="initDebugSection">
-            <div class="assessmentDebugHeader">
-              <span class="assessmentDebugTitle">Welcome Debug Log</span>
+          <div id="filteredQuestionsSection" class="hidden" style="width:100%; max-width:1240px; text-align:left;">
+            <div style="font-size:15px; font-weight:700; margin-top:16px;">Questions To Be Asked</div>
+            <div class="questionsPreviewWrap" id="filteredQuestionsWrap">
+              <div class="questionsPreviewEmpty" id="filteredQuestionsEmpty">Apply filter to see questions.</div>
+              <table class="questionsPreviewTable hidden" id="filteredQuestionsTable">
+                <thead>
+                  <tr>
+                    <th>Question Number</th>
+                    <th>Section</th>
+                    <th>Question Details</th>
+                    <th>Hints</th>
+                    <th>Objective</th>
+                    <th>CT</th>
+                    <th>CT Do Not Ask 1</th>
+                    <th>CT Override Question</th>
+                  </tr>
+                </thead>
+                <tbody id="filteredQuestionsBody"></tbody>
+              </table>
             </div>
-            <div class="assessmentDebugLog" id="initDebugLog">Waiting for welcome activity…</div>
           </div>
         </div>
       </div>
@@ -778,11 +803,7 @@
                 <div class="quizHeader" id="headerTitle">Compliance - Question 1 of 0 - Attempt 1</div>
                 <button id="showHintBtn" class="hintBtn secondary">Show Hint</button>
               </div>
-              <div class="questionMetaBox" id="questionMetaBox">
-                <div class="questionMetaRow"><span class="questionMetaLabel">CT</span><span class="questionMetaValue" id="ctMetaValue">-</span></div>
-                <div class="questionMetaRow"><span class="questionMetaLabel">CT Do Not Ask 1</span><span class="questionMetaValue" id="ctDoNotAskValue">-</span></div>
-                <div class="questionMetaRow"><span class="questionMetaLabel">CT Override Question</span><span class="questionMetaValue" id="ctOverrideValue">-</span></div>
-              </div>
+
               <div class="questionBox" id="questionText"></div>
               <div class="answerWrap">
                 <div class="answerStack">
@@ -921,6 +942,11 @@
       const ctMetaValueEl = document.getElementById("ctMetaValue");
       const ctDoNotAskValueEl = document.getElementById("ctDoNotAskValue");
       const ctOverrideValueEl = document.getElementById("ctOverrideValue");
+      const questionFilterBtn = document.getElementById("questionFilterBtn");
+      const filteredQuestionsBodyEl = document.getElementById("filteredQuestionsBody");
+      const filteredQuestionsTableEl = document.getElementById("filteredQuestionsTable");
+      const filteredQuestionsEmptyEl = document.getElementById("filteredQuestionsEmpty");
+      const filteredQuestionsSectionEl = document.getElementById("filteredQuestionsSection");
       // const modeToggleEl = document.getElementById("modeToggle");
       // const modeLabelEl = document.getElementById("modeLabel");
 
@@ -977,6 +1003,7 @@
       let welcomePreloadPromise = null;
       let industriesLoaded = false;
       let questionsLoaded = false;
+      let filteredQuestions = null;
       let isUiLocked = false;
       let hintOpen = false;
       let lockedButtonStates = null;
@@ -2862,6 +2889,68 @@ Job Title: ${jobTitleValue || "N/A"}
         questionsPreviewTableEl.classList.remove("hidden");
       };
 
+      const renderFilteredQuestions = (questionList) => {
+        if (!filteredQuestionsBodyEl || !filteredQuestionsTableEl || !filteredQuestionsEmptyEl) return;
+        filteredQuestionsBodyEl.innerHTML = "";
+        if (!Array.isArray(questionList) || !questionList.length) {
+          filteredQuestionsTableEl.classList.add("hidden");
+          filteredQuestionsEmptyEl.textContent = questionList !== null
+            ? "No questions match the selected CT criteria."
+            : "No questions available.";
+          filteredQuestionsEmptyEl.classList.remove("hidden");
+          return;
+        }
+        questionList.forEach((question) => {
+          const tr = document.createElement("tr");
+          const values = [
+            question?.Title || "",
+            question?.field_1 || "",
+            getQuestionText(question),
+            question?.field_3 || "",
+            question?.field_4 || "",
+            getQuestionCt(question),
+            getQuestionCtDoNotAsk(question),
+            getQuestionCtOverride(question),
+          ];
+          values.forEach((value) => {
+            const td = document.createElement("td");
+            td.textContent = value || "";
+            tr.appendChild(td);
+          });
+          filteredQuestionsBodyEl.appendChild(tr);
+        });
+        filteredQuestionsEmptyEl.classList.add("hidden");
+        filteredQuestionsTableEl.classList.remove("hidden");
+      };
+
+      const applyQuestionFilter = () => {
+        if (!Array.isArray(questions) || !questions.length) {
+          if (filteredQuestionsEmptyEl) filteredQuestionsEmptyEl.textContent = "No questions loaded yet. Please wait for questions to load.";
+          if (filteredQuestionsSectionEl) filteredQuestionsSectionEl.classList.remove("hidden");
+          return;
+        }
+        // Build a set of the selected CT values (upper-case for case-insensitive comparison)
+        const selectedCTs = new Set(
+          [ct1El?.value, ct2El?.value, ct3El?.value]
+            .filter((v) => v && v.trim())
+            .map((v) => v.trim().toUpperCase())
+        );
+        // A question is excluded only when ALL items in its CT Do Not Ask 1
+        // column are present in the combined CT1 / CT2 / CT3 selection.
+        filteredQuestions = questions.filter((question) => {
+          const ctDoNotAskRaw = getQuestionCtDoNotAsk(question);
+          if (!ctDoNotAskRaw || !ctDoNotAskRaw.trim()) return true;
+          const doNotAskItems = ctDoNotAskRaw
+            .split(",")
+            .map((item) => item.trim().toUpperCase())
+            .filter(Boolean);
+          if (!doNotAskItems.length) return true;
+          return !doNotAskItems.every((item) => selectedCTs.has(item));
+        });
+        renderFilteredQuestions(filteredQuestions);
+        if (filteredQuestionsSectionEl) filteredQuestionsSectionEl.classList.remove("hidden");
+      };
+
       const renderQuestion = () => {
         const question = questions[currentIndex] || {};
         const total = questions.length;
@@ -3231,6 +3320,10 @@ END_REVIEW>>>`;
             }
             questions = items;
           }
+          // If a filter was applied via the Question Filter button, use the filtered list
+          if (Array.isArray(filteredQuestions)) {
+            questions = filteredQuestions;
+          }
           renderQuestionsPreview(questions);
           if (tableBtn) tableBtn.disabled = false;
           setupCard.classList.add("hidden");
@@ -3576,6 +3669,10 @@ END_REVIEW>>>`;
         reportWindow.document.open();
         reportWindow.document.write(html);
         reportWindow.document.close();
+      });
+
+      questionFilterBtn?.addEventListener("click", () => {
+        applyQuestionFilter();
       });
     </script>
   </body>
