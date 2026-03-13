@@ -842,6 +842,7 @@
         "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/4e73e4946e2f4d68a1c327ffd94ab86e/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=PL4kQafihKKASyjQ6277VCbFKpq76tRgecIcNrKuBps";
       const INDUSTRY_API_URL =
         "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/cdaf89af8b5349478d4801c5d3bc1587/triggers/manual/paths/invoke?api-version=1";
+      const INDUSTRY_PROXY_URL = "/api/industries";
       const PROMPTS_URL = "/prompts.json";
 
       const statusEl = document.getElementById("status");
@@ -973,6 +974,9 @@
       let lastQuestionResponseText = "";
       let promptTemplates = null;
       let welcomeMode = "new";
+      let welcomePreloadPromise = null;
+      let industriesLoaded = false;
+      let questionsLoaded = false;
       let isUiLocked = false;
       let hintOpen = false;
       let lockedButtonStates = null;
@@ -2700,6 +2704,14 @@ Job Title: ${jobTitleValue || "N/A"}
           return listItemsSource;
         }
 
+        const bodyListItemsSource = json?.body?.listitems;
+        if (typeof bodyListItemsSource === "string") {
+          const parsedBodyListItems = safeJsonParse(bodyListItemsSource);
+          if (Array.isArray(parsedBodyListItems)) return parsedBodyListItems;
+        } else if (Array.isArray(bodyListItemsSource)) {
+          return bodyListItemsSource;
+        }
+
         const bodyValue = json?.body?.value;
         if (Array.isArray(bodyValue)) return bodyValue;
 
@@ -3041,19 +3053,26 @@ END_REVIEW>>>`;
       };
 
       const loadIndustryOptions = async () => {
-        if (!industryEl) return;
+        if (!industryEl) return [];
+        if (industriesLoaded) {
+          return Array.from(industryEl.options).map((option) => option.value).filter(Boolean);
+        }
         logWelcomeDebug("Industry API", "Loading industries on welcome screen");
         industryEl.disabled = true;
         industryEl.innerHTML = "<option value=\"\">Loading industries...</option>";
         try {
-          const response = await fetch(INDUSTRY_API_URL, {
+          const response = await fetch(INDUSTRY_PROXY_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ upstreamUrl: INDUSTRY_API_URL }),
           });
-          const text = await response.text();
-          logWelcomeDebug("Industry API", `HTTP ${response.status} ${response.statusText}`);
-          const payload = safeJsonParse(text) || {};
-          const items = extractItemsFromResponse(payload);
+          const payload = await response.json().catch(() => ({}));
+          const text = payload?.rawText || "";
+          const upstreamStatus = payload?.upstreamStatus ?? response.status;
+          const source = payload?.source || "unknown";
+          logWelcomeDebug("Industry API", `HTTP ${upstreamStatus} via ${source}`);
+          const parsedPayload = safeJsonParse(text) || payload || {};
+          const items = extractItemsFromResponse(parsedPayload);
           const labels = Array.from(new Set(items.map(getIndustryDisplayValue).filter(Boolean)));
           industryEl.innerHTML = "<option value=\"\">Select industry</option>";
           labels.forEach((label) => {
@@ -3065,17 +3084,24 @@ END_REVIEW>>>`;
           if (!labels.length) {
             industryEl.innerHTML = "<option value=\"\">No industries returned</option>";
           }
+          industriesLoaded = labels.length > 0;
           logWelcomeDebug("Industry API", `Loaded ${labels.length} industries`);
+          return labels;
         } catch (error) {
           industryEl.innerHTML = "<option value=\"\">Unable to load industries</option>";
           logDebugDetail("Industry load error", error?.message || String(error));
           logWelcomeDebug("Industry API error", error?.message || String(error));
+          return [];
         } finally {
           industryEl.disabled = false;
         }
       };
 
       const loadQuestionsPreview = async () => {
+        if (questionsLoaded && Array.isArray(questions) && questions.length) {
+          renderQuestionsPreview(questions);
+          return questions;
+        }
         if (questionsPreviewEmptyEl) {
           questionsPreviewEmptyEl.textContent = "Loading questions preview...";
           questionsPreviewEmptyEl.classList.remove("hidden");
@@ -3093,22 +3119,28 @@ END_REVIEW>>>`;
           const payload = safeJsonParse(text) || {};
           const items = extractItemsFromResponse(payload);
           questions = Array.isArray(items) ? items : [];
+          questionsLoaded = questions.length > 0;
           renderQuestionsPreview(questions);
           logWelcomeDebug("Questions API", `Loaded ${questions.length} questions`);
+          return questions;
         } catch (error) {
           logDebugDetail("Questions preview error", error?.message || String(error));
           renderQuestionsPreview([]);
           logWelcomeDebug("Questions API error", error?.message || String(error));
+          return [];
         }
       };
 
       const preloadWelcomeData = async () => {
+        if (welcomePreloadPromise) return welcomePreloadPromise;
         logWelcomeDebug("Welcome preload", "Starting industry and question preload");
-        await Promise.all([
+        welcomePreloadPromise = Promise.all([
           loadIndustryOptions(),
           loadQuestionsPreview(),
-        ]);
-        logWelcomeDebug("Welcome preload", "Completed industry/question preload");
+        ]).finally(() => {
+          logWelcomeDebug("Welcome preload", "Completed industry/question preload");
+        });
+        return welcomePreloadPromise;
       };
 
       const beginAssessmentFlow = async ({ skipValidation = false, skipCollect = false } = {}) => {

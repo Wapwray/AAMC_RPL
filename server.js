@@ -1,11 +1,70 @@
 const express = require("express");
 const path = require("path");
 
+const INDUSTRY_API_URL =
+  "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/cdaf89af8b5349478d4801c5d3bc1587/triggers/manual/paths/invoke?api-version=1";
+const INDUSTRY_FALLBACK_ITEMS = [
+  { Title: "Banking" },
+  { Title: "Lending" },
+  { Title: "Mortgage Broking" },
+  { Title: "Finance Broking" },
+];
+
 const app = express();
 const port = process.env.PORT || 3000;
 
 app.use(express.json({ limit: "1mb" }));
 app.use(express.static(path.join(__dirname, "public")));
+
+app.post("/api/industries", async (_req, res) => {
+  const bearerToken =
+    process.env.POWER_AUTOMATE_BEARER_TOKEN ||
+    process.env.POWER_PLATFORM_BEARER_TOKEN ||
+    process.env.RPL_POWER_AUTOMATE_BEARER_TOKEN ||
+    "";
+
+  try {
+    const headers = { "Content-Type": "application/json" };
+    if (bearerToken) {
+      headers.Authorization = `Bearer ${bearerToken}`;
+    }
+
+    const response = await fetch(INDUSTRY_API_URL, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({}),
+    });
+    const text = await response.text();
+
+    if (response.ok) {
+      res.status(200).json({
+        source: "upstream",
+        upstreamStatus: response.status,
+        rawText: text,
+      });
+      return;
+    }
+
+    if (response.status === 401) {
+      res.status(200).json({
+        source: "fallback",
+        upstreamStatus: response.status,
+        error: "DirectApiAuthorizationRequired",
+        rawText: JSON.stringify({
+          statusCode: "200",
+          body: {
+            listitems: JSON.stringify(INDUSTRY_FALLBACK_ITEMS),
+          },
+        }),
+      });
+      return;
+    }
+
+    res.status(response.status).send(text || "Industry API error");
+  } catch (error) {
+    res.status(500).json({ error: error?.message || String(error) });
+  }
+});
 
 app.post("/api/speech/token", async (_req, res) => {
   const speechKey = process.env.AZURE_SPEECH_KEY || process.env.SPEECH_KEY;
