@@ -189,17 +189,44 @@
       .hintBody { font-size: 14px; line-height: 1.5; color: var(--text); }
       .lookupResponse {
         margin: 0;
-        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-        font-size: 12px;
-        line-height: 1.5;
-        white-space: pre-wrap;
-        word-break: break-word;
+        font-size: 13px;
+        line-height: 1.45;
         max-height: min(58vh, 520px);
         overflow: auto;
         border: 1px solid var(--border);
         border-radius: 10px;
         background: #f8fafc;
         padding: 10px;
+      }
+      .lookupResponseText {
+        margin: 0;
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        font-size: 12px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .lookupTable {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: auto;
+      }
+      .lookupTable th,
+      .lookupTable td {
+        border-bottom: 1px solid var(--border);
+        text-align: left;
+        padding: 8px 10px;
+        vertical-align: top;
+      }
+      .lookupTable th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: #eef2f7;
+        font-weight: 700;
+      }
+      .lookupTable tr:last-child td {
+        border-bottom: none;
       }
       .finalisingOverlay {
         position: fixed;
@@ -872,7 +899,7 @@
           <div class="hintTitle" id="userLookupTitle">User Lookup</div>
           <button id="userLookupCloseBtn" class="secondary">Close</button>
         </div>
-        <pre class="lookupResponse" id="userLookupBody">Press User Lookup to load results.</pre>
+        <div class="lookupResponse" id="userLookupBody">Press User Lookup to load results.</div>
       </div>
     </div>
 
@@ -2188,7 +2215,7 @@ Job Title: ${jobTitleValue || "N/A"}
 
         userLookupPending = true;
         if (userLookupBtn) userLookupBtn.disabled = true;
-        userLookupBodyEl.textContent = "Loading user lookup...";
+        userLookupBodyEl.innerHTML = '<div class="lookupResponseText">Loading user lookup...</div>';
         userLookupOverlayEl.classList.remove("hidden");
 
         try {
@@ -2211,16 +2238,58 @@ Job Title: ${jobTitleValue || "N/A"}
             throw new Error(`HTTP ${response.status} ${response.statusText}${rawText ? `\n${rawText}` : ""}`);
           }
 
-          if (parsed && typeof parsed === "object") {
-            userLookupBodyEl.textContent = JSON.stringify(parsed, null, 2);
+          const escapeHtml = (value) => String(value)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/\"/g, "&quot;")
+            .replace(/'/g, "&#39;");
+
+          const parseCtItems = (payload) => {
+            if (!payload || typeof payload !== "object") return [];
+            const source = payload.ct_items ?? payload?.body?.ct_items ?? payload?.body?.CT_Items;
+            if (Array.isArray(source)) return source;
+            if (typeof source === "string") {
+              const parsedItems = safeJsonParse(source);
+              return Array.isArray(parsedItems) ? parsedItems : [];
+            }
+            return [];
+          };
+
+          const ctItems = parseCtItems(parsed);
+          if (ctItems.length) {
+            const rows = ctItems.map((item) => {
+              const unitCode = escapeHtml(item?.["Unit Code"] ?? "");
+              const unitName = escapeHtml(item?.["Unit Name"] ?? "");
+              const status = escapeHtml(item?.Status ?? "");
+              const outcomeCode = escapeHtml(item?.["Outcome Code"] ?? "");
+              const mandatory = escapeHtml(item?.Mandatory ?? "");
+              return `<tr><td>${unitCode}</td><td>${unitName}</td><td>${status}</td><td>${outcomeCode}</td><td>${mandatory}</td></tr>`;
+            }).join("");
+            userLookupBodyEl.innerHTML = `
+              <table class="lookupTable">
+                <thead>
+                  <tr>
+                    <th>Unit Code</th>
+                    <th>Unit Name</th>
+                    <th>Status</th>
+                    <th>Outcome Code</th>
+                    <th>Mandatory</th>
+                  </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+              </table>
+            `;
+          } else if (parsed && typeof parsed === "object") {
+            userLookupBodyEl.innerHTML = `<pre class="lookupResponseText">${escapeHtml(JSON.stringify(parsed, null, 2))}</pre>`;
           } else if (typeof parsed === "string" && parsed.trim()) {
-            userLookupBodyEl.textContent = parsed;
+            userLookupBodyEl.innerHTML = `<pre class="lookupResponseText">${escapeHtml(parsed)}</pre>`;
           } else {
-            userLookupBodyEl.textContent = rawText || "No response content.";
+            userLookupBodyEl.innerHTML = `<pre class="lookupResponseText">${escapeHtml(rawText || "No response content.")}</pre>`;
           }
         } catch (error) {
           const message = error?.message || String(error);
-          userLookupBodyEl.textContent = `User lookup failed.\n\n${message}`;
+          userLookupBodyEl.innerHTML = `<pre class="lookupResponseText">User lookup failed.\n\n${message}</pre>`;
           setStatus(`User lookup failed: ${message}`);
         } finally {
           userLookupPending = false;
