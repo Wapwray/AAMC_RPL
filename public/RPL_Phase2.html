@@ -187,6 +187,20 @@
       .hintHeader { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
       .hintTitle { font-weight: 700; font-size: 16px; }
       .hintBody { font-size: 14px; line-height: 1.5; color: var(--text); }
+      .lookupResponse {
+        margin: 0;
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        font-size: 12px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: min(58vh, 520px);
+        overflow: auto;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: #f8fafc;
+        padding: 10px;
+      }
       .finalisingOverlay {
         position: fixed;
         inset: 0;
@@ -644,6 +658,7 @@
               <button id="questionFilterBtn" type="button" class="secondary">Question Filter</button>
             </div>
           </div>
+          <button id="userLookupBtn" type="button" class="secondary">User Lookup</button>
           <button id="welcomeContinueBtn" disabled>Continue</button>
           <div style="font-size:15px; font-weight:700; margin-top:4px; text-align:left;">All Questions</div>
           <div class="questionsPreviewWrap" id="questionsPreviewWrap">
@@ -851,6 +866,16 @@
       </div>
     </div>
 
+    <div id="userLookupOverlay" class="hintOverlay hidden" role="dialog" aria-modal="true" aria-labelledby="userLookupTitle">
+      <div class="hintModal" style="width:min(980px, 94vw);">
+        <div class="hintHeader">
+          <div class="hintTitle" id="userLookupTitle">User Lookup</div>
+          <button id="userLookupCloseBtn" class="secondary">Close</button>
+        </div>
+        <pre class="lookupResponse" id="userLookupBody">Press User Lookup to load results.</pre>
+      </div>
+    </div>
+
     <div id="finalisingOverlay" class="finalisingOverlay hidden" role="alertdialog" aria-modal="true" aria-live="assertive">
       <div class="finalisingModal">
         <div class="finalisingTitle">Please wait.</div>
@@ -864,6 +889,8 @@
       const INDUSTRY_API_URL =
         "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/cdaf89af8b5349478d4801c5d3bc1587/triggers/manual/paths/invoke?api-version=1";
       const INDUSTRY_PROXY_URL = "/api/industries";
+      const USER_LOOKUP_URL =
+        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/147e1ac1d92e41dda86824acca4fbe3a/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=4oJYKnjPwFWzbePkBFTxFX-VJpOtt00TBRMaxBU8WKA";
       const PROMPTS_URL = "/prompts.json";
 
       const statusEl = document.getElementById("status");
@@ -900,6 +927,7 @@
       const completionBodyEl = document.getElementById("completionBody");
       const welcomeTitleEl = document.getElementById("welcomeTitle");
       const welcomeBodyEl = document.getElementById("welcomeBody");
+      const userLookupBtn = document.getElementById("userLookupBtn");
       const welcomeContinueBtn = document.getElementById("welcomeContinueBtn");
       const welcomeDebugLogEl = document.getElementById("initDebugLog");
       const postWelcomePageEl = document.getElementById("postWelcomePage");
@@ -937,6 +965,9 @@
       const hintOverlayEl = document.getElementById("hintOverlay");
       const hintCloseBtn = document.getElementById("hintCloseBtn");
       const hintBodyEl = document.getElementById("hintBody");
+      const userLookupOverlayEl = document.getElementById("userLookupOverlay");
+      const userLookupCloseBtn = document.getElementById("userLookupCloseBtn");
+      const userLookupBodyEl = document.getElementById("userLookupBody");
       const finalisingOverlayEl = document.getElementById("finalisingOverlay");
       const answerWrapEl = document.querySelector(".answerWrap");
       const ctMetaValueEl = document.getElementById("ctMetaValue");
@@ -1004,6 +1035,7 @@
       let industriesLoaded = false;
       let questionsLoaded = false;
       let filteredQuestions = null;
+      let userLookupPending = false;
       let isUiLocked = false;
       let hintOpen = false;
       let lockedButtonStates = null;
@@ -2143,6 +2175,57 @@ Job Title: ${jobTitleValue || "N/A"}
         hintOpen = false;
         setButtonsDisabled(false);
         updateDictationUi(dictationStatusEl?.textContent || "Dictation idle.");
+      };
+
+      const closeUserLookup = () => {
+        if (!userLookupOverlayEl) return;
+        userLookupOverlayEl.classList.add("hidden");
+      };
+
+      const runUserLookup = async () => {
+        if (userLookupPending) return;
+        if (!userLookupOverlayEl || !userLookupBodyEl) return;
+
+        userLookupPending = true;
+        if (userLookupBtn) userLookupBtn.disabled = true;
+        userLookupBodyEl.textContent = "Loading user lookup...";
+        userLookupOverlayEl.classList.remove("hidden");
+
+        try {
+          const ctx = getStudentContext();
+          const payload = {
+            FullName: ctx.fullName,
+            ContactID: String(ctx.contactId),
+            GivenName: ctx.givenName,
+          };
+
+          const response = await fetch(USER_LOOKUP_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+
+          const rawText = await response.text();
+          const parsed = safeJsonParse(rawText);
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status} ${response.statusText}${rawText ? `\n${rawText}` : ""}`);
+          }
+
+          if (parsed && typeof parsed === "object") {
+            userLookupBodyEl.textContent = JSON.stringify(parsed, null, 2);
+          } else if (typeof parsed === "string" && parsed.trim()) {
+            userLookupBodyEl.textContent = parsed;
+          } else {
+            userLookupBodyEl.textContent = rawText || "No response content.";
+          }
+        } catch (error) {
+          const message = error?.message || String(error);
+          userLookupBodyEl.textContent = `User lookup failed.\n\n${message}`;
+          setStatus(`User lookup failed: ${message}`);
+        } finally {
+          userLookupPending = false;
+          if (userLookupBtn) userLookupBtn.disabled = false;
+        }
       };
 
       const formatPlaybackTime = (value) => {
@@ -3464,6 +3547,18 @@ END_REVIEW>>>`;
       hintOverlayEl?.addEventListener("click", (event) => {
         if (event.target === hintOverlayEl) {
           closeHint();
+        }
+      });
+
+      userLookupBtn?.addEventListener("click", () => {
+        runUserLookup();
+      });
+      userLookupCloseBtn?.addEventListener("click", () => {
+        closeUserLookup();
+      });
+      userLookupOverlayEl?.addEventListener("click", (event) => {
+        if (event.target === userLookupOverlayEl) {
+          closeUserLookup();
         }
       });
 
