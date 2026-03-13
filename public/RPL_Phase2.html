@@ -683,9 +683,10 @@
             </div>
             <div class="ctFilterCell">
               <button id="questionFilterBtn" type="button" class="secondary">Question Filter</button>
+              <button id="userLookupBtn" type="button" class="secondary">User Lookup</button>
+              <button id="facialRecognitionBtn" type="button" class="secondary">Facial Recognition</button>
             </div>
           </div>
-          <button id="userLookupBtn" type="button" class="secondary">User Lookup</button>
           <button id="welcomeContinueBtn" disabled>Continue</button>
           <div style="font-size:15px; font-weight:700; margin-top:4px; text-align:left;">All Questions</div>
           <div class="questionsPreviewWrap" id="questionsPreviewWrap">
@@ -918,6 +919,8 @@
       const INDUSTRY_PROXY_URL = "/api/industries";
       const USER_LOOKUP_URL =
         "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/147e1ac1d92e41dda86824acca4fbe3a/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=4oJYKnjPwFWzbePkBFTxFX-VJpOtt00TBRMaxBU8WKA";
+      const FACIAL_RECOGNITION_URL =
+        "https://aamcfacerecog-cqbbcxcxbnesbphg.australiaeast-01.azurewebsites.net/User%20Validation.html";
       const PROMPTS_URL = "/prompts.json";
 
       const statusEl = document.getElementById("status");
@@ -955,6 +958,7 @@
       const welcomeTitleEl = document.getElementById("welcomeTitle");
       const welcomeBodyEl = document.getElementById("welcomeBody");
       const userLookupBtn = document.getElementById("userLookupBtn");
+      const facialRecognitionBtn = document.getElementById("facialRecognitionBtn");
       const welcomeContinueBtn = document.getElementById("welcomeContinueBtn");
       const welcomeDebugLogEl = document.getElementById("initDebugLog");
       const postWelcomePageEl = document.getElementById("postWelcomePage");
@@ -3621,6 +3625,16 @@ END_REVIEW>>>`;
 
       userLookupBtn?.addEventListener("click", () => {
         runUserLookup();
+      });
+      facialRecognitionBtn?.addEventListener("click", () => {
+        const popup = window.open(
+          FACIAL_RECOGNITION_URL,
+          "RPLFacialRecognition",
+          "width=1200,height=820,scrollbars=yes,resizable=yes"
+        );
+        if (!popup) {
+          setStatus("Popup blocked. Please allow pop-ups to open Facial Recognition.");
+        }
       });
       userLookupCloseBtn?.addEventListener("click", () => {
         closeUserLookup();
