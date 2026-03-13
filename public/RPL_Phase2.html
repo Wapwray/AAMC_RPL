@@ -254,6 +254,29 @@
       .welcomeBody p:last-child {
         margin-bottom: 0;
       }
+      .welcomeTools {
+        margin-top: 10px;
+        display: grid;
+        gap: 14px;
+        justify-items: center;
+      }
+      .welcomeTools .ctSelectors {
+        margin-top: 0;
+        width: min(760px, 100%);
+      }
+      .welcomeTools .questionsPreviewWrap {
+        width: 100%;
+        max-width: 1240px;
+        text-align: left;
+      }
+      .welcomeTools .assessmentDebug {
+        width: 100%;
+        max-width: 1240px;
+        text-align: left;
+      }
+      .welcomeTools .assessmentDebugLog {
+        max-height: 280px;
+      }
       .completionScreen {
         position: relative;
         overflow: hidden;
@@ -578,6 +601,8 @@
           <div class="welcomeBody" id="welcomeBody">
             <p>Initialising…</p>
           </div>
+        </div>
+        <div class="welcomeTools">
           <div class="ctSelectors">
             <div class="ctSelectorCell">
               <label for="ct1">CT1</label>
@@ -611,11 +636,29 @@
             </div>
           </div>
           <button id="welcomeContinueBtn" disabled>Continue</button>
-          <div class="assessmentDebug hidden" id="initDebugSection" style="margin-top:16px;width:100%;text-align:left;">
+          <div class="questionsPreviewWrap" id="questionsPreviewWrap">
+            <div class="questionsPreviewEmpty" id="questionsPreviewEmpty">Questions preview will appear here after loading.</div>
+            <table class="questionsPreviewTable hidden" id="questionsPreviewTable">
+              <thead>
+                <tr>
+                  <th>Question Number</th>
+                  <th>Section</th>
+                  <th>Question Details</th>
+                  <th>Hints</th>
+                  <th>Objective</th>
+                  <th>CT</th>
+                  <th>CT Do Not Ask 1</th>
+                  <th>CT Override Question</th>
+                </tr>
+              </thead>
+              <tbody id="questionsPreviewBody"></tbody>
+            </table>
+          </div>
+          <div class="assessmentDebug" id="initDebugSection">
             <div class="assessmentDebugHeader">
-              <span class="assessmentDebugTitle">Debug Log</span>
+              <span class="assessmentDebugTitle">Welcome Debug Log</span>
             </div>
-            <div class="assessmentDebugLog" id="initDebugLog"></div>
+            <div class="assessmentDebugLog" id="initDebugLog">Waiting for welcome activity…</div>
           </div>
         </div>
       </div>
@@ -724,24 +767,6 @@
                 <button id="beginBtn">Begin The Assessment</button>
               </div>
             </div>
-          </div>
-          <div class="questionsPreviewWrap" id="questionsPreviewWrap">
-            <div class="questionsPreviewEmpty" id="questionsPreviewEmpty">Questions preview will appear here after loading.</div>
-            <table class="questionsPreviewTable hidden" id="questionsPreviewTable">
-              <thead>
-                <tr>
-                  <th>Question Number</th>
-                  <th>Section</th>
-                  <th>Question Details</th>
-                  <th>Hints</th>
-                  <th>Objective</th>
-                  <th>CT</th>
-                  <th>CT Do Not Ask 1</th>
-                  <th>CT Override Question</th>
-                </tr>
-              </thead>
-              <tbody id="questionsPreviewBody"></tbody>
-            </table>
           </div>
           <canvas id="photoCanvas" class="hidden"></canvas>
         </div>
@@ -854,7 +879,7 @@
       const welcomeTitleEl = document.getElementById("welcomeTitle");
       const welcomeBodyEl = document.getElementById("welcomeBody");
       const welcomeContinueBtn = document.getElementById("welcomeContinueBtn");
-      const welcomeDebugLogEl = null;
+      const welcomeDebugLogEl = document.getElementById("initDebugLog");
       const postWelcomePageEl = document.getElementById("postWelcomePage");
       const postWelcomeTitleEl = document.getElementById("postWelcomeTitle");
       const initScreenEl = document.getElementById("initScreen");
@@ -982,10 +1007,17 @@
       const updateDebugVisibility = () => {
         if (debugSectionEl) debugSectionEl.classList.remove("hidden");
         if (initDebugSectionEl) initDebugSectionEl.classList.remove("hidden");
-        
       };
 
-      const logWelcomeDebug = () => {};
+      const logWelcomeDebug = (label, detail) => {
+        if (!welcomeDebugLogEl) return;
+        const timestamp = new Date().toLocaleTimeString();
+        const message = detail === undefined || detail === null ? label : `${label}: ${detail}`;
+        if (welcomeDebugLogEl.textContent === "Waiting for welcome activity…") {
+          welcomeDebugLogEl.textContent = "";
+        }
+        welcomeDebugLogEl.textContent = `[${timestamp}] ${message}\n` + welcomeDebugLogEl.textContent;
+      };
 
       const setWelcomeResumeData = (data) => {
         if (!data || typeof data !== "object") return;
@@ -3010,6 +3042,7 @@ END_REVIEW>>>`;
 
       const loadIndustryOptions = async () => {
         if (!industryEl) return;
+        logWelcomeDebug("Industry API", "Loading industries on welcome screen");
         industryEl.disabled = true;
         industryEl.innerHTML = "<option value=\"\">Loading industries...</option>";
         try {
@@ -3018,6 +3051,7 @@ END_REVIEW>>>`;
             headers: { "Content-Type": "application/json" },
           });
           const text = await response.text();
+          logWelcomeDebug("Industry API", `HTTP ${response.status} ${response.statusText}`);
           const payload = safeJsonParse(text) || {};
           const items = extractItemsFromResponse(payload);
           const labels = Array.from(new Set(items.map(getIndustryDisplayValue).filter(Boolean)));
@@ -3031,9 +3065,11 @@ END_REVIEW>>>`;
           if (!labels.length) {
             industryEl.innerHTML = "<option value=\"\">No industries returned</option>";
           }
+          logWelcomeDebug("Industry API", `Loaded ${labels.length} industries`);
         } catch (error) {
           industryEl.innerHTML = "<option value=\"\">Unable to load industries</option>";
           logDebugDetail("Industry load error", error?.message || String(error));
+          logWelcomeDebug("Industry API error", error?.message || String(error));
         } finally {
           industryEl.disabled = false;
         }
@@ -3045,6 +3081,7 @@ END_REVIEW>>>`;
           questionsPreviewEmptyEl.classList.remove("hidden");
         }
         if (questionsPreviewTableEl) questionsPreviewTableEl.classList.add("hidden");
+        logWelcomeDebug("Questions API", "Loading questions preview on welcome screen");
 
         try {
           const response = await fetch(QUESTIONS_API_URL, {
@@ -3052,14 +3089,26 @@ END_REVIEW>>>`;
             headers: { "Content-Type": "application/json" },
           });
           const text = await response.text();
+          logWelcomeDebug("Questions API", `HTTP ${response.status} ${response.statusText}`);
           const payload = safeJsonParse(text) || {};
           const items = extractItemsFromResponse(payload);
           questions = Array.isArray(items) ? items : [];
           renderQuestionsPreview(questions);
+          logWelcomeDebug("Questions API", `Loaded ${questions.length} questions`);
         } catch (error) {
           logDebugDetail("Questions preview error", error?.message || String(error));
           renderQuestionsPreview([]);
+          logWelcomeDebug("Questions API error", error?.message || String(error));
         }
+      };
+
+      const preloadWelcomeData = async () => {
+        logWelcomeDebug("Welcome preload", "Starting industry and question preload");
+        await Promise.all([
+          loadIndustryOptions(),
+          loadQuestionsPreview(),
+        ]);
+        logWelcomeDebug("Welcome preload", "Completed industry/question preload");
       };
 
       const beginAssessmentFlow = async ({ skipValidation = false, skipCollect = false } = {}) => {
@@ -3196,9 +3245,7 @@ END_REVIEW>>>`;
         await loadPromptTemplates();
         await sendStudentContextOnLoad();
         await populateMicrophones();
-        await loadIndustryOptions();
         if (!resume) {
-          await loadQuestionsPreview();
           await populateCameras();
           await startCamera();
           setCollectStepsEnabled({ industry: false, jobTitle: false, begin: false });
@@ -3214,6 +3261,7 @@ END_REVIEW>>>`;
       updateCollectGreeting();
       setCollectStepsEnabled({ industry: false, jobTitle: false, begin: false });
       loadWelcomeWebhook();
+      preloadWelcomeData();
 
       welcomeContinueBtn?.addEventListener("click", async () => {
         if (welcomeMode === "completed") return;
