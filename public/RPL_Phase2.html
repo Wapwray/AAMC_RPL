@@ -72,7 +72,7 @@
       .assessmentLayout {
         display: grid;
         grid-template-columns: minmax(0, 1fr) 220px;
-        grid-template-rows: auto auto auto auto 1fr;
+        grid-template-rows: auto auto auto 1fr;
         gap: 14px 18px;
         align-items: stretch;
         padding-top: 72px;
@@ -121,9 +121,9 @@
         color: var(--text);
         word-break: break-word;
       }
-      .questionBox { grid-column: 1; grid-row: 3; }
+      .questionBox { grid-column: 1; grid-row: 2; }
       .answerWrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: end; }
-      .answerWrap { grid-column: 1; grid-row: 4; }
+      .answerWrap { grid-column: 1; grid-row: 3; }
       .answerStack { display: grid; gap: 6px; grid-template-rows: auto 1fr; min-height: 0; }
       .answerStack textarea { height: 100%; max-height: 240px; }
       .answerWrap.is-locked textarea { background: #e2e8f0; color: #64748b; }
@@ -131,7 +131,7 @@
         align-self: end;
         width: 100%;
         grid-column: 2;
-        grid-row: 3;
+        grid-row: 2;
       }
       .nextFloating { position: fixed; right: 24px; bottom: 24px; z-index: 70; width: 220px; }
       .feedbackSection {
@@ -139,7 +139,7 @@
         grid-template-rows: auto minmax(0, 1fr);
         min-height: 0;
         grid-column: 1;
-        grid-row: 5;
+        grid-row: 4;
       }
       .hintBtn { background: #0b8f64; }
       .hintBtn:hover:not(:disabled) { background: #0a7a55; }
