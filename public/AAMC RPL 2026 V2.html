@@ -1,1 +1,128 @@
-PLACEHOLDER
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AAMC RPL Quiz - V2</title>
+    <style>
+      html, body {
+        margin: 0;
+        min-height: 100%;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: #f3f7fb;
+        color: #0f172a;
+      }
+
+      body {
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+
+      .loadingCard {
+        width: min(520px, 100%);
+        background: #ffffff;
+        border: 1px solid #d8e3ee;
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+      }
+
+      .loadingTitle {
+        margin: 0 0 10px;
+        font-size: 20px;
+        font-weight: 700;
+      }
+
+      .loadingBody {
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.5;
+        color: #475569;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="loadingCard">
+      <h1 class="loadingTitle">Loading AAMC RPL 2026 V2</h1>
+      <p class="loadingBody" id="loadingMessage">Preparing the assessment page and wiring updated data sources.</p>
+    </div>
+
+    <script>
+      const SOURCE_HTML_URL = "./AAMC%20RPL%202026.html";
+      const QUESTIONS_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/4e73e4946e2f4d68a1c327ffd94ab86e/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=PL4kQafihKKASyjQ6277VCbFKpq76tRgecIcNrKuBps";
+      const INDUSTRY_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/4e73e4946e2f4d68a1c327ffd94ab86e/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=PL4kQafihKKASyjQ6277VCbFKpq76tRgecIcNrKuBps";
+
+      const loadingMessageEl = document.getElementById("loadingMessage");
+
+      const setLoadingMessage = (message) => {
+        if (loadingMessageEl) {
+          loadingMessageEl.textContent = message;
+        }
+      };
+
+      const buildPatchedHtml = (html) => {
+        const constantsReplacement = `      const questionsUrl =\n        "${QUESTIONS_URL}";\n      const industryUrl =\n        "${INDUSTRY_URL}";\n      const INDUSTRY_PROXY_URL = "/api/industries";\n      const PROMPTS_URL = "/prompts.json";`;
+        const helperReplacement = `      let industriesLoaded = false;\n\n      const safeJsonParse = (value) => {\n        if (typeof value !== "string") return value;\n        try {\n          return JSON.parse(value);\n        } catch {\n          return value;\n        }\n      };\n\n      const extractItemsFromResponse = (payload) => {\n        if (Array.isArray(payload)) return payload;\n        const json = safeJsonParse(payload);\n        if (Array.isArray(json)) return json;\n\n        const listItemsSource = json?.listitems;\n        if (typeof listItemsSource === "string") {\n          const parsedListItems = safeJsonParse(listItemsSource);\n          if (Array.isArray(parsedListItems)) return parsedListItems;\n        } else if (Array.isArray(listItemsSource)) {\n          return listItemsSource;\n        }\n\n        const bodyListItemsSource = json?.body?.listitems;\n        if (typeof bodyListItemsSource === "string") {\n          const parsedBodyListItems = safeJsonParse(bodyListItemsSource);\n          if (Array.isArray(parsedBodyListItems)) return parsedBodyListItems;\n        } else if (Array.isArray(bodyListItemsSource)) {\n          return bodyListItemsSource;\n        }\n\n        const bodyValue = json?.body?.value;\n        if (Array.isArray(bodyValue)) return bodyValue;\n\n        const rootValue = json?.value;\n        if (Array.isArray(rootValue)) return rootValue;\n\n        return [];\n      };\n\n      const getIndustryDisplayValue = (item) => {\n        if (item === undefined || item === null) return "";\n        if (typeof item === "string") return item.trim();\n        const text = pickFirstValue(\n          item.Value,\n          item.value,\n          item.title,\n          item.Title,\n          item.name,\n          item.Name,\n          item.label,\n          item.text\n        );\n        if (text) return text;\n        return String(item).trim();\n      };\n\n      const normalizeQuestionsPayload = async (response) => {\n        const text = await response.text();\n        const payload = safeJsonParse(text) || {};\n        const items = extractItemsFromResponse(payload);\n        return new Response(JSON.stringify({ listitems: JSON.stringify(items) }), {\n          status: response.status,\n          statusText: response.statusText,\n          headers: { "Content-Type": "application/json" },\n        });\n      };\n\n      const nativeFetch = window.fetch.bind(window);\n      window.fetch = async (input, init) => {\n        const requestUrl = typeof input === "string" ? input : input?.url || "";\n        if (requestUrl === questionsUrl) {\n          const response = await nativeFetch(input, init);\n          return normalizeQuestionsPayload(response);\n        }\n        return nativeFetch(input, init);\n      };\n\n      const loadIndustryOptions = async () => {\n        if (!industryEl) return [];\n        if (industriesLoaded) {\n          return Array.from(industryEl.options).map((option) => option.value).filter(Boolean);\n        }\n\n        const selectedValue = industryEl.value || industry || "";\n        industryEl.disabled = true;\n        industryEl.innerHTML = "<option value=\"\">Loading industries...</option>";\n\n        try {\n          const response = await nativeFetch(INDUSTRY_PROXY_URL, {\n            method: "POST",\n            headers: { "Content-Type": "application/json" },\n            body: JSON.stringify({ upstreamUrl: industryUrl }),\n          });\n          const payload = await response.json().catch(() => ({}));\n          const text = payload?.rawText || "";\n          const parsedPayload = safeJsonParse(text) || payload || {};\n          const items = extractItemsFromResponse(parsedPayload);\n          const labels = Array.from(new Set(items.map(getIndustryDisplayValue).filter(Boolean)));\n\n          industryEl.innerHTML = "<option value=\"\">Select industry</option>";\n          labels.forEach((label) => {\n            const option = document.createElement("option");\n            option.value = label;\n            option.textContent = label;\n            industryEl.appendChild(option);\n          });\n\n          if (!labels.length) {\n            industryEl.innerHTML = "<option value=\"\">No industries returned</option>";\n          } else if (selectedValue) {\n            if (!labels.includes(selectedValue)) {\n              const option = document.createElement("option");\n              option.value = selectedValue;\n              option.textContent = selectedValue;\n              industryEl.appendChild(option);\n            }\n            industryEl.value = selectedValue;\n          }\n\n          industriesLoaded = labels.length > 0;\n          return labels;\n        } catch (error) {\n          industryEl.innerHTML = "<option value=\"\">Unable to load industries</option>";\n          logDebugDetail("Industry load error", error?.message || String(error));\n          return [];\n        } finally {\n          industryEl.disabled = false;\n        }\n      };\n\n      const parseListItems = (json) => {\n        const items = extractItemsFromResponse(json);\n        return { items, error: items.length ? null : "No questions returned." };\n      };`;
+
+        let patched = html.replace(
+          /      const questionsUrl =\s*[\r\n]+\s*"[^"]+";\s*[\r\n]+\s*const PROMPTS_URL = "\/prompts\.json";/,
+          constantsReplacement
+        );
+        if (patched === html) {
+          throw new Error("Unable to replace question and industry constants.");
+        }
+
+        const patchedWithHelpers = patched.replace(
+          /      const parseListItems = \(json\) => \{[\s\S]*?[\r\n]+      \};[\r\n]+[\r\n]+      const addChatEntry =/,
+          `${helperReplacement}\n\n      const addChatEntry =`
+        );
+        if (patchedWithHelpers === patched) {
+          throw new Error("Unable to replace parseListItems helper block.");
+        }
+        patched = patchedWithHelpers;
+
+        const patchedWithIndustryInit = patched.replace(
+          /        await loadPromptTemplates\(\);[\r\n]+        await sendStudentContextOnLoad\(\);/,
+          `        await loadPromptTemplates();\n        await loadIndustryOptions();\n        await sendStudentContextOnLoad();`
+        );
+        if (patchedWithIndustryInit === patched) {
+          throw new Error("Unable to insert startup industry loading.");
+        }
+        patched = patchedWithIndustryInit;
+
+        const patchedWithWelcomeLoad = patched.replace(
+          /      loadWelcomeWebhook\(\);/,
+          `      loadWelcomeWebhook();\n      loadIndustryOptions();`
+        );
+        if (patchedWithWelcomeLoad === patched) {
+          throw new Error("Unable to insert welcome-screen industry loading.");
+        }
+        patched = patchedWithWelcomeLoad;
+
+        patched = patched.replace(/<title>AAMC RPL Quiz - V1\.0<\/title>/, `<title>AAMC RPL Quiz - V2</title>`);
+        return patched;
+      };
+
+      const bootstrap = async () => {
+        setLoadingMessage("Loading the base assessment page.");
+        const response = await fetch(SOURCE_HTML_URL, { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error(`Unable to load source file: ${response.status} ${response.statusText}`);
+        }
+
+        const sourceHtml = await response.text();
+        setLoadingMessage("Applying V2 webhook configuration.");
+        const patchedHtml = buildPatchedHtml(sourceHtml);
+        document.open();
+        document.write(patchedHtml);
+        document.close();
+      };
+
+      bootstrap().catch((error) => {
+        console.error(error);
+        setLoadingMessage(error?.message || String(error));
+      });
+    </script>
+  </body>
+</html>

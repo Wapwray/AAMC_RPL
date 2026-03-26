@@ -16,12 +16,14 @@ const port = process.env.PORT || 3000;
 app.use(express.json({ limit: "1mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
-app.post("/api/industries", async (_req, res) => {
+app.post("/api/industries", async (req, res) => {
   const bearerToken =
     process.env.POWER_AUTOMATE_BEARER_TOKEN ||
     process.env.POWER_PLATFORM_BEARER_TOKEN ||
     process.env.RPL_POWER_AUTOMATE_BEARER_TOKEN ||
     "";
+  const requestUrl = typeof req.body?.upstreamUrl === "string" ? req.body.upstreamUrl.trim() : "";
+  const upstreamUrl = requestUrl || INDUSTRY_API_URL;
 
   try {
     const headers = { "Content-Type": "application/json" };
@@ -29,7 +31,7 @@ app.post("/api/industries", async (_req, res) => {
       headers.Authorization = `Bearer ${bearerToken}`;
     }
 
-    const response = await fetch(INDUSTRY_API_URL, {
+    const response = await fetch(upstreamUrl, {
       method: "POST",
       headers,
       body: JSON.stringify({}),
