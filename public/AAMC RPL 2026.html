@@ -501,6 +501,13 @@
             <p>Initialising…</p>
           </div>
           <button id="welcomeContinueBtn" disabled>Continue</button>
+          <div id="welcomeDebugSection" class="assessmentDebug" style="margin-top:16px; width:min(880px, 100%); text-align:left;">
+            <div class="assessmentDebugHeader">
+              <div class="assessmentDebugTitle">Welcome Debug</div>
+              <button id="welcomeResetBtn" class="secondary" type="button">RESET</button>
+            </div>
+            <div id="welcomeDebugLog" class="assessmentDebugLog">Waiting for welcome activity…</div>
+          </div>
         </div>
       </div>
 
@@ -681,6 +688,12 @@
       const questionsUrl =
         "https://default4f0de57b35694b51b8c8b1dadd7ba8.19.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/8feea7df352a455d9efde46977446910/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=AF-53thnNRJd9IxzY55POQzrW8owJ2SA6EhRycxtTEY";
       const PROMPTS_URL = "/prompts.json";
+      const WELCOME_WEBHOOK_URL =
+        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/9a8d98d38d584b44bb47066b652aa24d/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=Ion44zyKyWxVDVJYUfe9iJPVM-0G5ZLEZ6LRQEvrvWQ";
+      const RESUME_WEBHOOK_URL =
+        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/e227ea1f254a4fc885e0a6cbbed2a9ea/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=9wpXy_WL_FQZhqDZ18f2e6SwLneEIGN1QlGMMY7HnaI";
+      const RESET_WEBHOOK_URL =
+        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/918a6cdf1ad946c69343a1571dc227d3/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=DdLjvO3xkDt0cwCs3ApZNNSwhjQrXZ3_ebt79Oj1YdQ";
 
       const statusEl = document.getElementById("status");
       const headerTitleEl = document.getElementById("headerTitle");
@@ -711,7 +724,9 @@
       const welcomeTitleEl = document.getElementById("welcomeTitle");
       const welcomeBodyEl = document.getElementById("welcomeBody");
       const welcomeContinueBtn = document.getElementById("welcomeContinueBtn");
-      const welcomeDebugLogEl = null;
+      const welcomeDebugSectionEl = document.getElementById("welcomeDebugSection");
+      const welcomeDebugLogEl = document.getElementById("welcomeDebugLog");
+      const welcomeResetBtn = document.getElementById("welcomeResetBtn");
       const postWelcomePageEl = document.getElementById("postWelcomePage");
       const postWelcomeTitleEl = document.getElementById("postWelcomeTitle");
       const initScreenEl = document.getElementById("initScreen");
@@ -802,6 +817,7 @@
       let lastQuestionResponseText = "";
       let promptTemplates = null;
       let welcomeMode = "new";
+      let welcomeDebugInstalled = false;
       let isUiLocked = false;
       let hintOpen = false;
       let lockedButtonStates = null;
@@ -836,10 +852,116 @@
       const updateDebugVisibility = () => {
         if (debugSectionEl) debugSectionEl.classList.remove("hidden");
         if (initDebugSectionEl) initDebugSectionEl.classList.remove("hidden");
-        
+        if (welcomeDebugSectionEl) welcomeDebugSectionEl.classList.remove("hidden");
       };
 
-      const logWelcomeDebug = () => {};
+      const limitDebugText = (value, maxLength = 1600) => {
+        const text = value === undefined || value === null ? "" : String(value);
+        return text.length > maxLength ? `${text.slice(0, maxLength)}... [truncated]` : text;
+      };
+
+      const formatDebugPayload = (value) => {
+        if (value === undefined || value === null) return "";
+        if (typeof value === "string") return limitDebugText(value);
+        try {
+          return limitDebugText(JSON.stringify(value, null, 2));
+        } catch {
+          return limitDebugText(String(value));
+        }
+      };
+
+      const logWelcomeDebug = (label, detail) => {
+        if (!welcomeDebugLogEl) return;
+        const timestamp = new Date().toLocaleTimeString();
+        const message = detail === undefined || detail === null ? label : `${label}: ${detail}`;
+        if (welcomeDebugLogEl.textContent === "Waiting for welcome activity…") {
+          welcomeDebugLogEl.textContent = "";
+        }
+        welcomeDebugLogEl.textContent = `[${timestamp}] ${message}\n` + welcomeDebugLogEl.textContent;
+      };
+
+      const installWelcomeDebug = () => {
+        if (welcomeDebugInstalled) return;
+        welcomeDebugInstalled = true;
+        logWelcomeDebug("Startup", "Welcome page script initialised");
+        logWelcomeDebug("Welcome webhook URL", WELCOME_WEBHOOK_URL);
+        logWelcomeDebug("Resume webhook URL", RESUME_WEBHOOK_URL);
+        logWelcomeDebug("Reset webhook URL", RESET_WEBHOOK_URL);
+        window.addEventListener("error", (event) => {
+          const detail = event?.error?.stack || event?.message || "Unknown error";
+          logWelcomeDebug("Window error", detail);
+        });
+        window.addEventListener("unhandledrejection", (event) => {
+          const reason = event?.reason?.stack || event?.reason?.message || event?.reason || "Unknown rejection";
+          logWelcomeDebug("Unhandled rejection", formatDebugPayload(reason));
+        });
+      };
+
+      const instrumentWelcomeFetch = () => {
+        if (window.__rplWelcomeFetchInstrumented) return;
+        window.__rplWelcomeFetchInstrumented = true;
+        const nativeFetch = window.fetch.bind(window);
+        window.fetch = async (input, init) => {
+          const requestUrl = typeof input === "string" ? input : input?.url || "";
+          const method = init?.method || (typeof input === "object" && input?.method) || "GET";
+          const shouldLog =
+            requestUrl === WELCOME_WEBHOOK_URL ||
+            requestUrl === RESUME_WEBHOOK_URL ||
+            requestUrl === RESET_WEBHOOK_URL;
+
+          if (shouldLog) {
+            logWelcomeDebug("Fetch start", `${method} ${requestUrl}`);
+            if (init?.body) {
+              logWelcomeDebug("Fetch body", formatDebugPayload(init.body));
+            }
+          }
+
+          try {
+            const response = await nativeFetch(input, init);
+            if (shouldLog) {
+              logWelcomeDebug("Fetch status", `${response.status} ${response.statusText}`);
+              try {
+                const responseText = await response.clone().text();
+                logWelcomeDebug("Fetch response", formatDebugPayload(responseText || "(empty)"));
+              } catch (cloneError) {
+                logWelcomeDebug("Fetch read error", cloneError?.message || String(cloneError));
+              }
+            }
+            return response;
+          } catch (error) {
+            if (shouldLog) {
+              logWelcomeDebug("Fetch error", error?.stack || error?.message || String(error));
+            }
+            throw error;
+          }
+        };
+      };
+
+      const runWelcomeReset = async () => {
+        if (welcomeResetBtn) welcomeResetBtn.disabled = true;
+        logWelcomeDebug("RESET", "Calling reset webhook");
+        try {
+          const ctx = getStudentContext();
+          const payload = {
+            FullName: ctx.fullName,
+            ContactID: String(ctx.contactId),
+            GivenName: ctx.givenName,
+          };
+          logWelcomeDebug("RESET payload", formatDebugPayload(payload));
+          const response = await fetch(RESET_WEBHOOK_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const text = await response.text();
+          logWelcomeDebug("RESET result", `${response.status} ${response.statusText}`);
+          logWelcomeDebug("RESET response", formatDebugPayload(text || "(empty)"));
+        } catch (error) {
+          logWelcomeDebug("RESET error", error?.stack || error?.message || String(error));
+        } finally {
+          if (welcomeResetBtn) welcomeResetBtn.disabled = false;
+        }
+      };
 
       const setWelcomeResumeData = (data) => {
         if (!data || typeof data !== "object") return;
@@ -1673,11 +1795,10 @@ Job Title: ${jobTitleValue || "N/A"}
           ContactID: String(ctx.contactId),
           GivenName: ctx.givenName,
         };
-        const url =
-          "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/e227ea1f254a4fc885e0a6cbbed2a9ea/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=9wpXy_WL_FQZhqDZ18f2e6SwLneEIGN1QlGMMY7HnaI";
         logWelcomeDebug("Resume webhook", "Sending payload");
+        logWelcomeDebug("Resume payload", formatDebugPayload(payload));
         try {
-          const response = await fetch(url, {
+          const response = await fetch(RESUME_WEBHOOK_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
@@ -1731,8 +1852,6 @@ Job Title: ${jobTitleValue || "N/A"}
           welcomeContinueBtn.classList.add("hidden");
           welcomeContinueBtn.disabled = true;
         }
-        const url =
-          "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/9a8d98d38d584b44bb47066b652aa24d/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=Ion44zyKyWxVDVJYUfe9iJPVM-0G5ZLEZ6LRQEvrvWQ";
         try {
           const ctx = getStudentContext();
           const payload = {
@@ -1740,7 +1859,8 @@ Job Title: ${jobTitleValue || "N/A"}
             ContactID: String(ctx.contactId),
             GivenName: ctx.givenName,
           };
-          const response = await fetch(url, {
+          logWelcomeDebug("Welcome payload", formatDebugPayload(payload));
+          const response = await fetch(WELCOME_WEBHOOK_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
@@ -2920,10 +3040,17 @@ END_REVIEW>>>`;
       if (initScreenEl) initScreenEl.classList.add("hidden");
       if (appShellEl) appShellEl.classList.add("hidden");
 
+      installWelcomeDebug();
+      instrumentWelcomeFetch();
       applyUrlStudentContext();
+      logWelcomeDebug("Student context", formatDebugPayload(getStudentContext()));
       updateCollectGreeting();
       setCollectStepsEnabled({ industry: false, jobTitle: false, begin: false });
       loadWelcomeWebhook();
+
+      welcomeResetBtn?.addEventListener("click", async () => {
+        await runWelcomeReset();
+      });
 
       welcomeContinueBtn?.addEventListener("click", async () => {
         if (welcomeMode === "completed") return;
