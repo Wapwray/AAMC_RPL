@@ -58,6 +58,124 @@
         }
       };
 
+      const buildPatchedHtml = (sourceHtml) => {
+        let patched = sourceHtml;
+
+        patched = patched.replace(
+          '<button id="showHintBtn" class="hintBtn secondary">Show Hint</button>',
+          [
+            '<button id="showHintBtn" class="hintBtn secondary">Show Hint</button>',
+            '<div id="questionJumpControls" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">',
+            '  <select id="questionJumpSelect" style="width:auto; min-width:160px;">',
+            '    <option value="">Jump to question</option>',
+            '  </select>',
+            '  <button id="questionJumpSubmitBtn" class="secondary" type="button">Submit</button>',
+            '  <button id="questionClearBtn" class="secondary" type="button">Question Clear</button>',
+            '</div>',
+          ].join("\n")
+        );
+
+        patched = patched.replace(
+          '      const showHintBtn = document.getElementById("showHintBtn");',
+          [
+            '      const showHintBtn = document.getElementById("showHintBtn");',
+            '      const questionJumpSelectEl = document.getElementById("questionJumpSelect");',
+            '      const questionJumpSubmitBtn = document.getElementById("questionJumpSubmitBtn");',
+            '      const questionClearBtn = document.getElementById("questionClearBtn");',
+          ].join("\n")
+        );
+
+        patched = patched.replace(
+          '      const renderQuestion = () => {',
+          [
+            '      const syncQuestionJumpControl = () => {',
+            '        if (!questionJumpSelectEl) return;',
+            '        const total = Array.isArray(questions) ? questions.length : 0;',
+            '        const currentValue = String((currentIndex || 0) + 1);',
+            '        questionJumpSelectEl.innerHTML = "";',
+            '        const placeholder = document.createElement("option");',
+            '        placeholder.value = "";',
+            '        placeholder.textContent = total ? "Select question" : "No questions";',
+            '        questionJumpSelectEl.appendChild(placeholder);',
+            '        for (let i = 1; i <= total; i += 1) {',
+            '          const option = document.createElement("option");',
+            '          option.value = String(i);',
+            '          option.textContent = "Question " + i;',
+            '          questionJumpSelectEl.appendChild(option);',
+            '        }',
+            '        questionJumpSelectEl.value = currentValue;',
+            '        questionJumpSelectEl.disabled = total < 2;',
+            '        if (questionJumpSubmitBtn) questionJumpSubmitBtn.disabled = total < 2;',
+            '        if (questionClearBtn) questionClearBtn.disabled = total < 1;',
+            '      };',
+            '',
+            '      const jumpToSelectedQuestion = () => {',
+            '        if (!questionJumpSelectEl) return;',
+            '        const selected = Number.parseInt(questionJumpSelectEl.value || "", 10);',
+            '        if (!Number.isFinite(selected)) return;',
+            '        const targetIndex = selected - 1;',
+            '        if (targetIndex < 0 || targetIndex >= questions.length) return;',
+            '        currentIndex = targetIndex;',
+            '        renderQuestion();',
+            '        setStatus("Jumped to Question " + selected + ".");',
+            '      };',
+            '',
+            '      const clearCurrentQuestion = () => {',
+            '        if (!Array.isArray(questions) || !questions.length) return;',
+            '        renderQuestion();',
+            '        setStatus("Current question cleared and reset to Attempt 1.");',
+            '      };',
+            '',
+            '      const renderQuestion = () => {',
+          ].join("\n")
+        );
+
+        patched = patched.replace(
+          [
+            '        if (showHintBtn) showHintBtn.disabled = false;',
+            '        updateEvaluateButtonState();',
+            '      };',
+          ].join("\n"),
+          [
+            '        if (showHintBtn) showHintBtn.disabled = false;',
+            '        updateEvaluateButtonState();',
+            '        syncQuestionJumpControl();',
+            '      };',
+          ].join("\n")
+        );
+
+        patched = patched.replace(
+          [
+            '      hintOverlayEl?.addEventListener("click", (event) => {',
+            '        if (event.target === hintOverlayEl) {',
+            '          closeHint();',
+            '        }',
+            '      });',
+          ].join("\n"),
+          [
+            '      hintOverlayEl?.addEventListener("click", (event) => {',
+            '        if (event.target === hintOverlayEl) {',
+            '          closeHint();',
+            '        }',
+            '      });',
+            '',
+            '      questionJumpSubmitBtn?.addEventListener("click", () => {',
+            '        jumpToSelectedQuestion();',
+            '      });',
+            '      questionJumpSelectEl?.addEventListener("change", () => {',
+            '        if (questionJumpSelectEl?.value) {',
+            '          jumpToSelectedQuestion();',
+            '        }',
+            '      });',
+            '      questionClearBtn?.addEventListener("click", () => {',
+            '        clearCurrentQuestion();',
+            '      });',
+          ].join("\n")
+        );
+
+        return patched;
+      };
+
       const bootstrap = async () => {
         setLoadingMessage("Loading assessment page.");
         const response = await fetch(SOURCE_HTML_URL, { cache: "no-store" });
@@ -66,9 +184,10 @@
         }
 
         const sourceHtml = await response.text();
+        const patchedHtml = buildPatchedHtml(sourceHtml);
         setLoadingMessage("Starting assessment.");
         document.open();
-        document.write(sourceHtml);
+        document.write(patchedHtml);
         document.close();
       };
 
