@@ -148,7 +148,7 @@
         <button id="btnReset" class="secondary">Call Reset</button>
         <button id="btnIndustries" class="secondary">Load Industries</button>
         <button id="btnQuestions" class="secondary">Load Questions</button>
-        <button id="btnStartAssessment">Open Assessment (V1)</button>
+        <button id="btnStartAssessment">Open Assessment</button>
       </div>
 
       <div id="webhookOutput" class="assessmentDebugLog">No webhook calls yet.</div>
@@ -199,6 +199,7 @@
       const INDUSTRY_API_URL =
         "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/cdaf89af8b5349478d4801c5d3bc1587/triggers/manual/paths/invoke?api-version=1";
       const INDUSTRY_PROXY_URL = "/api/industries";
+      const SOURCE_ASSESSMENT_URL = "./AAMC%20RPL%202026.html";
 
       const fullNameEl = document.getElementById("fullName");
       const givenNameEl = document.getElementById("givenName");
@@ -306,6 +307,35 @@
         return safeJsonParse(text);
       };
 
+      const extractResumeQuestionNumber = (responseValue) => {
+        const normalize = (value) => (value === undefined || value === null ? "" : String(value).trim());
+        const parseNumber = (value) => {
+          const text = normalize(value);
+          if (!text) return null;
+          if (text.toLowerCase() === "xxx") return null;
+          const direct = Number.parseInt(text, 10);
+          if (Number.isFinite(direct) && direct > 0) return direct;
+          const match = text.match(/\b(\d{1,3})\b/);
+          if (!match) return null;
+          const fallback = Number.parseInt(match[1], 10);
+          return Number.isFinite(fallback) && fallback > 0 ? fallback : null;
+        };
+
+        const payload = typeof responseValue === "string" ? safeJsonParse(responseValue) : responseValue;
+        if (!payload || typeof payload !== "object") return null;
+
+        const current = parseNumber(payload["Current Question"] ?? payload.currentQuestion ?? payload.CurrentQuestion);
+        if (current) return current;
+
+        const body = safeJsonParse(payload.body);
+        if (body && typeof body === "object") {
+          const nested = parseNumber(body["Current Question"] ?? body.currentQuestion ?? body.CurrentQuestion);
+          if (nested) return nested;
+        }
+
+        return null;
+      };
+
       const renderIndustries = (items) => {
         industriesBodyEl.innerHTML = "";
         const labels = Array.from(new Set(items.map(getIndustryDisplayValue).filter(Boolean)));
@@ -368,6 +398,176 @@
         });
       };
 
+      const buildAssessmentWithNavigation = (sourceHtml) => {
+        let patched = sourceHtml;
+
+        patched = patched.replace(
+          '<button id="showHintBtn" class="hintBtn secondary">Show Hint</button>',
+          [
+            '<button id="showHintBtn" class="hintBtn secondary">Show Hint</button>',
+            '<div id="questionJumpControls" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">',
+            '  <select id="questionJumpSelect" style="width:auto; min-width:140px;">',
+            '    <option value="">Jump to question</option>',
+            '  </select>',
+            '  <button id="questionJumpSubmitBtn" class="secondary" type="button">Submit</button>',
+            '  <button id="questionClearBtn" class="secondary" type="button">Question Clear</button>',
+            '</div>',
+          ].join("\n")
+        );
+
+        patched = patched.replace(
+          '      const showHintBtn = document.getElementById("showHintBtn");',
+          [
+            '      const showHintBtn = document.getElementById("showHintBtn");',
+            '      const questionJumpSelectEl = document.getElementById("questionJumpSelect");',
+            '      const questionJumpSubmitBtn = document.getElementById("questionJumpSubmitBtn");',
+            '      const questionClearBtn = document.getElementById("questionClearBtn");',
+          ].join("\n")
+        );
+
+        patched = patched.replace(
+          '      const renderQuestion = () => {',
+          [
+            '      const syncQuestionJumpControl = () => {',
+            '        if (!questionJumpSelectEl) return;',
+            '        const total = Array.isArray(questions) ? questions.length : 0;',
+            '        const currentValue = String((currentIndex || 0) + 1);',
+            '        questionJumpSelectEl.innerHTML = "";',
+            '        const placeholder = document.createElement("option");',
+            '        placeholder.value = "";',
+            '        placeholder.textContent = total ? "Select question" : "No questions";',
+            '        questionJumpSelectEl.appendChild(placeholder);',
+            '        for (let i = 1; i <= total; i += 1) {',
+            '          const option = document.createElement("option");',
+            '          option.value = String(i);',
+            '          option.textContent = "Question " + i;',
+            '          questionJumpSelectEl.appendChild(option);',
+            '        }',
+            '        questionJumpSelectEl.value = currentValue;',
+            '        questionJumpSelectEl.disabled = total < 2;',
+            '        if (questionJumpSubmitBtn) questionJumpSubmitBtn.disabled = total < 2;',
+            '        if (questionClearBtn) questionClearBtn.disabled = total < 1;',
+            '      };',
+            '',
+            '      const jumpToSelectedQuestion = () => {',
+            '        if (!questionJumpSelectEl) return;',
+            '        const selected = Number.parseInt(questionJumpSelectEl.value || "", 10);',
+            '        if (!Number.isFinite(selected)) return;',
+            '        const targetIndex = selected - 1;',
+            '        if (targetIndex < 0 || targetIndex >= questions.length) return;',
+            '        currentIndex = targetIndex;',
+            '        renderQuestion();',
+            '        setStatus("Jumped to Question " + selected + ".");',
+            '      };',
+            '',
+            '      const clearCurrentQuestion = () => {',
+            '        if (!Array.isArray(questions) || !questions.length) return;',
+            '        renderQuestion();',
+            '        setStatus("Current question cleared and reset to Attempt 1.");',
+            '      };',
+            '',
+            '      const renderQuestion = () => {',
+          ].join("\n")
+        );
+
+        patched = patched.replace(
+          [
+            '        if (showHintBtn) showHintBtn.disabled = false;',
+            '        updateEvaluateButtonState();',
+            '      };',
+          ].join("\n"),
+          [
+            '        if (showHintBtn) showHintBtn.disabled = false;',
+            '        updateEvaluateButtonState();',
+            '        syncQuestionJumpControl();',
+            '      };',
+          ].join("\n")
+        );
+
+        patched = patched.replace(
+          [
+            '      hintOverlayEl?.addEventListener("click", (event) => {',
+            '        if (event.target === hintOverlayEl) {',
+            '          closeHint();',
+            '        }',
+            '      });',
+          ].join("\n"),
+          [
+            '      hintOverlayEl?.addEventListener("click", (event) => {',
+            '        if (event.target === hintOverlayEl) {',
+            '          closeHint();',
+            '        }',
+            '      });',
+            '',
+            '      questionJumpSubmitBtn?.addEventListener("click", () => {',
+            '        jumpToSelectedQuestion();',
+            '      });',
+            '      questionJumpSelectEl?.addEventListener("change", () => {',
+            '        if (questionJumpSelectEl?.value) {',
+            '          jumpToSelectedQuestion();',
+            '        }',
+            '      });',
+            '      questionClearBtn?.addEventListener("click", () => {',
+            '        clearCurrentQuestion();',
+            '      });',
+            '',
+            '      const autoResumeEnabled = Boolean(window.__V2AutoResumeEnabled);',
+            '      const autoResumeQuestion = Number.parseInt(String(window.__V2AutoResumeQuestion || ""), 10);',
+            '      if (autoResumeEnabled) {',
+            '        let continueClicked = false;',
+            '        let resumeApplied = false;',
+            '        const resumeTimer = setInterval(() => {',
+            '          if (!continueClicked && welcomeContinueBtn && !welcomeContinueBtn.disabled) {',
+            '            continueClicked = true;',
+            '            welcomeContinueBtn.click();',
+            '          }',
+            '          if (!resumeApplied && Number.isFinite(autoResumeQuestion) && Array.isArray(questions) && questions.length) {',
+            '            const targetIndex = Math.max(0, Math.min(questions.length - 1, autoResumeQuestion - 1));',
+            '            currentIndex = targetIndex;',
+            '            renderQuestion();',
+            '            setStatus("Resumed at Question " + autoResumeQuestion + ".");',
+            '            resumeApplied = true;',
+            '            clearInterval(resumeTimer);',
+            '          }',
+            '        }, 200);',
+            '      }',
+          ].join("\n")
+        );
+
+        return patched;
+      };
+
+      const openAssessmentPageWithNavigation = async (options = {}) => {
+        setBusy(true);
+        try {
+          const autoResumeQuestion = Number.isFinite(options.autoResumeQuestion)
+            ? Number(options.autoResumeQuestion)
+            : null;
+          window.__V2AutoResumeEnabled = Boolean(options.autoResume);
+          window.__V2AutoResumeQuestion = autoResumeQuestion;
+
+          const params = new URLSearchParams(window.location.search || "");
+          params.set("fullName", fullNameEl.value || "");
+          params.set("givenName", givenNameEl.value || "");
+          params.set("contactId", contactIdEl.value || "");
+          const nextUrl = `${window.location.pathname}?${params.toString()}`;
+          window.history.replaceState({}, "", nextUrl);
+
+          const response = await fetch(SOURCE_ASSESSMENT_URL, { cache: "no-store" });
+          if (!response.ok) {
+            throw new Error(`Unable to load assessment source: ${response.status} ${response.statusText}`);
+          }
+          const sourceHtml = await response.text();
+          const patchedHtml = buildAssessmentWithNavigation(sourceHtml);
+          document.open();
+          document.write(patchedHtml);
+          document.close();
+        } catch (error) {
+          appendOutput("ASSESSMENT error", error?.message || String(error));
+          setBusy(false);
+        }
+      };
+
       btnWelcome.addEventListener("click", async () => {
         setBusy(true);
         try {
@@ -382,7 +582,12 @@
       btnResume.addEventListener("click", async () => {
         setBusy(true);
         try {
-          await callWebhook(RESUME_WEBHOOK_URL, commonPayload(), "RESUME");
+          const resumeResponse = await callWebhook(RESUME_WEBHOOK_URL, commonPayload(), "RESUME");
+          const resumeQuestion = extractResumeQuestionNumber(resumeResponse);
+          await openAssessmentPageWithNavigation({
+            autoResume: true,
+            autoResumeQuestion: resumeQuestion,
+          });
         } catch (error) {
           appendOutput("RESUME error", error?.message || String(error));
         } finally {
@@ -441,13 +646,8 @@
         }
       });
 
-      btnStartAssessment.addEventListener("click", () => {
-        const params = new URLSearchParams({
-          fullName: fullNameEl.value || "",
-          givenName: givenNameEl.value || "",
-          contactId: contactIdEl.value || "",
-        });
-        window.location.href = "./AAMC%20RPL%202026.html?" + params.toString();
+      btnStartAssessment.addEventListener("click", async () => {
+        await openAssessmentPageWithNavigation({ autoResume: false });
       });
 
       fromQuery();
