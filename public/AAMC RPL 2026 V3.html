@@ -357,9 +357,9 @@
         const sourceHtml = await response.text();
         setLoadingMessage("Applying V3 question-matrix and industry webhook configuration.");
         const patchedHtml = buildPatchedHtml(sourceHtml);
-        const blob = new Blob([patchedHtml], { type: "text/html" });
-        const blobUrl = URL.createObjectURL(blob);
-        window.location.replace(blobUrl + window.location.search + window.location.hash);
+        document.open();
+        document.write(patchedHtml);
+        document.close();
       };
 
       bootstrap().catch((error) => {
