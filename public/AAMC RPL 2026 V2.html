@@ -3,655 +3,79 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>AAMC RPL Quiz - V2.2</title>
+    <title>AAMC RPL Quiz - V2</title>
     <style>
-      :root {
-        --bg: #f4f6f9;
-        --card: #ffffff;
-        --text: #0f172a;
-        --muted: #64748b;
-        --border: #e2e8f0;
-        --primary: #0b6ea9;
-        --primary-dark: #095c8b;
-      }
-      * { box-sizing: border-box; }
-      body {
+      html, body {
         margin: 0;
-        background: var(--bg);
-        color: var(--text);
+        min-height: 100%;
         font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-        padding: 20px;
+        background: #f3f7fb;
+        color: #0f172a;
       }
-      .card {
-        background: var(--card);
-        border: 1px solid var(--border);
-        border-radius: 14px;
-        padding: 16px;
-        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
-      }
-      h1 { margin: 0 0 12px; font-size: 22px; }
-      .grid {
+
+      body {
         display: grid;
-        gap: 12px;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        place-items: center;
+        padding: 24px;
       }
-      label { font-size: 13px; color: var(--muted); }
-      input, select {
-        width: 100%;
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        padding: 10px 12px;
-        font: inherit;
+
+      .loadingCard {
+        width: min(520px, 100%);
         background: #ffffff;
+        border: 1px solid #d8e3ee;
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
       }
-      .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
-      button {
-        appearance: none;
-        border: none;
-        border-radius: 999px;
-        padding: 10px 14px;
+
+      .loadingTitle {
+        margin: 0 0 10px;
+        font-size: 20px;
+        font-weight: 700;
+      }
+
+      .loadingBody {
+        margin: 0;
         font-size: 14px;
-        font-weight: 600;
-        background: var(--primary);
-        color: #ffffff;
-        cursor: pointer;
+        line-height: 1.5;
+        color: #475569;
       }
-      button.secondary {
-        background: #ffffff;
-        color: var(--primary);
-        border: 1px solid #c7d9e8;
-      }
-      button:hover:not(:disabled) { background: var(--primary-dark); }
-      button.secondary:hover:not(:disabled) { background: #eef6ff; }
-      button:disabled { opacity: 0.6; cursor: not-allowed; }
-      .muted { color: var(--muted); font-size: 13px; }
-      .assessmentDebugLog {
-        margin-top: 10px;
-        font-family: Consolas, "Liberation Mono", Menlo, monospace;
-        font-size: 12px;
-        line-height: 1.4;
-        white-space: pre-wrap;
-        max-height: 230px;
-        overflow: auto;
-        background: #f8fafc;
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        padding: 10px;
-      }
-      .questionsPreviewWrap {
-        margin-top: 12px;
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        background: #ffffff;
-        overflow: auto;
-        max-height: 280px;
-      }
-      .questionsPreviewTable {
-        border-collapse: collapse;
-        width: 100%;
-        min-width: 900px;
-      }
-      .questionsPreviewTable th,
-      .questionsPreviewTable td {
-        border: 1px solid #cbd5e1;
-        padding: 7px 9px;
-        font-size: 12px;
-        text-align: left;
-        vertical-align: top;
-      }
-      .questionsPreviewTable th {
-        background: #f8fafc;
-        position: sticky;
-        top: 0;
-        z-index: 1;
-      }
-      .questionsPreviewEmpty {
-        padding: 12px;
-        font-size: 13px;
-        color: var(--muted);
-      }
-      .hidden { display: none !important; }
-      .spacer { margin-top: 12px; }
     </style>
   </head>
   <body>
-    <div class="card">
-      <h1>AAMC RPL 2026 V2.2 - Manual Webhook Controls</h1>
-      <div class="muted">V2 now runs webhooks only when you press the buttons below.</div>
-
-      <div class="grid spacer">
-        <div>
-          <label for="fullName">Full Name</label>
-          <input id="fullName" type="text" />
-        </div>
-        <div>
-          <label for="givenName">Given Name</label>
-          <input id="givenName" type="text" />
-        </div>
-        <div>
-          <label for="contactId">Contact ID</label>
-          <input id="contactId" type="text" />
-        </div>
-        <div>
-          <label for="industry">Industry</label>
-          <input id="industry" type="text" placeholder="Populate with Load Industries or enter manually" />
-        </div>
-        <div>
-          <label for="jobTitle">Job Title</label>
-          <input id="jobTitle" type="text" />
-        </div>
-      </div>
-
-      <div class="row">
-        <button id="btnWelcome">Call Welcome</button>
-        <button id="btnResume">Call Resume</button>
-        <button id="btnReset" class="secondary">Call Reset</button>
-        <button id="btnIndustries" class="secondary">Load Industries</button>
-        <button id="btnQuestions" class="secondary">Load Questions</button>
-        <button id="btnStartAssessment">Open Assessment</button>
-      </div>
-
-      <div id="webhookOutput" class="assessmentDebugLog">No webhook calls yet.</div>
-
-      <div class="spacer" style="font-size:15px; font-weight:700;">Industries</div>
-      <div class="questionsPreviewWrap">
-        <div id="industriesEmpty" class="questionsPreviewEmpty">Industries will appear here after loading.</div>
-        <table id="industriesTable" class="questionsPreviewTable hidden">
-          <thead>
-            <tr>
-              <th>Industry</th>
-            </tr>
-          </thead>
-          <tbody id="industriesBody"></tbody>
-        </table>
-      </div>
-
-      <div class="spacer" style="font-size:15px; font-weight:700;">Questions</div>
-      <div class="questionsPreviewWrap">
-        <div id="questionsEmpty" class="questionsPreviewEmpty">Questions will appear here after loading.</div>
-        <table id="questionsTable" class="questionsPreviewTable hidden">
-          <thead>
-            <tr>
-              <th>Question Number</th>
-              <th>Section</th>
-              <th>Question Details</th>
-              <th>Hints</th>
-              <th>Objective</th>
-              <th>CT</th>
-              <th>CT Do Not Ask 1</th>
-              <th>CT Override Question</th>
-            </tr>
-          </thead>
-          <tbody id="questionsBody"></tbody>
-        </table>
-      </div>
+    <div class="loadingCard">
+      <h1 class="loadingTitle">Loading AAMC RPL 2026 V2</h1>
+      <p class="loadingBody" id="loadingMessage">Opening assessment...</p>
     </div>
 
     <script>
-      const WELCOME_WEBHOOK_URL =
-        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/9a8d98d38d584b44bb47066b652aa24d/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=Ion44zyKyWxVDVJYUfe9iJPVM-0G5ZLEZ6LRQEvrvWQ";
-      const RESUME_WEBHOOK_URL =
-        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/e227ea1f254a4fc885e0a6cbbed2a9ea/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=9wpXy_WL_FQZhqDZ18f2e6SwLneEIGN1QlGMMY7HnaI";
-      const RESET_WEBHOOK_URL =
-        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/918a6cdf1ad946c69343a1571dc227d3/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=DdLjvO3xkDt0cwCs3ApZNNSwhjQrXZ3_ebt79Oj1YdQ";
-      const QUESTIONS_API_URL =
-        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/4e73e4946e2f4d68a1c327ffd94ab86e/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=PL4kQafihKKASyjQ6277VCbFKpq76tRgecIcNrKuBps";
-      const INDUSTRY_API_URL =
-        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/cdaf89af8b5349478d4801c5d3bc1587/triggers/manual/paths/invoke?api-version=1";
-      const INDUSTRY_PROXY_URL = "/api/industries";
-      const SOURCE_ASSESSMENT_URL = "./AAMC%20RPL%202026.html";
+      const SOURCE_HTML_URL = "./AAMC%20RPL%202026.html";
+      const loadingMessageEl = document.getElementById("loadingMessage");
 
-      const fullNameEl = document.getElementById("fullName");
-      const givenNameEl = document.getElementById("givenName");
-      const contactIdEl = document.getElementById("contactId");
-      const industryEl = document.getElementById("industry");
-      const jobTitleEl = document.getElementById("jobTitle");
-
-      const outputEl = document.getElementById("webhookOutput");
-      const btnWelcome = document.getElementById("btnWelcome");
-      const btnResume = document.getElementById("btnResume");
-      const btnReset = document.getElementById("btnReset");
-      const btnIndustries = document.getElementById("btnIndustries");
-      const btnQuestions = document.getElementById("btnQuestions");
-      const btnStartAssessment = document.getElementById("btnStartAssessment");
-
-      const industriesEmptyEl = document.getElementById("industriesEmpty");
-      const industriesTableEl = document.getElementById("industriesTable");
-      const industriesBodyEl = document.getElementById("industriesBody");
-
-      const questionsEmptyEl = document.getElementById("questionsEmpty");
-      const questionsTableEl = document.getElementById("questionsTable");
-      const questionsBodyEl = document.getElementById("questionsBody");
-
-      const fromQuery = () => {
-        const params = new URLSearchParams(window.location.search || "");
-        fullNameEl.value = params.get("fullName") || params.get("FullName") || "Billy Broker";
-        givenNameEl.value = params.get("givenName") || params.get("GivenName") || "Billy";
-        contactIdEl.value = params.get("contactId") || params.get("ContactID") || "123456";
-      };
-
-      const appendOutput = (label, value) => {
-        const stamp = new Date().toLocaleTimeString();
-        const text = typeof value === "string" ? value : JSON.stringify(value, null, 2);
-        outputEl.textContent = `[${stamp}] ${label}\n${text}\n\n` + outputEl.textContent;
-      };
-
-      const safeJsonParse = (value) => {
-        if (typeof value !== "string") return value;
-        try {
-          return JSON.parse(value);
-        } catch {
-          return value;
+      const setLoadingMessage = (message) => {
+        if (loadingMessageEl) {
+          loadingMessageEl.textContent = message;
         }
       };
 
-      const extractItemsFromResponse = (payload) => {
-        if (Array.isArray(payload)) return payload;
-        const json = safeJsonParse(payload);
-        if (Array.isArray(json)) return json;
-
-        const listItemsSource = json?.listitems;
-        if (typeof listItemsSource === "string") {
-          const parsedListItems = safeJsonParse(listItemsSource);
-          if (Array.isArray(parsedListItems)) return parsedListItems;
-        } else if (Array.isArray(listItemsSource)) {
-          return listItemsSource;
-        }
-
-        const bodyListItemsSource = json?.body?.listitems;
-        if (typeof bodyListItemsSource === "string") {
-          const parsedBodyListItems = safeJsonParse(bodyListItemsSource);
-          if (Array.isArray(parsedBodyListItems)) return parsedBodyListItems;
-        } else if (Array.isArray(bodyListItemsSource)) {
-          return bodyListItemsSource;
-        }
-
-        const bodyValue = json?.body?.value;
-        if (Array.isArray(bodyValue)) return bodyValue;
-
-        const rootValue = json?.value;
-        if (Array.isArray(rootValue)) return rootValue;
-
-        return [];
-      };
-
-      const getIndustryDisplayValue = (item) => {
-        if (item === undefined || item === null) return "";
-        if (typeof item === "string") return item.trim();
-        return String(item?.Value || item?.value || item?.title || item?.Title || item?.name || item?.Name || item?.label || item?.text || "").trim();
-      };
-
-      const commonPayload = () => ({
-        FullName: String(fullNameEl.value || ""),
-        ContactID: String(contactIdEl.value || ""),
-        GivenName: String(givenNameEl.value || ""),
-      });
-
-      const resetPayload = () => ({
-        ...commonPayload(),
-        Industry: String(industryEl.value || ""),
-        jobTitle: String(jobTitleEl.value || ""),
-      });
-
-      const callWebhook = async (url, body, label) => {
-        const response = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        const text = await response.text();
-        appendOutput(`${label} -> ${response.status} ${response.statusText}`, text || "(empty)");
+      const bootstrap = async () => {
+        setLoadingMessage("Loading assessment page.");
+        const response = await fetch(SOURCE_HTML_URL, { cache: "no-store" });
         if (!response.ok) {
-          throw new Error(`${label} failed (${response.status}) ${response.statusText}`);
-        }
-        return safeJsonParse(text);
-      };
-
-      const extractResumeQuestionNumber = (responseValue) => {
-        const normalize = (value) => (value === undefined || value === null ? "" : String(value).trim());
-        const parseNumber = (value) => {
-          const text = normalize(value);
-          if (!text) return null;
-          if (text.toLowerCase() === "xxx") return null;
-          const direct = Number.parseInt(text, 10);
-          if (Number.isFinite(direct) && direct > 0) return direct;
-          const match = text.match(/\b(\d{1,3})\b/);
-          if (!match) return null;
-          const fallback = Number.parseInt(match[1], 10);
-          return Number.isFinite(fallback) && fallback > 0 ? fallback : null;
-        };
-
-        const payload = typeof responseValue === "string" ? safeJsonParse(responseValue) : responseValue;
-        if (!payload || typeof payload !== "object") return null;
-
-        const current = parseNumber(payload["Current Question"] ?? payload.currentQuestion ?? payload.CurrentQuestion);
-        if (current) return current;
-
-        const body = safeJsonParse(payload.body);
-        if (body && typeof body === "object") {
-          const nested = parseNumber(body["Current Question"] ?? body.currentQuestion ?? body.CurrentQuestion);
-          if (nested) return nested;
+          throw new Error(`Unable to load source file: ${response.status} ${response.statusText}`);
         }
 
-        return null;
+        const sourceHtml = await response.text();
+        setLoadingMessage("Starting assessment.");
+        document.open();
+        document.write(sourceHtml);
+        document.close();
       };
 
-      const renderIndustries = (items) => {
-        industriesBodyEl.innerHTML = "";
-        const labels = Array.from(new Set(items.map(getIndustryDisplayValue).filter(Boolean)));
-        if (!labels.length) {
-          industriesTableEl.classList.add("hidden");
-          industriesEmptyEl.textContent = "No industries returned.";
-          industriesEmptyEl.classList.remove("hidden");
-          return;
-        }
-        labels.forEach((label) => {
-          const tr = document.createElement("tr");
-          const td = document.createElement("td");
-          td.textContent = label;
-          tr.appendChild(td);
-          industriesBodyEl.appendChild(tr);
-        });
-        industriesEmptyEl.classList.add("hidden");
-        industriesTableEl.classList.remove("hidden");
-
-        if (!industryEl.value && labels.length) {
-          industryEl.value = labels[0];
-        }
-      };
-
-      const renderQuestions = (items) => {
-        questionsBodyEl.innerHTML = "";
-        if (!items.length) {
-          questionsTableEl.classList.add("hidden");
-          questionsEmptyEl.textContent = "No questions returned.";
-          questionsEmptyEl.classList.remove("hidden");
-          return;
-        }
-
-        items.forEach((question) => {
-          const tr = document.createElement("tr");
-          const values = [
-            question?.Title || "",
-            question?.field_1 || "",
-            question?.field_2 || question?.field_5 || question?.Title || "",
-            question?.field_3 || "",
-            question?.field_4 || "",
-            question?.field_5 || "",
-            question?.CTCriteria1 || "",
-            question?.CTOverrideQuestion || "",
-          ];
-          values.forEach((value) => {
-            const td = document.createElement("td");
-            td.textContent = value == null ? "" : String(value);
-            tr.appendChild(td);
-          });
-          questionsBodyEl.appendChild(tr);
-        });
-        questionsEmptyEl.classList.add("hidden");
-        questionsTableEl.classList.remove("hidden");
-      };
-
-      const setBusy = (state) => {
-        [btnWelcome, btnResume, btnReset, btnIndustries, btnQuestions].forEach((btn) => {
-          btn.disabled = state;
-        });
-      };
-
-      const buildAssessmentWithNavigation = (sourceHtml) => {
-        let patched = sourceHtml;
-
-        patched = patched.replace(
-          '<button id="showHintBtn" class="hintBtn secondary">Show Hint</button>',
-          [
-            '<button id="showHintBtn" class="hintBtn secondary">Show Hint</button>',
-            '<div id="questionJumpControls" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">',
-            '  <select id="questionJumpSelect" style="width:auto; min-width:140px;">',
-            '    <option value="">Jump to question</option>',
-            '  </select>',
-            '  <button id="questionJumpSubmitBtn" class="secondary" type="button">Submit</button>',
-            '  <button id="questionClearBtn" class="secondary" type="button">Question Clear</button>',
-            '</div>',
-          ].join("\n")
-        );
-
-        patched = patched.replace(
-          '      const showHintBtn = document.getElementById("showHintBtn");',
-          [
-            '      const showHintBtn = document.getElementById("showHintBtn");',
-            '      const questionJumpSelectEl = document.getElementById("questionJumpSelect");',
-            '      const questionJumpSubmitBtn = document.getElementById("questionJumpSubmitBtn");',
-            '      const questionClearBtn = document.getElementById("questionClearBtn");',
-          ].join("\n")
-        );
-
-        patched = patched.replace(
-          '      const renderQuestion = () => {',
-          [
-            '      const syncQuestionJumpControl = () => {',
-            '        if (!questionJumpSelectEl) return;',
-            '        const total = Array.isArray(questions) ? questions.length : 0;',
-            '        const currentValue = String((currentIndex || 0) + 1);',
-            '        questionJumpSelectEl.innerHTML = "";',
-            '        const placeholder = document.createElement("option");',
-            '        placeholder.value = "";',
-            '        placeholder.textContent = total ? "Select question" : "No questions";',
-            '        questionJumpSelectEl.appendChild(placeholder);',
-            '        for (let i = 1; i <= total; i += 1) {',
-            '          const option = document.createElement("option");',
-            '          option.value = String(i);',
-            '          option.textContent = "Question " + i;',
-            '          questionJumpSelectEl.appendChild(option);',
-            '        }',
-            '        questionJumpSelectEl.value = currentValue;',
-            '        questionJumpSelectEl.disabled = total < 2;',
-            '        if (questionJumpSubmitBtn) questionJumpSubmitBtn.disabled = total < 2;',
-            '        if (questionClearBtn) questionClearBtn.disabled = total < 1;',
-            '      };',
-            '',
-            '      const jumpToSelectedQuestion = () => {',
-            '        if (!questionJumpSelectEl) return;',
-            '        const selected = Number.parseInt(questionJumpSelectEl.value || "", 10);',
-            '        if (!Number.isFinite(selected)) return;',
-            '        const targetIndex = selected - 1;',
-            '        if (targetIndex < 0 || targetIndex >= questions.length) return;',
-            '        currentIndex = targetIndex;',
-            '        renderQuestion();',
-            '        setStatus("Jumped to Question " + selected + ".");',
-            '      };',
-            '',
-            '      const clearCurrentQuestion = () => {',
-            '        if (!Array.isArray(questions) || !questions.length) return;',
-            '        renderQuestion();',
-            '        setStatus("Current question cleared and reset to Attempt 1.");',
-            '      };',
-            '',
-            '      const renderQuestion = () => {',
-          ].join("\n")
-        );
-
-        patched = patched.replace(
-          [
-            '        if (showHintBtn) showHintBtn.disabled = false;',
-            '        updateEvaluateButtonState();',
-            '      };',
-          ].join("\n"),
-          [
-            '        if (showHintBtn) showHintBtn.disabled = false;',
-            '        updateEvaluateButtonState();',
-            '        syncQuestionJumpControl();',
-            '      };',
-          ].join("\n")
-        );
-
-        patched = patched.replace(
-          [
-            '      hintOverlayEl?.addEventListener("click", (event) => {',
-            '        if (event.target === hintOverlayEl) {',
-            '          closeHint();',
-            '        }',
-            '      });',
-          ].join("\n"),
-          [
-            '      hintOverlayEl?.addEventListener("click", (event) => {',
-            '        if (event.target === hintOverlayEl) {',
-            '          closeHint();',
-            '        }',
-            '      });',
-            '',
-            '      questionJumpSubmitBtn?.addEventListener("click", () => {',
-            '        jumpToSelectedQuestion();',
-            '      });',
-            '      questionJumpSelectEl?.addEventListener("change", () => {',
-            '        if (questionJumpSelectEl?.value) {',
-            '          jumpToSelectedQuestion();',
-            '        }',
-            '      });',
-            '      questionClearBtn?.addEventListener("click", () => {',
-            '        clearCurrentQuestion();',
-            '      });',
-            '',
-            '      const autoResumeEnabled = Boolean(window.__V2AutoResumeEnabled);',
-            '      const autoResumeQuestion = Number.parseInt(String(window.__V2AutoResumeQuestion || ""), 10);',
-            '      if (autoResumeEnabled) {',
-            '        let continueClicked = false;',
-            '        let resumeApplied = false;',
-            '        const resumeTimer = setInterval(() => {',
-            '          if (!continueClicked && welcomeContinueBtn && !welcomeContinueBtn.disabled) {',
-            '            continueClicked = true;',
-            '            welcomeContinueBtn.click();',
-            '          }',
-            '          if (!resumeApplied && Number.isFinite(autoResumeQuestion) && Array.isArray(questions) && questions.length) {',
-            '            const targetIndex = Math.max(0, Math.min(questions.length - 1, autoResumeQuestion - 1));',
-            '            currentIndex = targetIndex;',
-            '            renderQuestion();',
-            '            setStatus("Resumed at Question " + autoResumeQuestion + ".");',
-            '            resumeApplied = true;',
-            '            clearInterval(resumeTimer);',
-            '          }',
-            '        }, 200);',
-            '      }',
-          ].join("\n")
-        );
-
-        return patched;
-      };
-
-      const openAssessmentPageWithNavigation = async (options = {}) => {
-        setBusy(true);
-        try {
-          const autoResumeQuestion = Number.isFinite(options.autoResumeQuestion)
-            ? Number(options.autoResumeQuestion)
-            : null;
-          window.__V2AutoResumeEnabled = Boolean(options.autoResume);
-          window.__V2AutoResumeQuestion = autoResumeQuestion;
-
-          const params = new URLSearchParams(window.location.search || "");
-          params.set("fullName", fullNameEl.value || "");
-          params.set("givenName", givenNameEl.value || "");
-          params.set("contactId", contactIdEl.value || "");
-          const nextUrl = `${window.location.pathname}?${params.toString()}`;
-          window.history.replaceState({}, "", nextUrl);
-
-          const response = await fetch(SOURCE_ASSESSMENT_URL, { cache: "no-store" });
-          if (!response.ok) {
-            throw new Error(`Unable to load assessment source: ${response.status} ${response.statusText}`);
-          }
-          const sourceHtml = await response.text();
-          const patchedHtml = buildAssessmentWithNavigation(sourceHtml);
-          document.open();
-          document.write(patchedHtml);
-          document.close();
-        } catch (error) {
-          appendOutput("ASSESSMENT error", error?.message || String(error));
-          setBusy(false);
-        }
-      };
-
-      btnWelcome.addEventListener("click", async () => {
-        setBusy(true);
-        try {
-          await callWebhook(WELCOME_WEBHOOK_URL, commonPayload(), "WELCOME");
-        } catch (error) {
-          appendOutput("WELCOME error", error?.message || String(error));
-        } finally {
-          setBusy(false);
-        }
+      bootstrap().catch((error) => {
+        console.error(error);
+        setLoadingMessage(error?.message || String(error));
       });
-
-      btnResume.addEventListener("click", async () => {
-        setBusy(true);
-        try {
-          const resumeResponse = await callWebhook(RESUME_WEBHOOK_URL, commonPayload(), "RESUME");
-          const resumeQuestion = extractResumeQuestionNumber(resumeResponse);
-          await openAssessmentPageWithNavigation({
-            autoResume: true,
-            autoResumeQuestion: resumeQuestion,
-          });
-        } catch (error) {
-          appendOutput("RESUME error", error?.message || String(error));
-        } finally {
-          setBusy(false);
-        }
-      });
-
-      btnReset.addEventListener("click", async () => {
-        setBusy(true);
-        try {
-          await callWebhook(RESET_WEBHOOK_URL, resetPayload(), "RESET");
-        } catch (error) {
-          appendOutput("RESET error", error?.message || String(error));
-        } finally {
-          setBusy(false);
-        }
-      });
-
-      btnIndustries.addEventListener("click", async () => {
-        setBusy(true);
-        try {
-          const response = await fetch(INDUSTRY_PROXY_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ upstreamUrl: INDUSTRY_API_URL }),
-          });
-          const data = await response.json().catch(() => ({}));
-          const rawText = data?.rawText || "";
-          appendOutput(`INDUSTRIES -> ${response.status} ${response.statusText}`, rawText || data);
-          const parsed = safeJsonParse(rawText) || data;
-          const items = extractItemsFromResponse(parsed);
-          renderIndustries(items);
-        } catch (error) {
-          appendOutput("INDUSTRIES error", error?.message || String(error));
-        } finally {
-          setBusy(false);
-        }
-      });
-
-      btnQuestions.addEventListener("click", async () => {
-        setBusy(true);
-        try {
-          const response = await fetch(QUESTIONS_API_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-          });
-          const text = await response.text();
-          appendOutput(`QUESTIONS -> ${response.status} ${response.statusText}`, text || "(empty)");
-          const parsed = safeJsonParse(text) || {};
-          const items = extractItemsFromResponse(parsed);
-          renderQuestions(Array.isArray(items) ? items : []);
-        } catch (error) {
-          appendOutput("QUESTIONS error", error?.message || String(error));
-        } finally {
-          setBusy(false);
-        }
-      });
-
-      btnStartAssessment.addEventListener("click", async () => {
-        await openAssessmentPageWithNavigation({ autoResume: false });
-      });
-
-      fromQuery();
-      appendOutput("Startup", "V2 manual webhook mode enabled.");
     </script>
   </body>
 </html>
