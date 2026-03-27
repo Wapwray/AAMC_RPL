@@ -114,9 +114,9 @@
         const sourceHtml = await response.text();
         setLoadingMessage("Applying V2 webhook configuration.");
         const patchedHtml = buildPatchedHtml(sourceHtml);
-        document.open();
-        document.write(patchedHtml);
-        document.close();
+        const blob = new Blob([patchedHtml], { type: "text/html" });
+        const blobUrl = URL.createObjectURL(blob);
+        window.location.replace(blobUrl + window.location.search + window.location.hash);
       };
 
       bootstrap().catch((error) => {
