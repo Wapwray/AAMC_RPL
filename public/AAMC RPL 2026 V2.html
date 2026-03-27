@@ -3,126 +3,451 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>AAMC RPL Quiz - V2.1</title>
+    <title>AAMC RPL Quiz - V2.2</title>
     <style>
-      html, body {
-        margin: 0;
-        min-height: 100%;
-        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-        background: #f3f7fb;
-        color: #0f172a;
+      :root {
+        --bg: #f4f6f9;
+        --card: #ffffff;
+        --text: #0f172a;
+        --muted: #64748b;
+        --border: #e2e8f0;
+        --primary: #0b6ea9;
+        --primary-dark: #095c8b;
       }
-
+      * { box-sizing: border-box; }
       body {
-        display: grid;
-        place-items: center;
-        padding: 24px;
-      }
-
-      .loadingCard {
-        width: min(520px, 100%);
-        background: #ffffff;
-        border: 1px solid #d8e3ee;
-        border-radius: 16px;
-        padding: 24px;
-        box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
-      }
-
-      .loadingTitle {
-        margin: 0 0 10px;
-        font-size: 20px;
-        font-weight: 700;
-      }
-
-      .loadingBody {
         margin: 0;
-        font-size: 14px;
-        line-height: 1.5;
-        color: #475569;
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        padding: 20px;
       }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 16px;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+      }
+      h1 { margin: 0 0 12px; font-size: 22px; }
+      .grid {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      }
+      label { font-size: 13px; color: var(--muted); }
+      input, select {
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px 12px;
+        font: inherit;
+        background: #ffffff;
+      }
+      .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+      button {
+        appearance: none;
+        border: none;
+        border-radius: 999px;
+        padding: 10px 14px;
+        font-size: 14px;
+        font-weight: 600;
+        background: var(--primary);
+        color: #ffffff;
+        cursor: pointer;
+      }
+      button.secondary {
+        background: #ffffff;
+        color: var(--primary);
+        border: 1px solid #c7d9e8;
+      }
+      button:hover:not(:disabled) { background: var(--primary-dark); }
+      button.secondary:hover:not(:disabled) { background: #eef6ff; }
+      button:disabled { opacity: 0.6; cursor: not-allowed; }
+      .muted { color: var(--muted); font-size: 13px; }
+      .assessmentDebugLog {
+        margin-top: 10px;
+        font-family: Consolas, "Liberation Mono", Menlo, monospace;
+        font-size: 12px;
+        line-height: 1.4;
+        white-space: pre-wrap;
+        max-height: 230px;
+        overflow: auto;
+        background: #f8fafc;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px;
+      }
+      .questionsPreviewWrap {
+        margin-top: 12px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: #ffffff;
+        overflow: auto;
+        max-height: 280px;
+      }
+      .questionsPreviewTable {
+        border-collapse: collapse;
+        width: 100%;
+        min-width: 900px;
+      }
+      .questionsPreviewTable th,
+      .questionsPreviewTable td {
+        border: 1px solid #cbd5e1;
+        padding: 7px 9px;
+        font-size: 12px;
+        text-align: left;
+        vertical-align: top;
+      }
+      .questionsPreviewTable th {
+        background: #f8fafc;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+      }
+      .questionsPreviewEmpty {
+        padding: 12px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .hidden { display: none !important; }
+      .spacer { margin-top: 12px; }
     </style>
   </head>
   <body>
-    <div class="loadingCard">
-      <h1 class="loadingTitle">Loading AAMC RPL 2026 V2.1</h1>
-      <p class="loadingBody" id="loadingMessage">Preparing the assessment page and wiring updated data sources.</p>
+    <div class="card">
+      <h1>AAMC RPL 2026 V2.2 - Manual Webhook Controls</h1>
+      <div class="muted">V2 now runs webhooks only when you press the buttons below.</div>
+
+      <div class="grid spacer">
+        <div>
+          <label for="fullName">Full Name</label>
+          <input id="fullName" type="text" />
+        </div>
+        <div>
+          <label for="givenName">Given Name</label>
+          <input id="givenName" type="text" />
+        </div>
+        <div>
+          <label for="contactId">Contact ID</label>
+          <input id="contactId" type="text" />
+        </div>
+        <div>
+          <label for="industry">Industry</label>
+          <input id="industry" type="text" placeholder="Populate with Load Industries or enter manually" />
+        </div>
+        <div>
+          <label for="jobTitle">Job Title</label>
+          <input id="jobTitle" type="text" />
+        </div>
+      </div>
+
+      <div class="row">
+        <button id="btnWelcome">Call Welcome</button>
+        <button id="btnResume">Call Resume</button>
+        <button id="btnReset" class="secondary">Call Reset</button>
+        <button id="btnIndustries" class="secondary">Load Industries</button>
+        <button id="btnQuestions" class="secondary">Load Questions</button>
+        <button id="btnStartAssessment">Open Assessment (V1)</button>
+      </div>
+
+      <div id="webhookOutput" class="assessmentDebugLog">No webhook calls yet.</div>
+
+      <div class="spacer" style="font-size:15px; font-weight:700;">Industries</div>
+      <div class="questionsPreviewWrap">
+        <div id="industriesEmpty" class="questionsPreviewEmpty">Industries will appear here after loading.</div>
+        <table id="industriesTable" class="questionsPreviewTable hidden">
+          <thead>
+            <tr>
+              <th>Industry</th>
+            </tr>
+          </thead>
+          <tbody id="industriesBody"></tbody>
+        </table>
+      </div>
+
+      <div class="spacer" style="font-size:15px; font-weight:700;">Questions</div>
+      <div class="questionsPreviewWrap">
+        <div id="questionsEmpty" class="questionsPreviewEmpty">Questions will appear here after loading.</div>
+        <table id="questionsTable" class="questionsPreviewTable hidden">
+          <thead>
+            <tr>
+              <th>Question Number</th>
+              <th>Section</th>
+              <th>Question Details</th>
+              <th>Hints</th>
+              <th>Objective</th>
+              <th>CT</th>
+              <th>CT Do Not Ask 1</th>
+              <th>CT Override Question</th>
+            </tr>
+          </thead>
+          <tbody id="questionsBody"></tbody>
+        </table>
+      </div>
     </div>
 
     <script>
-      const SOURCE_HTML_URL = "./AAMC%20RPL%202026.html";
-      const QUESTIONS_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/4e73e4946e2f4d68a1c327ffd94ab86e/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=PL4kQafihKKASyjQ6277VCbFKpq76tRgecIcNrKuBps";
-      const INDUSTRY_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/4e73e4946e2f4d68a1c327ffd94ab86e/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=PL4kQafihKKASyjQ6277VCbFKpq76tRgecIcNrKuBps";
+      const WELCOME_WEBHOOK_URL =
+        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/9a8d98d38d584b44bb47066b652aa24d/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=Ion44zyKyWxVDVJYUfe9iJPVM-0G5ZLEZ6LRQEvrvWQ";
+      const RESUME_WEBHOOK_URL =
+        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/e227ea1f254a4fc885e0a6cbbed2a9ea/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=9wpXy_WL_FQZhqDZ18f2e6SwLneEIGN1QlGMMY7HnaI";
+      const RESET_WEBHOOK_URL =
+        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/918a6cdf1ad946c69343a1571dc227d3/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=DdLjvO3xkDt0cwCs3ApZNNSwhjQrXZ3_ebt79Oj1YdQ";
+      const QUESTIONS_API_URL =
+        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/4e73e4946e2f4d68a1c327ffd94ab86e/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=PL4kQafihKKASyjQ6277VCbFKpq76tRgecIcNrKuBps";
+      const INDUSTRY_API_URL =
+        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/cdaf89af8b5349478d4801c5d3bc1587/triggers/manual/paths/invoke?api-version=1";
+      const INDUSTRY_PROXY_URL = "/api/industries";
 
-      const loadingMessageEl = document.getElementById("loadingMessage");
+      const fullNameEl = document.getElementById("fullName");
+      const givenNameEl = document.getElementById("givenName");
+      const contactIdEl = document.getElementById("contactId");
+      const industryEl = document.getElementById("industry");
+      const jobTitleEl = document.getElementById("jobTitle");
 
-      const setLoadingMessage = (message) => {
-        if (loadingMessageEl) {
-          loadingMessageEl.textContent = message;
+      const outputEl = document.getElementById("webhookOutput");
+      const btnWelcome = document.getElementById("btnWelcome");
+      const btnResume = document.getElementById("btnResume");
+      const btnReset = document.getElementById("btnReset");
+      const btnIndustries = document.getElementById("btnIndustries");
+      const btnQuestions = document.getElementById("btnQuestions");
+      const btnStartAssessment = document.getElementById("btnStartAssessment");
+
+      const industriesEmptyEl = document.getElementById("industriesEmpty");
+      const industriesTableEl = document.getElementById("industriesTable");
+      const industriesBodyEl = document.getElementById("industriesBody");
+
+      const questionsEmptyEl = document.getElementById("questionsEmpty");
+      const questionsTableEl = document.getElementById("questionsTable");
+      const questionsBodyEl = document.getElementById("questionsBody");
+
+      const fromQuery = () => {
+        const params = new URLSearchParams(window.location.search || "");
+        fullNameEl.value = params.get("fullName") || params.get("FullName") || "Billy Broker";
+        givenNameEl.value = params.get("givenName") || params.get("GivenName") || "Billy";
+        contactIdEl.value = params.get("contactId") || params.get("ContactID") || "123456";
+      };
+
+      const appendOutput = (label, value) => {
+        const stamp = new Date().toLocaleTimeString();
+        const text = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+        outputEl.textContent = `[${stamp}] ${label}\n${text}\n\n` + outputEl.textContent;
+      };
+
+      const safeJsonParse = (value) => {
+        if (typeof value !== "string") return value;
+        try {
+          return JSON.parse(value);
+        } catch {
+          return value;
         }
       };
 
-      const buildPatchedHtml = (html) => {
-        const constantsReplacement = `      const questionsUrl =\n        "${QUESTIONS_URL}";\n      const industryUrl =\n        "${INDUSTRY_URL}";\n      const INDUSTRY_PROXY_URL = "/api/industries";\n      const PROMPTS_URL = "/prompts.json";`;
-        const helperReplacement = `      let industriesLoaded = false;\n\n      const safeJsonParse = (value) => {\n        if (typeof value !== "string") return value;\n        try {\n          return JSON.parse(value);\n        } catch {\n          return value;\n        }\n      };\n\n      const extractItemsFromResponse = (payload) => {\n        if (Array.isArray(payload)) return payload;\n        const json = safeJsonParse(payload);\n        if (Array.isArray(json)) return json;\n\n        const listItemsSource = json?.listitems;\n        if (typeof listItemsSource === "string") {\n          const parsedListItems = safeJsonParse(listItemsSource);\n          if (Array.isArray(parsedListItems)) return parsedListItems;\n        } else if (Array.isArray(listItemsSource)) {\n          return listItemsSource;\n        }\n\n        const bodyListItemsSource = json?.body?.listitems;\n        if (typeof bodyListItemsSource === "string") {\n          const parsedBodyListItems = safeJsonParse(bodyListItemsSource);\n          if (Array.isArray(parsedBodyListItems)) return parsedBodyListItems;\n        } else if (Array.isArray(bodyListItemsSource)) {\n          return bodyListItemsSource;\n        }\n\n        const bodyValue = json?.body?.value;\n        if (Array.isArray(bodyValue)) return bodyValue;\n\n        const rootValue = json?.value;\n        if (Array.isArray(rootValue)) return rootValue;\n\n        return [];\n      };\n\n      const getIndustryDisplayValue = (item) => {\n        if (item === undefined || item === null) return "";\n        if (typeof item === "string") return item.trim();\n        const text = pickFirstValue(\n          item.Value,\n          item.value,\n          item.title,\n          item.Title,\n          item.name,\n          item.Name,\n          item.label,\n          item.text\n        );\n        if (text) return text;\n        return String(item).trim();\n      };\n\n      const existingFetch = window.fetch.bind(window);\n\n      const normalizeQuestionsPayload = async (response) => {\n        const text = await response.text();\n        const payload = safeJsonParse(text) || {};\n        const items = extractItemsFromResponse(payload);\n        return new Response(JSON.stringify({ listitems: JSON.stringify(items) }), {\n          status: response.status,\n          statusText: response.statusText,\n          headers: { "Content-Type": "application/json" },\n        });\n      };\n\n      window.fetch = async (input, init) => {\n        const requestUrl = typeof input === "string" ? input : input?.url || "";\n        const response = await existingFetch(input, init);\n        if (requestUrl === questionsUrl) {\n          return normalizeQuestionsPayload(response);\n        }\n        return response;\n      };\n\n      const loadIndustryOptions = async () => {\n        if (!industryEl) return [];\n        if (industriesLoaded) {\n          return Array.from(industryEl.options).map((option) => option.value).filter(Boolean);\n        }\n\n        logWelcomeDebug("Industry API", "Loading industries on welcome screen");\n        const selectedValue = industryEl.value || industry || "";\n        industryEl.disabled = true;\n        industryEl.innerHTML = "<option value=\"\">Loading industries...</option>";\n\n        try {\n          const response = await existingFetch(INDUSTRY_PROXY_URL, {\n            method: "POST",\n            headers: { "Content-Type": "application/json" },\n            body: JSON.stringify({ upstreamUrl: industryUrl }),\n          });\n          const payload = await response.json().catch(() => ({}));\n          const text = payload?.rawText || "";\n          const upstreamStatus = payload?.upstreamStatus ?? response.status;\n          const source = payload?.source || "unknown";\n          logWelcomeDebug("Industry API", "HTTP " + upstreamStatus + " via " + source);\n          logWelcomeDebug("Industry payload", formatDebugPayload(payload));\n          const parsedPayload = safeJsonParse(text) || payload || {};\n          const items = extractItemsFromResponse(parsedPayload);\n          const labels = Array.from(new Set(items.map(getIndustryDisplayValue).filter(Boolean)));\n\n          industryEl.innerHTML = "<option value=\"\">Select industry</option>";\n          labels.forEach((label) => {\n            const option = document.createElement("option");\n            option.value = label;\n            option.textContent = label;\n            industryEl.appendChild(option);\n          });\n\n          if (!labels.length) {\n            industryEl.innerHTML = "<option value=\"\">No industries returned</option>";\n          } else if (selectedValue) {\n            if (!labels.includes(selectedValue)) {\n              const option = document.createElement("option");\n              option.value = selectedValue;\n              option.textContent = selectedValue;\n              industryEl.appendChild(option);\n            }\n            industryEl.value = selectedValue;\n          }\n\n          industriesLoaded = labels.length > 0;\n          logWelcomeDebug("Industry labels", formatDebugPayload(labels));\n          logWelcomeDebug("Industry API", "Loaded " + labels.length + " industries");\n          return labels;\n        } catch (error) {\n          industryEl.innerHTML = "<option value=\"\">Unable to load industries</option>";\n          logDebugDetail("Industry load error", error?.message || String(error));\n          logWelcomeDebug("Industry API error", error?.stack || error?.message || String(error));\n          return [];\n        } finally {\n          industryEl.disabled = false;\n        }\n      };\n\n      const parseListItems = (json) => {\n        const items = extractItemsFromResponse(json);\n        return { items, error: items.length ? null : "No questions returned." };\n      };`;
+      const extractItemsFromResponse = (payload) => {
+        if (Array.isArray(payload)) return payload;
+        const json = safeJsonParse(payload);
+        if (Array.isArray(json)) return json;
 
-        let patched = html.replace(
-          /      const questionsUrl =\s*[\r\n]+\s*"[^"]+";\s*[\r\n]+\s*const PROMPTS_URL = "\/prompts\.json";/,
-          constantsReplacement
-        );
-        if (patched === html) {
-          throw new Error("Unable to replace question and industry constants.");
+        const listItemsSource = json?.listitems;
+        if (typeof listItemsSource === "string") {
+          const parsedListItems = safeJsonParse(listItemsSource);
+          if (Array.isArray(parsedListItems)) return parsedListItems;
+        } else if (Array.isArray(listItemsSource)) {
+          return listItemsSource;
         }
 
-        const patchedWithHelpers = patched.replace(
-          /      const parseListItems = \(json\) => \{[\s\S]*?[\r\n]+      \};[\r\n]+[\r\n]+      const addChatEntry =/,
-          `${helperReplacement}\n\n      const addChatEntry =`
-        );
-        if (patchedWithHelpers === patched) {
-          throw new Error("Unable to replace parseListItems helper block.");
+        const bodyListItemsSource = json?.body?.listitems;
+        if (typeof bodyListItemsSource === "string") {
+          const parsedBodyListItems = safeJsonParse(bodyListItemsSource);
+          if (Array.isArray(parsedBodyListItems)) return parsedBodyListItems;
+        } else if (Array.isArray(bodyListItemsSource)) {
+          return bodyListItemsSource;
         }
-        patched = patchedWithHelpers;
 
-        const patchedWithIndustryInit = patched.replace(
-          /        await loadPromptTemplates\(\);[\r\n]+        await sendStudentContextOnLoad\(\);/,
-          `        await loadPromptTemplates();\n        await loadIndustryOptions();\n        await sendStudentContextOnLoad();`
-        );
-        if (patchedWithIndustryInit === patched) {
-          throw new Error("Unable to insert startup industry loading.");
-        }
-        patched = patchedWithIndustryInit;
+        const bodyValue = json?.body?.value;
+        if (Array.isArray(bodyValue)) return bodyValue;
 
-        const patchedWithWelcomeLoad = patched.replace(
-          /      loadWelcomeWebhook\(\);/,
-          `      loadWelcomeWebhook();\n      loadIndustryOptions();`
-        );
-        if (patchedWithWelcomeLoad === patched) {
-          throw new Error("Unable to insert welcome-screen industry loading.");
-        }
-        patched = patchedWithWelcomeLoad;
+        const rootValue = json?.value;
+        if (Array.isArray(rootValue)) return rootValue;
 
-        patched = patched.replace(/<title>AAMC RPL Quiz - V1\.0<\/title>/, `<title>AAMC RPL Quiz - V2</title>`);
-        return patched;
+        return [];
       };
 
-      const bootstrap = async () => {
-        setLoadingMessage("Loading the base assessment page.");
-        const response = await fetch(SOURCE_HTML_URL, { cache: "no-store" });
-        if (!response.ok) {
-          throw new Error(`Unable to load source file: ${response.status} ${response.statusText}`);
-        }
-
-        const sourceHtml = await response.text();
-        setLoadingMessage("Applying V2 webhook configuration.");
-        const patchedHtml = buildPatchedHtml(sourceHtml);
-        document.open();
-        document.write(patchedHtml);
-        document.close();
+      const getIndustryDisplayValue = (item) => {
+        if (item === undefined || item === null) return "";
+        if (typeof item === "string") return item.trim();
+        return String(item?.Value || item?.value || item?.title || item?.Title || item?.name || item?.Name || item?.label || item?.text || "").trim();
       };
 
-      bootstrap().catch((error) => {
-        console.error(error);
-        setLoadingMessage(error?.message || String(error));
+      const payload = () => ({
+        FullName: String(fullNameEl.value || ""),
+        ContactID: String(contactIdEl.value || ""),
+        GivenName: String(givenNameEl.value || ""),
+        Industry: String(industryEl.value || ""),
+        jobTitle: String(jobTitleEl.value || ""),
       });
+
+      const callWebhook = async (url, body, label) => {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const text = await response.text();
+        appendOutput(`${label} -> ${response.status} ${response.statusText}`, text || "(empty)");
+        if (!response.ok) {
+          throw new Error(`${label} failed (${response.status}) ${response.statusText}`);
+        }
+        return safeJsonParse(text);
+      };
+
+      const renderIndustries = (items) => {
+        industriesBodyEl.innerHTML = "";
+        const labels = Array.from(new Set(items.map(getIndustryDisplayValue).filter(Boolean)));
+        if (!labels.length) {
+          industriesTableEl.classList.add("hidden");
+          industriesEmptyEl.textContent = "No industries returned.";
+          industriesEmptyEl.classList.remove("hidden");
+          return;
+        }
+        labels.forEach((label) => {
+          const tr = document.createElement("tr");
+          const td = document.createElement("td");
+          td.textContent = label;
+          tr.appendChild(td);
+          industriesBodyEl.appendChild(tr);
+        });
+        industriesEmptyEl.classList.add("hidden");
+        industriesTableEl.classList.remove("hidden");
+
+        if (!industryEl.value && labels.length) {
+          industryEl.value = labels[0];
+        }
+      };
+
+      const renderQuestions = (items) => {
+        questionsBodyEl.innerHTML = "";
+        if (!items.length) {
+          questionsTableEl.classList.add("hidden");
+          questionsEmptyEl.textContent = "No questions returned.";
+          questionsEmptyEl.classList.remove("hidden");
+          return;
+        }
+
+        items.forEach((question) => {
+          const tr = document.createElement("tr");
+          const values = [
+            question?.Title || "",
+            question?.field_1 || "",
+            question?.field_2 || question?.field_5 || question?.Title || "",
+            question?.field_3 || "",
+            question?.field_4 || "",
+            question?.field_5 || "",
+            question?.CTCriteria1 || "",
+            question?.CTOverrideQuestion || "",
+          ];
+          values.forEach((value) => {
+            const td = document.createElement("td");
+            td.textContent = value == null ? "" : String(value);
+            tr.appendChild(td);
+          });
+          questionsBodyEl.appendChild(tr);
+        });
+        questionsEmptyEl.classList.add("hidden");
+        questionsTableEl.classList.remove("hidden");
+      };
+
+      const setBusy = (state) => {
+        [btnWelcome, btnResume, btnReset, btnIndustries, btnQuestions].forEach((btn) => {
+          btn.disabled = state;
+        });
+      };
+
+      btnWelcome.addEventListener("click", async () => {
+        setBusy(true);
+        try {
+          await callWebhook(WELCOME_WEBHOOK_URL, payload(), "WELCOME");
+        } catch (error) {
+          appendOutput("WELCOME error", error?.message || String(error));
+        } finally {
+          setBusy(false);
+        }
+      });
+
+      btnResume.addEventListener("click", async () => {
+        setBusy(true);
+        try {
+          await callWebhook(RESUME_WEBHOOK_URL, payload(), "RESUME");
+        } catch (error) {
+          appendOutput("RESUME error", error?.message || String(error));
+        } finally {
+          setBusy(false);
+        }
+      });
+
+      btnReset.addEventListener("click", async () => {
+        setBusy(true);
+        try {
+          await callWebhook(RESET_WEBHOOK_URL, payload(), "RESET");
+        } catch (error) {
+          appendOutput("RESET error", error?.message || String(error));
+        } finally {
+          setBusy(false);
+        }
+      });
+
+      btnIndustries.addEventListener("click", async () => {
+        setBusy(true);
+        try {
+          const response = await fetch(INDUSTRY_PROXY_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ upstreamUrl: INDUSTRY_API_URL }),
+          });
+          const data = await response.json().catch(() => ({}));
+          const rawText = data?.rawText || "";
+          appendOutput(`INDUSTRIES -> ${response.status} ${response.statusText}`, rawText || data);
+          const parsed = safeJsonParse(rawText) || data;
+          const items = extractItemsFromResponse(parsed);
+          renderIndustries(items);
+        } catch (error) {
+          appendOutput("INDUSTRIES error", error?.message || String(error));
+        } finally {
+          setBusy(false);
+        }
+      });
+
+      btnQuestions.addEventListener("click", async () => {
+        setBusy(true);
+        try {
+          const response = await fetch(QUESTIONS_API_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+          });
+          const text = await response.text();
+          appendOutput(`QUESTIONS -> ${response.status} ${response.statusText}`, text || "(empty)");
+          const parsed = safeJsonParse(text) || {};
+          const items = extractItemsFromResponse(parsed);
+          renderQuestions(Array.isArray(items) ? items : []);
+        } catch (error) {
+          appendOutput("QUESTIONS error", error?.message || String(error));
+        } finally {
+          setBusy(false);
+        }
+      });
+
+      btnStartAssessment.addEventListener("click", () => {
+        const params = new URLSearchParams({
+          fullName: fullNameEl.value || "",
+          givenName: givenNameEl.value || "",
+          contactId: contactIdEl.value || "",
+        });
+        window.location.href = "./AAMC%20RPL%202026.html?" + params.toString();
+      });
+
+      fromQuery();
+      appendOutput("Startup", "V2 manual webhook mode enabled.");
     </script>
   </body>
 </html>

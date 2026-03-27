@@ -946,6 +946,8 @@
             FullName: ctx.fullName,
             ContactID: String(ctx.contactId),
             GivenName: ctx.givenName,
+            Industry: String(industryEl?.value?.trim() || industry || ""),
+            jobTitle: String(jobTitleEl?.value?.trim() || jobTitle || ""),
           };
           logWelcomeDebug("RESET payload", formatDebugPayload(payload));
           const response = await fetch(RESET_WEBHOOK_URL, {
