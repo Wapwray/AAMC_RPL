@@ -280,10 +280,14 @@
         return String(item?.Value || item?.value || item?.title || item?.Title || item?.name || item?.Name || item?.label || item?.text || "").trim();
       };
 
-      const payload = () => ({
+      const commonPayload = () => ({
         FullName: String(fullNameEl.value || ""),
         ContactID: String(contactIdEl.value || ""),
         GivenName: String(givenNameEl.value || ""),
+      });
+
+      const resetPayload = () => ({
+        ...commonPayload(),
         Industry: String(industryEl.value || ""),
         jobTitle: String(jobTitleEl.value || ""),
       });
@@ -367,7 +371,7 @@
       btnWelcome.addEventListener("click", async () => {
         setBusy(true);
         try {
-          await callWebhook(WELCOME_WEBHOOK_URL, payload(), "WELCOME");
+          await callWebhook(WELCOME_WEBHOOK_URL, commonPayload(), "WELCOME");
         } catch (error) {
           appendOutput("WELCOME error", error?.message || String(error));
         } finally {
@@ -378,7 +382,7 @@
       btnResume.addEventListener("click", async () => {
         setBusy(true);
         try {
-          await callWebhook(RESUME_WEBHOOK_URL, payload(), "RESUME");
+          await callWebhook(RESUME_WEBHOOK_URL, commonPayload(), "RESUME");
         } catch (error) {
           appendOutput("RESUME error", error?.message || String(error));
         } finally {
@@ -389,7 +393,7 @@
       btnReset.addEventListener("click", async () => {
         setBusy(true);
         try {
-          await callWebhook(RESET_WEBHOOK_URL, payload(), "RESET");
+          await callWebhook(RESET_WEBHOOK_URL, resetPayload(), "RESET");
         } catch (error) {
           appendOutput("RESET error", error?.message || String(error));
         } finally {
