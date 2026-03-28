@@ -86,8 +86,8 @@
             '    <option value="11">11</option>',
             '    <option value="12">12</option>',
             '  </select>',
-            '  <button id="questionJumpSubmitBtn" class="secondary" type="button">Submit</button>',
-            '  <button id="questionClearBtn" class="secondary" type="button">Question Clear</button>',
+            '  <button id="questionJumpSubmitBtn" class="secondary" type="button" onclick="window.__rplJumpToSelectedQuestion && window.__rplJumpToSelectedQuestion()">Submit</button>',
+            '  <button id="questionClearBtn" class="secondary" type="button" onclick="window.__rplClearCurrentQuestion && window.__rplClearCurrentQuestion()">Question Clear</button>',
             '</div>',
           ].join("\n")
         );
@@ -152,8 +152,8 @@
             '        questionJumpSelectEl.disabled = total < 1;',
             '        if (questionJumpSubmitBtn) questionJumpSubmitBtn.disabled = total < 1;',
             '        if (questionClearBtn) questionClearBtn.disabled = total < 1;',
-            '        if (questionJumpSubmitBtn) questionJumpSubmitBtn.onclick = () => jumpToSelectedQuestion();',
-            '        if (questionClearBtn) questionClearBtn.onclick = () => clearCurrentQuestion();',
+            '        window.__rplJumpToSelectedQuestion = jumpToSelectedQuestion;',
+            '        window.__rplClearCurrentQuestion = clearCurrentQuestion;',
             '      };',
             '',
             '      const jumpToSelectedQuestion = () => {',
