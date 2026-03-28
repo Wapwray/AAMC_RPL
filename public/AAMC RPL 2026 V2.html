@@ -62,6 +62,11 @@
         let patched = sourceHtml;
 
         patched = patched.replace(
+          '<button id="welcomeResetBtn" class="secondary" type="button">RESET</button>',
+          ''
+        );
+
+        patched = patched.replace(
           '<button id="showHintBtn" class="hintBtn secondary">Show Hint</button>',
           [
             '<button id="showHintBtn" class="hintBtn secondary">Show Hint</button>',
@@ -88,32 +93,50 @@
         patched = patched.replace(
           '      const renderQuestion = () => {',
           [
+            '      const getHeaderQuestionMeta = () => {',
+            '        const currentFromDataset = Number.parseInt(headerTitleEl?.dataset?.questionNumber || "", 10);',
+            '        const totalFromDataset = Number.parseInt(headerTitleEl?.dataset?.questionTotal || "", 10);',
+            '        if (Number.isFinite(currentFromDataset) && currentFromDataset > 0 && Number.isFinite(totalFromDataset) && totalFromDataset > 0) {',
+            '          return { current: currentFromDataset, total: totalFromDataset };',
+            '        }',
+            '        const headerText = (headerTitleEl?.textContent || "").trim();',
+            '        const match = headerText.match(/Question\s+(\d+)\s+of\s+(\d+)/i);',
+            '        if (!match) {',
+            '          return { current: (currentIndex || 0) + 1, total: 0 };',
+            '        }',
+            '        const current = Number.parseInt(match[1], 10);',
+            '        const total = Number.parseInt(match[2], 10);',
+            '        return {',
+            '          current: Number.isFinite(current) && current > 0 ? current : (currentIndex || 0) + 1,',
+            '          total: Number.isFinite(total) && total > 0 ? total : 0,',
+            '        };',
+            '      };',
+            '',
             '      const getTotalQuestionCount = () => {',
             '        const listCount = Array.isArray(questions) ? questions.length : 0;',
             '        if (listCount > 0) return listCount;',
-            '        const headerText = (headerTitleEl?.textContent || "").trim();',
-            '        const match = headerText.match(/of\\s+(\\d+)/i);',
-            '        if (match) {',
-            '          const parsed = Number.parseInt(match[1], 10);',
-            '          if (Number.isFinite(parsed) && parsed > 0) return parsed;',
-            '        }',
+            '        const headerMeta = getHeaderQuestionMeta();',
+            '        if (headerMeta.total > 0) return headerMeta.total;',
             '        return 12;',
             '      };',
             '',
             '      const syncQuestionJumpControl = () => {',
             '        if (!questionJumpSelectEl) return;',
+            '        const headerMeta = getHeaderQuestionMeta();',
             '        const total = getTotalQuestionCount();',
-            '        const currentValue = String((currentIndex || 0) + 1);',
-            '        questionJumpSelectEl.innerHTML = "";',
-            '        const placeholder = document.createElement("option");',
-            '        placeholder.value = "";',
-            '        placeholder.textContent = "Select question";',
-            '        questionJumpSelectEl.appendChild(placeholder);',
-            '        for (let i = 1; i <= total; i += 1) {',
-            '          const option = document.createElement("option");',
-            '          option.value = String(i);',
-            '          option.textContent = "Question " + i;',
-            '          questionJumpSelectEl.appendChild(option);',
+            '        const currentValue = String(headerMeta.current > 0 ? headerMeta.current : (currentIndex || 0) + 1);',
+            '        if (questionJumpSelectEl.options.length !== total + 1) {',
+            '          questionJumpSelectEl.innerHTML = "";',
+            '          const placeholder = document.createElement("option");',
+            '          placeholder.value = "";',
+            '          placeholder.textContent = "Jump to question";',
+            '          questionJumpSelectEl.appendChild(placeholder);',
+            '          for (let i = 1; i <= total; i += 1) {',
+            '            const option = document.createElement("option");',
+            '            option.value = String(i);',
+            '            option.textContent = String(i);',
+            '            questionJumpSelectEl.appendChild(option);',
+            '          }',
             '        }',
             '        questionJumpSelectEl.value = currentValue;',
             '        questionJumpSelectEl.disabled = total < 1;',
@@ -139,11 +162,28 @@
             '',
             '      const clearCurrentQuestion = () => {',
             '        if (!Array.isArray(questions) || !questions.length) return;',
+            '        if (typeof stopDictation === "function" && isDictating) {',
+            '          stopDictation();',
+            '        }',
+            '        if (Array.isArray(transcriptQuestions) && currentIndex >= 0) {',
+            '          delete transcriptQuestions[currentIndex];',
+            '        }',
             '        renderQuestion();',
             '        setStatus("Current question cleared and reset to Attempt 1.");',
             '      };',
             '',
             '      const renderQuestion = () => {',
+          ].join("\n")
+        );
+
+        patched = patched.replace(
+          '        headerTitleEl.textContent = `Compliance - Question ${number} of ${total} - Attempt 1`;',
+          [
+            '        headerTitleEl.textContent = `Compliance - Question ${number} of ${total} - Attempt 1`;',
+            '        if (headerTitleEl) {',
+            '          headerTitleEl.dataset.questionNumber = String(number);',
+            '          headerTitleEl.dataset.questionTotal = String(total);',
+            '        }',
           ].join("\n")
         );
 
@@ -157,6 +197,9 @@
             '        if (showHintBtn) showHintBtn.disabled = false;',
             '        updateEvaluateButtonState();',
             '        syncQuestionJumpControl();',
+            '        if (typeof requestAnimationFrame === "function") {',
+            '          requestAnimationFrame(() => syncQuestionJumpControl());',
+            '        }',
             '      };',
           ].join("\n")
         );
