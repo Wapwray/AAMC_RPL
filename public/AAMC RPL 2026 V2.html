@@ -152,6 +152,8 @@
             '        questionJumpSelectEl.disabled = total < 1;',
             '        if (questionJumpSubmitBtn) questionJumpSubmitBtn.disabled = total < 1;',
             '        if (questionClearBtn) questionClearBtn.disabled = total < 1;',
+            '        if (questionJumpSubmitBtn) questionJumpSubmitBtn.onclick = () => jumpToSelectedQuestion();',
+            '        if (questionClearBtn) questionClearBtn.onclick = () => clearCurrentQuestion();',
             '      };',
             '',
             '      const jumpToSelectedQuestion = () => {',
