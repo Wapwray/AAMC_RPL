@@ -647,6 +647,7 @@
               <div class="assessmentControls">
                 <button id="dictateBtn" class="secondary">Start Transcription</button>
                 <button id="playbackBtn" class="secondary" disabled>Playback</button>
+                <button id="questionRefreshBtn" class="secondary" type="button">Question Refresh</button>
                 <div class="audioMeter inactive" id="dictationMeter" title="Mic level">
                   <div class="audioMeterFill" id="dictationMeterFill"></div>
                 </div>
@@ -758,6 +759,7 @@
       const responseBtn = document.getElementById("responseBtn");
       const questionBtn = document.getElementById("questionBtn");
       const tableBtn = document.getElementById("tableBtn");
+      const questionRefreshBtn = document.getElementById("questionRefreshBtn");
       const showHintBtn = document.getElementById("showHintBtn");
       const hintOverlayEl = document.getElementById("hintOverlay");
       const hintCloseBtn = document.getElementById("hintCloseBtn");
@@ -818,6 +820,7 @@
       let promptTemplates = null;
       let welcomeMode = "new";
       let welcomeDebugInstalled = false;
+      let questionsRefreshInFlight = false;
       let isUiLocked = false;
       let hintOpen = false;
       let lockedButtonStates = null;
@@ -1398,7 +1401,7 @@
         if (!normalized) return null;
         const regex = new RegExp(`\\b${normalized}\\b`, "i");
         const candidates = questions.map((question) =>
-          (question?.Title || question?.field_5 || "").toString()
+          (question?.Title || question?.field_2 || question?.field_5 || "").toString()
         );
         const index = candidates.findIndex((candidate) => regex.test(candidate));
         return index >= 0 ? index : null;
@@ -1948,11 +1951,21 @@ Job Title: ${jobTitleValue || "N/A"}
         return (
           question.Hints ||
           question.hint ||
-          question.field_6 ||
+          question.field_3 ||
           question.field_4 ||
           question.field_7 ||
           ""
         );
+      };
+
+      const getQuestionText = (question) => {
+        if (!question || typeof question !== "object") return "";
+        return question["Question Details"] || question.field_2 || question.field_5 || question.Title || "";
+      };
+
+      const getQuestionObjective = (question) => {
+        if (!question || typeof question !== "object") return "";
+        return question.Objective || question.field_4 || question.field_3 || "";
       };
 
       const updateEvaluateButtonState = () => {
@@ -2637,6 +2650,55 @@ Job Title: ${jobTitleValue || "N/A"}
         }
       };
 
+      const fetchQuestionsFromWebhook = async () => {
+        const response = await fetch(questionsUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        });
+        const json = await response.json();
+        const { items, error } = parseListItems(json);
+        if (error || !items.length) {
+          throw new Error(error || "No questions returned.");
+        }
+        return items;
+      };
+
+      const refreshQuestionsFromWebhook = async () => {
+        if (questionsRefreshInFlight) return;
+        questionsRefreshInFlight = true;
+        const previousDisabled = questionRefreshBtn?.disabled ?? false;
+        if (questionRefreshBtn) {
+          questionRefreshBtn.disabled = true;
+          questionRefreshBtn.textContent = "Refreshing...";
+        }
+        setStatus("Refreshing questions...");
+
+        try {
+          const targetQuestionNumber = Math.max(1, currentIndex + 1);
+          const items = await fetchQuestionsFromWebhook();
+          questions = items;
+          if (tableBtn) tableBtn.disabled = false;
+
+          if (questions.length) {
+            currentIndex = Math.min(Math.max(0, targetQuestionNumber - 1), questions.length - 1);
+            renderQuestion();
+          } else {
+            currentIndex = 0;
+            setCompletedState();
+          }
+
+          setStatus(`Questions refreshed (${questions.length} loaded).`);
+        } catch (error) {
+          setStatus(error?.message || String(error));
+        } finally {
+          questionsRefreshInFlight = false;
+          if (questionRefreshBtn) {
+            questionRefreshBtn.textContent = "Question Refresh";
+            questionRefreshBtn.disabled = isUiLocked ? true : previousDisabled;
+          }
+        }
+      };
+
       const addChatEntry = (text, role) => {
         const entry = document.createElement("div");
         entry.className = `chatEntry ${role}`;
@@ -2718,7 +2780,7 @@ Job Title: ${jobTitleValue || "N/A"}
         const total = questions.length;
         const number = currentIndex + 1;
         headerTitleEl.textContent = `Compliance - Question ${number} of ${total} - Attempt 1`;
-        questionTextEl.textContent = question.field_5 || question.Title || "";
+        questionTextEl.textContent = getQuestionText(question);
         answerInputEl.value = "";
         lastResponseRecording = null;
         lastPlaybackRecording = null;
@@ -2742,8 +2804,8 @@ Job Title: ${jobTitleValue || "N/A"}
       };
 
       const buildPrompt = (question, answers) => {
-        const questionText = question.field_5 || question.Title || "";
-        const objective = question.field_3 || "";
+        const questionText = getQuestionText(question);
+        const objective = getQuestionObjective(question);
         const hintText = getQuestionHint(question);
         const answerBlock = answers
           .map((response, index) => `Attempt ${index + 1}: ${response}`)
@@ -2975,15 +3037,7 @@ END_REVIEW>>>`;
         }
 
         try {
-          const response = await fetch(questionsUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-          });
-          const json = await response.json();
-          const { items, error } = parseListItems(json);
-          if (error || !items.length) {
-            throw new Error(error || "No questions returned.");
-          }
+          const items = await fetchQuestionsFromWebhook();
           questions = items;
           if (tableBtn) tableBtn.disabled = false;
           setupCard.classList.add("hidden");
@@ -3014,6 +3068,10 @@ END_REVIEW>>>`;
 
       beginBtn.addEventListener("click", async () => {
         await beginAssessmentFlow({ skipValidation: false });
+      });
+
+      questionRefreshBtn?.addEventListener("click", async () => {
+        await refreshQuestionsFromWebhook();
       });
 
       const startInitialisation = async ({ resume = false } = {}) => {
@@ -3156,7 +3214,7 @@ END_REVIEW>>>`;
 
         currentAttempts += 1;
         currentResponses.push(answer);
-        const questionText = questions[currentIndex]?.field_5 || questions[currentIndex]?.Title || "";
+        const questionText = getQuestionText(questions[currentIndex]);
         const attemptNumber = currentAttempts;
         const questionNumber = currentIndex + 1;
         const attemptRecord = {
