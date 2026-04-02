@@ -3061,27 +3061,27 @@ Job Title: ${jobTitleValue || "N/A"}
       };
 
       const getQuestionTitle = (question) =>
-        getQuestionFieldSource(question, ["Title", "field_1"]);
+        getQuestionFieldSource(question, ["Title"]);
 
       const getQuestionSection = (question) =>
-        getQuestionFieldSource(question, ["Section", "field_2"]);
+        getQuestionFieldSource(question, ["Section", "field_1"]);
 
       const getQuestionTextSource = (question) =>
-        getQuestionFieldSource(question, ["Question Details", "field_3", "field_2", "field_5", "Title", "field_1"]);
+        getQuestionFieldSource(question, ["Question Details", "field_2"]);
 
       const getQuestionText = (question) => richTextToPlainText(getQuestionTextSource(question));
       const getQuestionTextHtml = (question) => normalizeRichTextHtml(getQuestionTextSource(question));
       const getQuestionHintSource = (question) =>
-        getQuestionFieldSource(question, ["Hints", "Hint", "hint", "field_4"]);
+        getQuestionFieldSource(question, ["Hints", "Hint", "hint", "field_3"]);
 
       const getQuestionHint = (question) => richTextToPlainText(getQuestionHintSource(question));
       const getQuestionHintHtml = (question) => normalizeRichTextHtml(getQuestionHintSource(question));
       const getQuestionObjective = (question) =>
-        richTextToPlainText(getQuestionFieldSource(question, ["Objective", "field_5"]));
+        richTextToPlainText(getQuestionFieldSource(question, ["Objective", "field_4"]));
 
       const getQuestionCt = (question) => getQuestionFieldSource(question, ["CT", "field_5"]);
       const getQuestionCtDoNotAsk = (question) =>
-        normalizeMultiValueField(getQuestionFieldSource(question, ["CT Do Not Ask 1", "field_7", "CTCriteria1"]));
+        normalizeMultiValueField(getQuestionFieldSource(question, ["CT Do Not Ask 1", "field_6", "CTCriteria1"]));
       const getQuestionCtOverride = (question) =>
         normalizeMultiValueField(getQuestionFieldSource(question, ["CT Override Question", "CTOverrideQuestion"]));
 
