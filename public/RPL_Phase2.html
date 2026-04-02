@@ -906,6 +906,9 @@
           <div class="hintTitle" id="userLookupTitle">User Lookup</div>
           <button id="userLookupCloseBtn" class="secondary">Close</button>
         </div>
+        <div class="actions" style="justify-content:flex-start; margin:8px 0 10px;">
+          <button id="userLookupFilterBtn" type="button" class="secondary" disabled>CT Filter</button>
+        </div>
         <div class="lookupResponse" id="userLookupBody">Press User Lookup to load results.</div>
       </div>
     </div>
@@ -1004,6 +1007,7 @@
       const hintBodyEl = document.getElementById("hintBody");
       const userLookupOverlayEl = document.getElementById("userLookupOverlay");
       const userLookupCloseBtn = document.getElementById("userLookupCloseBtn");
+      const userLookupFilterBtn = document.getElementById("userLookupFilterBtn");
       const userLookupBodyEl = document.getElementById("userLookupBody");
       const finalisingOverlayEl = document.getElementById("finalisingOverlay");
       const answerWrapEl = document.querySelector(".answerWrap");
@@ -1073,6 +1077,7 @@
       let questionsLoaded = false;
       let filteredQuestions = null;
       let userLookupPending = false;
+      let userLookupItems = [];
       let isUiLocked = false;
       let hintOpen = false;
       let lockedButtonStates = null;
@@ -2013,9 +2018,14 @@ Job Title: ${jobTitleValue || "N/A"}
           "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/9a8d98d38d584b44bb47066b652aa24d/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=Ion44zyKyWxVDVJYUfe9iJPVM-0G5ZLEZ6LRQEvrvWQ";
         try {
           const ctx = getStudentContext();
+          const fullNameValue =
+            fullNameEl?.value?.trim() || fullName || ctx.fullName || DEFAULT_FULL_NAME;
+          const contactIdValue = String(ctx.contactId || DEFAULT_CONTACT_ID);
           const payload = {
-            FullName: ctx.fullName,
-            ContactID: String(ctx.contactId),
+            FullName: fullNameValue,
+            ContactID: contactIdValue,
+            fullName: fullNameValue,
+            contactId: contactIdValue,
             GivenName: ctx.givenName,
           };
           const response = await fetch(url, {
@@ -2219,20 +2229,74 @@ Job Title: ${jobTitleValue || "N/A"}
         userLookupOverlayEl.classList.add("hidden");
       };
 
+      const escapeLookupHtml = (value) => String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+
+      const getLookupStatusValue = (item) => {
+        const raw = item?.Status ?? item?.status ?? item?.["Status Code"] ?? item?.statusCode ?? "";
+        return String(raw).trim();
+      };
+
+      const renderUserLookupItems = (items, options = {}) => {
+        if (!userLookupBodyEl) return;
+        const { ctOnly = false } = options;
+        if (!Array.isArray(items) || !items.length) {
+          userLookupBodyEl.innerHTML = ctOnly
+            ? '<div class="lookupResponseText">No items found for Status = CT.</div>'
+            : '<div class="lookupResponseText">No lookup items returned.</div>';
+          return;
+        }
+
+        const rows = items.map((item) => {
+          const unitCode = escapeLookupHtml(item?.["Unit Code"] ?? "");
+          const unitName = escapeLookupHtml(item?.["Unit Name"] ?? "");
+          const status = escapeLookupHtml(getLookupStatusValue(item));
+          const outcomeCode = escapeLookupHtml(item?.["Outcome Code"] ?? "");
+          const mandatory = escapeLookupHtml(item?.Mandatory ?? "");
+          return `<tr><td>${unitCode}</td><td>${unitName}</td><td>${status}</td><td>${outcomeCode}</td><td>${mandatory}</td></tr>`;
+        }).join("");
+
+        userLookupBodyEl.innerHTML = `
+          <table class="lookupTable">
+            <thead>
+              <tr>
+                <th>Unit Code</th>
+                <th>Unit Name</th>
+                <th>Status</th>
+                <th>Outcome Code</th>
+                <th>Mandatory</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        `;
+      };
+
       const runUserLookup = async () => {
         if (userLookupPending) return;
         if (!userLookupOverlayEl || !userLookupBodyEl) return;
 
         userLookupPending = true;
+        userLookupItems = [];
         if (userLookupBtn) userLookupBtn.disabled = true;
+        if (userLookupFilterBtn) userLookupFilterBtn.disabled = true;
         userLookupBodyEl.innerHTML = '<div class="lookupResponseText">Loading user lookup...</div>';
         userLookupOverlayEl.classList.remove("hidden");
 
         try {
           const ctx = getStudentContext();
+          const fullNameValue =
+            fullNameEl?.value?.trim() || fullName || ctx.fullName || DEFAULT_FULL_NAME;
+          const contactIdValue = String(ctx.contactId || DEFAULT_CONTACT_ID);
           const payload = {
-            FullName: ctx.fullName,
-            ContactID: String(ctx.contactId),
+            FullName: fullNameValue,
+            ContactID: contactIdValue,
+            fullName: fullNameValue,
+            contactId: contactIdValue,
             GivenName: ctx.givenName,
           };
 
@@ -2248,13 +2312,6 @@ Job Title: ${jobTitleValue || "N/A"}
             throw new Error(`HTTP ${response.status} ${response.statusText}${rawText ? `\n${rawText}` : ""}`);
           }
 
-          const escapeHtml = (value) => String(value)
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/\"/g, "&quot;")
-            .replace(/'/g, "&#39;");
-
           const parseCtItems = (payload) => {
             if (!payload || typeof payload !== "object") return [];
             const source = payload.ct_items ?? payload?.body?.ct_items ?? payload?.body?.CT_Items;
@@ -2268,34 +2325,15 @@ Job Title: ${jobTitleValue || "N/A"}
 
           const ctItems = parseCtItems(parsed);
           if (ctItems.length) {
-            const rows = ctItems.map((item) => {
-              const unitCode = escapeHtml(item?.["Unit Code"] ?? "");
-              const unitName = escapeHtml(item?.["Unit Name"] ?? "");
-              const status = escapeHtml(item?.Status ?? "");
-              const outcomeCode = escapeHtml(item?.["Outcome Code"] ?? "");
-              const mandatory = escapeHtml(item?.Mandatory ?? "");
-              return `<tr><td>${unitCode}</td><td>${unitName}</td><td>${status}</td><td>${outcomeCode}</td><td>${mandatory}</td></tr>`;
-            }).join("");
-            userLookupBodyEl.innerHTML = `
-              <table class="lookupTable">
-                <thead>
-                  <tr>
-                    <th>Unit Code</th>
-                    <th>Unit Name</th>
-                    <th>Status</th>
-                    <th>Outcome Code</th>
-                    <th>Mandatory</th>
-                  </tr>
-                </thead>
-                <tbody>${rows}</tbody>
-              </table>
-            `;
+            userLookupItems = ctItems;
+            renderUserLookupItems(userLookupItems);
+            if (userLookupFilterBtn) userLookupFilterBtn.disabled = false;
           } else if (parsed && typeof parsed === "object") {
-            userLookupBodyEl.innerHTML = `<pre class="lookupResponseText">${escapeHtml(JSON.stringify(parsed, null, 2))}</pre>`;
+            userLookupBodyEl.innerHTML = `<pre class="lookupResponseText">${escapeLookupHtml(JSON.stringify(parsed, null, 2))}</pre>`;
           } else if (typeof parsed === "string" && parsed.trim()) {
-            userLookupBodyEl.innerHTML = `<pre class="lookupResponseText">${escapeHtml(parsed)}</pre>`;
+            userLookupBodyEl.innerHTML = `<pre class="lookupResponseText">${escapeLookupHtml(parsed)}</pre>`;
           } else {
-            userLookupBodyEl.innerHTML = `<pre class="lookupResponseText">${escapeHtml(rawText || "No response content.")}</pre>`;
+            userLookupBodyEl.innerHTML = `<pre class="lookupResponseText">${escapeLookupHtml(rawText || "No response content.")}</pre>`;
           }
         } catch (error) {
           const message = error?.message || String(error);
@@ -3644,6 +3682,10 @@ END_REVIEW>>>`;
       });
       userLookupCloseBtn?.addEventListener("click", () => {
         closeUserLookup();
+      });
+      userLookupFilterBtn?.addEventListener("click", () => {
+        const ctOnly = userLookupItems.filter((item) => getLookupStatusValue(item).toUpperCase() === "CT");
+        renderUserLookupItems(ctOnly, { ctOnly: true });
       });
       userLookupOverlayEl?.addEventListener("click", (event) => {
         if (event.target === userLookupOverlayEl) {
