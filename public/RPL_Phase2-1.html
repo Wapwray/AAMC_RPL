@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AAMC RPL Quiz - Phase 2-1</title>
+    <style>
+      html, body {
+        margin: 0;
+        min-height: 100%;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: #f3f7fb;
+        color: #0f172a;
+      }
+
+      body {
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+
+      .loadingCard {
+        width: min(520px, 100%);
+        background: #ffffff;
+        border: 1px solid #d8e3ee;
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+      }
+
+      .loadingTitle {
+        margin: 0 0 10px;
+        font-size: 20px;
+        font-weight: 700;
+      }
+
+      .loadingBody {
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.5;
+        color: #475569;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="loadingCard">
+      <h1 class="loadingTitle">Loading RPL Phase 2-1</h1>
+      <p class="loadingBody" id="loadingMessage">Opening assessment...</p>
+    </div>
+
+    <script>
+      const SOURCE_HTML_URL = "./RPL_Phase2.html";
+      const loadingMessageEl = document.getElementById("loadingMessage");
+
+      const setLoadingMessage = (message) => {
+        if (loadingMessageEl) {
+          loadingMessageEl.textContent = message;
+        }
+      };
+
+      const buildPatchedHtml = (sourceHtml) => {
+        let patched = sourceHtml;
+
+        patched = patched.replace(
+          "</body>",
+          [
+            "<script>",
+            "(function () {",
+            "  const installPhase21Patch = () => {",
+            "    const questionFilterBtn = document.getElementById(\"questionFilterBtn\");",
+            "    const userLookupBtn = document.getElementById(\"userLookupBtn\");",
+            "    const questionsPreviewWrapEl = document.getElementById(\"questionsPreviewWrap\");",
+            "    const filteredQuestionsSectionEl = document.getElementById(\"filteredQuestionsSection\");",
+            "    const filteredQuestionsEmptyEl = document.getElementById(\"filteredQuestionsEmpty\");",
+            "    const filteredQuestionsTableEl = document.getElementById(\"filteredQuestionsTable\");",
+            "    const userLookupOverlayEl = document.getElementById(\"userLookupOverlay\");",
+            "    const userLookupFilterBtn = document.getElementById(\"userLookupFilterBtn\");",
+            "    const userLookupBodyEl = document.getElementById(\"userLookupBody\");",
+            "    if (!questionFilterBtn || !userLookupBtn || !questionsPreviewWrapEl || !userLookupBodyEl) {",
+            "      window.setTimeout(installPhase21Patch, 200);",
+            "      return;",
+            "    }",
+            "",
+            "    Array.from(document.querySelectorAll(\".ctSelectorCell\")).forEach((node) => node.remove());",
+            "",
+            "    if (userLookupOverlayEl) {",
+            "      userLookupOverlayEl.classList.add(\"hidden\");",
+            "      userLookupOverlayEl.style.display = \"none\";",
+            "    }",
+            "    if (userLookupFilterBtn) {",
+            "      userLookupFilterBtn.style.display = \"none\";",
+            "    }",
+            "",
+            "    let inlineUserLookupSectionEl = document.getElementById(\"inlineUserLookupSection\");",
+            "    if (!inlineUserLookupSectionEl) {",
+            "      inlineUserLookupSectionEl = document.createElement(\"div\");",
+            "      inlineUserLookupSectionEl.id = \"inlineUserLookupSection\";",
+            "      inlineUserLookupSectionEl.className = \"hidden\";",
+            "      inlineUserLookupSectionEl.style.width = \"100%\";",
+            "      inlineUserLookupSectionEl.style.maxWidth = \"1240px\";",
+            "      inlineUserLookupSectionEl.style.textAlign = \"left\";",
+            "      inlineUserLookupSectionEl.innerHTML = [",
+            "        '<div style=\"font-size:15px; font-weight:700; margin-top:16px;\">User Lookup (Status = CT)</div>',",
+            "        '<div class=\"questionsPreviewWrap\" id=\"inlineUserLookupWrap\">',",
+            "        '  <div class=\"questionsPreviewEmpty\" id=\"inlineUserLookupEmpty\">Press User Lookup to load CT items.</div>',",
+            "        '</div>'",
+            "      ].join(\"\");",
+            "      const anchor = filteredQuestionsSectionEl || questionsPreviewWrapEl;",
+            "      anchor.insertAdjacentElement(\"afterend\", inlineUserLookupSectionEl);",
+            "    }",
+            "",
+            "    const inlineUserLookupWrapEl = document.getElementById(\"inlineUserLookupWrap\");",
+            "    const inlineUserLookupEmptyEl = document.getElementById(\"inlineUserLookupEmpty\");",
+            "    if (inlineUserLookupWrapEl && userLookupBodyEl.parentElement !== inlineUserLookupWrapEl) {",
+            "      inlineUserLookupWrapEl.appendChild(userLookupBodyEl);",
+            "    }",
+            "    userLookupBodyEl.classList.remove(\"hidden\");",
+            "",
+            "    const parseCtItems = (payload) => {",
+            "      if (!payload || typeof payload !== \"object\") return [];",
+            "      const source = payload.ct_items ?? payload?.body?.ct_items ?? payload?.body?.CT_Items;",
+            "      if (Array.isArray(source)) return source;",
+            "      if (typeof source === \"string\") {",
+            "        const parsedItems = typeof safeJsonParse === \"function\" ? safeJsonParse(source) : JSON.parse(source);",
+            "        return Array.isArray(parsedItems) ? parsedItems : [];",
+            "      }",
+            "      return [];",
+            "    };",
+            "",
+            "    const getCtLookupItems = (items) => items.filter((item) => {",
+            "      const statusValue = typeof getLookupStatusValue === \"function\"",
+            "        ? getLookupStatusValue(item)",
+            "        : (item?.Status ?? item?.status ?? item?.[\"Status Code\"] ?? item?.statusCode ?? \"\");",
+            "      return String(statusValue).trim().toUpperCase() === \"CT\";",
+            "    });",
+            "",
+            "    const showInlineLookup = () => {",
+            "      inlineUserLookupSectionEl?.classList.remove(\"hidden\");",
+            "      if (inlineUserLookupEmptyEl) inlineUserLookupEmptyEl.classList.add(\"hidden\");",
+            "      userLookupBodyEl.classList.remove(\"hidden\");",
+            "    };",
+            "",
+            "    const handleUserLookupClick = async (event) => {",
+            "      event.preventDefault();",
+            "      event.stopImmediatePropagation();",
+            "      if (userLookupPending) return;",
+            "",
+            "      userLookupPending = true;",
+            "      userLookupItems = [];",
+            "      if (userLookupBtn) userLookupBtn.disabled = true;",
+            "      showInlineLookup();",
+            "      userLookupBodyEl.innerHTML = '<div class=\"lookupResponseText\">Loading user lookup...</div>';",
+            "",
+            "      try {",
+            "        const ctx = getStudentContext();",
+            "        const fullNameValue = fullNameEl?.value?.trim() || fullName || ctx.fullName || DEFAULT_FULL_NAME;",
+            "        const contactIdValue = String(ctx.contactId || DEFAULT_CONTACT_ID);",
+            "        const payload = {",
+            "          FullName: fullNameValue,",
+            "          ContactID: contactIdValue,",
+            "          fullName: fullNameValue,",
+            "          contactId: contactIdValue,",
+            "          GivenName: ctx.givenName,",
+            "        };",
+            "",
+            "        const response = await fetch(USER_LOOKUP_URL, {",
+            "          method: \"POST\",",
+            "          headers: { \"Content-Type\": \"application/json\" },",
+            "          body: JSON.stringify(payload),",
+            "        });",
+            "",
+            "        const rawText = await response.text();",
+            "        const parsed = typeof safeJsonParse === \"function\" ? safeJsonParse(rawText) : rawText;",
+            "        if (!response.ok) {",
+            "          throw new Error(`HTTP ${response.status} ${response.statusText}${rawText ? `\\n${rawText}` : \"\"}`);",
+            "        }",
+            "",
+            "        userLookupItems = getCtLookupItems(parseCtItems(parsed));",
+            "        showInlineLookup();",
+            "        if (typeof renderUserLookupItems === \"function\") {",
+            "          renderUserLookupItems(userLookupItems, { ctOnly: true });",
+            "        } else {",
+            "          userLookupBodyEl.innerHTML = '<div class=\"lookupResponseText\">User lookup loaded.</div>';",
+            "        }",
+            "      } catch (error) {",
+            "        const message = error?.message || String(error);",
+            "        userLookupBodyEl.innerHTML = `<pre class=\"lookupResponseText\">User lookup failed.\\n\\n${message}</pre>`;",
+            "        if (typeof setStatus === \"function\") setStatus(`User lookup failed: ${message}`);",
+            "      } finally {",
+            "        userLookupPending = false;",
+            "        if (userLookupBtn) userLookupBtn.disabled = false;",
+            "      }",
+            "    };",
+            "",
+            "    const handleQuestionFilterClick = (event) => {",
+            "      event.preventDefault();",
+            "      event.stopImmediatePropagation();",
+            "",
+            "      if (!Array.isArray(questions) || !questions.length) {",
+            "        if (filteredQuestionsEmptyEl) {",
+            "          filteredQuestionsEmptyEl.textContent = \"No questions loaded yet. Please wait for questions to load.\";",
+            "          filteredQuestionsEmptyEl.classList.remove(\"hidden\");",
+            "        }",
+            "        filteredQuestionsSectionEl?.classList.remove(\"hidden\");",
+            "        return;",
+            "      }",
+            "",
+            "      if (!Array.isArray(userLookupItems) || !userLookupItems.length) {",
+            "        if (filteredQuestionsTableEl) filteredQuestionsTableEl.classList.add(\"hidden\");",
+            "        if (filteredQuestionsEmptyEl) {",
+            "          filteredQuestionsEmptyEl.textContent = \"Run User Lookup first to load CT Unit Codes.\";",
+            "          filteredQuestionsEmptyEl.classList.remove(\"hidden\");",
+            "        }",
+            "        filteredQuestionsSectionEl?.classList.remove(\"hidden\");",
+            "        return;",
+            "      }",
+            "",
+            "      const selectedCTs = new Set(",
+            "        userLookupItems",
+            "          .map((item) => String(item?.[\"Unit Code\"] ?? \"\").trim().toUpperCase())",
+            "          .filter(Boolean)",
+            "      );",
+            "",
+            "      filteredQuestions = questions.filter((question) => {",
+            "        const ctDoNotAskRaw = typeof getQuestionCtDoNotAsk === \"function\" ? getQuestionCtDoNotAsk(question) : \"\";",
+            "        if (!ctDoNotAskRaw || !ctDoNotAskRaw.trim()) return true;",
+            "        const doNotAskItems = ctDoNotAskRaw",
+            "          .split(\",\")",
+            "          .map((item) => item.trim().toUpperCase())",
+            "          .filter(Boolean);",
+            "        if (!doNotAskItems.length) return true;",
+            "        return !doNotAskItems.every((item) => selectedCTs.has(item));",
+            "      });",
+            "",
+            "      if (typeof renderFilteredQuestions === \"function\") {",
+            "        renderFilteredQuestions(filteredQuestions);",
+            "      }",
+            "      filteredQuestionsSectionEl?.classList.remove(\"hidden\");",
+            "    };",
+            "",
+            "    if (!window.__phase21PatchInstalled) {",
+            "      userLookupBtn.addEventListener(\"click\", handleUserLookupClick, true);",
+            "      questionFilterBtn.addEventListener(\"click\", handleQuestionFilterClick, true);",
+            "      window.__phase21PatchInstalled = true;",
+            "    }",
+            "  };",
+            "",
+            "  if (document.readyState === \"loading\") {",
+            "    document.addEventListener(\"DOMContentLoaded\", installPhase21Patch, { once: true });",
+            "  } else {",
+            "    installPhase21Patch();",
+            "  }",
+            "  window.addEventListener(\"load\", installPhase21Patch, { once: true });",
+            "})();",
+            "<\/script>",
+            "</body>",
+          ].join("\n")
+        );
+
+        return patched;
+      };
+
+      const bootstrap = async () => {
+        setLoadingMessage("Loading assessment page.");
+        const response = await fetch(SOURCE_HTML_URL, { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error(`Unable to load source file: ${response.status} ${response.statusText}`);
+        }
+
+        const sourceHtml = await response.text();
+        const patchedHtml = buildPatchedHtml(sourceHtml);
+        setLoadingMessage("Starting assessment.");
+        document.open();
+        document.write(patchedHtml);
+        document.close();
+      };
+
+      bootstrap().catch((error) => {
+        console.error(error);
+        setLoadingMessage(error?.message || String(error));
+      });
+    </script>
+  </body>
+</html>

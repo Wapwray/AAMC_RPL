@@ -1557,7 +1557,7 @@
         if (!normalized) return null;
         const regex = new RegExp(`\\b${normalized}\\b`, "i");
         const candidates = questions.map((question) =>
-          (question?.Title || question?.field_2 || question?.field_5 || "").toString()
+          (question?.Title || getQuestionText(question) || question?.field_5 || "").toString()
         );
         const index = candidates.findIndex((candidate) => regex.test(candidate));
         return index >= 0 ? index : null;
@@ -2109,18 +2109,6 @@ Job Title: ${jobTitleValue || "N/A"}
         updatePlaybackButton();
       };
 
-      const getQuestionHint = (question) => {
-        if (!question || typeof question !== "object") return "";
-        return (
-          question.Hints ||
-          question.hint ||
-          question.field_6 ||
-          question.field_4 ||
-          question.field_7 ||
-          ""
-        );
-      };
-
       const updateEvaluateButtonState = () => {
         if (!evaluateBtn) return;
         const answerText = answerInputEl?.value?.trim() || "";
@@ -2209,8 +2197,8 @@ Job Title: ${jobTitleValue || "N/A"}
       const openHint = () => {
         if (!hintOverlayEl || !hintBodyEl) return;
         const question = questions[currentIndex] || {};
-        const hintText = getQuestionHint(question) || "No hint available for this question.";
-        hintBodyEl.textContent = hintText;
+        const hintHtml = getQuestionHintHtml(question) || "No hint available for this question.";
+        hintBodyEl.innerHTML = hintHtml;
         hintOverlayEl.classList.remove("hidden");
         hintOpen = true;
         setButtonsDisabled(true, [hintCloseBtn]);
@@ -2982,7 +2970,75 @@ Job Title: ${jobTitleValue || "N/A"}
         return value === null || value === undefined ? "" : String(value).trim();
       };
 
-      const getQuestionText = (question) => question?.field_2 || question?.field_5 || question?.Title || "";
+      const escapeRichTextHtml = (value) => String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+
+      const normalizeRichTextHtml = (value) => {
+        if (value === null || value === undefined) return "";
+        const raw = String(value).trim();
+        if (!raw) return "";
+        if (!/[<&]/.test(raw)) {
+          return escapeRichTextHtml(raw).replace(/\r?\n/g, "<br>");
+        }
+
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(raw, "text/html");
+        doc.querySelectorAll("script,style,iframe,object,embed,link,meta").forEach((node) => node.remove());
+        doc.body.querySelectorAll("*").forEach((element) => {
+          Array.from(element.attributes).forEach((attribute) => {
+            const name = attribute.name;
+            const attributeValue = attribute.value || "";
+            if (/^on/i.test(name)) {
+              element.removeAttribute(name);
+              return;
+            }
+            if ((name === "href" || name === "src") && /^\s*javascript:/i.test(attributeValue)) {
+              element.removeAttribute(name);
+              return;
+            }
+            if (name === "style") {
+              element.removeAttribute(name);
+            }
+          });
+        });
+        return doc.body.innerHTML.trim();
+      };
+
+      const richTextToPlainText = (value) => {
+        const html = normalizeRichTextHtml(value);
+        if (!html) return "";
+
+        const temp = document.createElement("div");
+        temp.innerHTML = html
+          .replace(/<br\s*\/?>/gi, "\n")
+          .replace(/<(li)\b[^>]*>/gi, "\n")
+          .replace(/<\/(div|p|li|tr|h[1-6]|ul|ol)>/gi, "</$1>\n");
+
+        return (temp.textContent || "")
+          .replace(/\u00a0/g, " ")
+          .replace(/[ \t]+\n/g, "\n")
+          .replace(/\n[ \t]+/g, "\n")
+          .replace(/\n{3,}/g, "\n\n")
+          .trim();
+      };
+
+      const getQuestionTextSource = (question) =>
+        question?.["Question Details"] || question?.field_2 || question?.field_5 || question?.Title || "";
+
+      const getQuestionText = (question) => richTextToPlainText(getQuestionTextSource(question));
+      const getQuestionTextHtml = (question) => normalizeRichTextHtml(getQuestionTextSource(question));
+      const getQuestionHintSource = (question) =>
+        question?.Hints || question?.hint || question?.field_6 || question?.field_4 || question?.field_7 || "";
+
+      const getQuestionHint = (question) => richTextToPlainText(getQuestionHintSource(question));
+      const getQuestionHintHtml = (question) => normalizeRichTextHtml(getQuestionHintSource(question));
+      const getQuestionObjective = (question) =>
+        richTextToPlainText(question?.Objective || question?.field_3 || question?.field_4 || "");
+
       const getQuestionCt = (question) => question?.field_5 || "";
       const getQuestionCtDoNotAsk = (question) => normalizeMultiValueField(question?.CTCriteria1);
       const getQuestionCtOverride = (question) => normalizeMultiValueField(question?.CTOverrideQuestion);
@@ -2994,6 +3050,16 @@ Job Title: ${jobTitleValue || "N/A"}
         chatHistoryEl.appendChild(entry);
         chatHistoryEl.scrollTop = chatHistoryEl.scrollHeight;
         appendToTranscript(role === "user" ? "User" : "System", text);
+      };
+
+      const appendQuestionCell = (tr, value, options = {}) => {
+        const td = document.createElement("td");
+        if (options.html) {
+          td.innerHTML = value || "";
+        } else {
+          td.textContent = value || "";
+        }
+        tr.appendChild(td);
       };
 
       const buildQuestionsTableHtml = (questionList) => {
@@ -3010,17 +3076,20 @@ Job Title: ${jobTitleValue || "N/A"}
 
         const bodyRows = questionList
           .map((question) => {
-            const row = [
-              question?.Title || "",
-              question?.field_1 || "",
-              getQuestionText(question),
-              question?.field_3 || "",
-              question?.field_4 || "",
-              getQuestionCt(question),
-              getQuestionCtDoNotAsk(question),
-              getQuestionCtOverride(question),
-            ];
-            return `<tr>${row.map((cell) => `<td>${escapeHtml(cell || "")}</td>`).join("")}</tr>`;
+            const questionTextHtml = getQuestionTextHtml(question) || "&nbsp;";
+            const hintHtml = getQuestionHintHtml(question) || "";
+            return `
+              <tr>
+                <td>${escapeHtml(question?.Title || "")}</td>
+                <td>${escapeHtml(question?.field_1 || "")}</td>
+                <td>${questionTextHtml}</td>
+                <td>${hintHtml}</td>
+                <td>${escapeHtml(getQuestionObjective(question))}</td>
+                <td>${escapeHtml(getQuestionCt(question))}</td>
+                <td>${escapeHtml(getQuestionCtDoNotAsk(question))}</td>
+                <td>${escapeHtml(getQuestionCtOverride(question))}</td>
+              </tr>
+            `;
           })
           .join("");
 
@@ -3068,21 +3137,14 @@ Job Title: ${jobTitleValue || "N/A"}
 
         questionList.forEach((question) => {
           const tr = document.createElement("tr");
-          const values = [
-            question?.Title || "",
-            question?.field_1 || "",
-            getQuestionText(question),
-            question?.field_3 || "",
-            question?.field_4 || "",
-            getQuestionCt(question),
-            getQuestionCtDoNotAsk(question),
-            getQuestionCtOverride(question),
-          ];
-          values.forEach((value) => {
-            const td = document.createElement("td");
-            td.textContent = value || "";
-            tr.appendChild(td);
-          });
+          appendQuestionCell(tr, question?.Title || "");
+          appendQuestionCell(tr, question?.field_1 || "");
+          appendQuestionCell(tr, getQuestionTextHtml(question), { html: true });
+          appendQuestionCell(tr, getQuestionHintHtml(question), { html: true });
+          appendQuestionCell(tr, getQuestionObjective(question));
+          appendQuestionCell(tr, getQuestionCt(question));
+          appendQuestionCell(tr, getQuestionCtDoNotAsk(question));
+          appendQuestionCell(tr, getQuestionCtOverride(question));
           questionsPreviewBodyEl.appendChild(tr);
         });
         questionsPreviewEmptyEl.classList.add("hidden");
@@ -3102,21 +3164,14 @@ Job Title: ${jobTitleValue || "N/A"}
         }
         questionList.forEach((question) => {
           const tr = document.createElement("tr");
-          const values = [
-            question?.Title || "",
-            question?.field_1 || "",
-            getQuestionText(question),
-            question?.field_3 || "",
-            question?.field_4 || "",
-            getQuestionCt(question),
-            getQuestionCtDoNotAsk(question),
-            getQuestionCtOverride(question),
-          ];
-          values.forEach((value) => {
-            const td = document.createElement("td");
-            td.textContent = value || "";
-            tr.appendChild(td);
-          });
+          appendQuestionCell(tr, question?.Title || "");
+          appendQuestionCell(tr, question?.field_1 || "");
+          appendQuestionCell(tr, getQuestionTextHtml(question), { html: true });
+          appendQuestionCell(tr, getQuestionHintHtml(question), { html: true });
+          appendQuestionCell(tr, getQuestionObjective(question));
+          appendQuestionCell(tr, getQuestionCt(question));
+          appendQuestionCell(tr, getQuestionCtDoNotAsk(question));
+          appendQuestionCell(tr, getQuestionCtOverride(question));
           filteredQuestionsBodyEl.appendChild(tr);
         });
         filteredQuestionsEmptyEl.classList.add("hidden");
@@ -3156,7 +3211,7 @@ Job Title: ${jobTitleValue || "N/A"}
         const total = questions.length;
         const number = currentIndex + 1;
         headerTitleEl.textContent = `Compliance - Question ${number} of ${total} - Attempt 1`;
-        questionTextEl.textContent = getQuestionText(question);
+        questionTextEl.innerHTML = getQuestionTextHtml(question) || "No question available.";
         if (ctMetaValueEl) ctMetaValueEl.textContent = getQuestionCt(question) || "";
         if (ctDoNotAskValueEl) ctDoNotAskValueEl.textContent = getQuestionCtDoNotAsk(question) || "";
         if (ctOverrideValueEl) ctOverrideValueEl.textContent = getQuestionCtOverride(question) || "";
@@ -3184,7 +3239,7 @@ Job Title: ${jobTitleValue || "N/A"}
 
       const buildPrompt = (question, answers) => {
         const questionText = getQuestionText(question);
-        const objective = question.field_3 || "";
+        const objective = getQuestionObjective(question);
         const hintText = getQuestionHint(question);
         const answerBlock = answers
           .map((response, index) => `Attempt ${index + 1}: ${response}`)
