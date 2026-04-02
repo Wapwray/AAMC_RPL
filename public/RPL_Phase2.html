@@ -703,9 +703,7 @@
                   <th>Question Details</th>
                   <th>Hints</th>
                   <th>Objective</th>
-                  <th>CT</th>
                   <th>CT Do Not Ask 1</th>
-                  <th>CT Override Question</th>
                 </tr>
               </thead>
               <tbody id="questionsPreviewBody"></tbody>
@@ -723,9 +721,7 @@
                     <th>Question Details</th>
                     <th>Hints</th>
                     <th>Objective</th>
-                    <th>CT</th>
                     <th>CT Do Not Ask 1</th>
-                    <th>CT Override Question</th>
                   </tr>
                 </thead>
                 <tbody id="filteredQuestionsBody"></tbody>
@@ -3064,22 +3060,28 @@ Job Title: ${jobTitleValue || "N/A"}
         return "";
       };
 
+      const getQuestionTitle = (question) =>
+        getQuestionFieldSource(question, ["Title", "field_1"]);
+
+      const getQuestionSection = (question) =>
+        getQuestionFieldSource(question, ["Section", "field_2"]);
+
       const getQuestionTextSource = (question) =>
-        getQuestionFieldSource(question, ["Question Details", "field_2", "field_5", "Title"]);
+        getQuestionFieldSource(question, ["Question Details", "field_3", "field_2", "field_5", "Title", "field_1"]);
 
       const getQuestionText = (question) => richTextToPlainText(getQuestionTextSource(question));
       const getQuestionTextHtml = (question) => normalizeRichTextHtml(getQuestionTextSource(question));
       const getQuestionHintSource = (question) =>
-        getQuestionFieldSource(question, ["Hints", "Hint", "hint", "field_6", "field_3", "field_4", "field_7"]);
+        getQuestionFieldSource(question, ["Hints", "Hint", "hint", "field_4"]);
 
       const getQuestionHint = (question) => richTextToPlainText(getQuestionHintSource(question));
       const getQuestionHintHtml = (question) => normalizeRichTextHtml(getQuestionHintSource(question));
       const getQuestionObjective = (question) =>
-        richTextToPlainText(getQuestionFieldSource(question, ["Objective", "field_3", "field_4"]));
+        richTextToPlainText(getQuestionFieldSource(question, ["Objective", "field_5"]));
 
       const getQuestionCt = (question) => getQuestionFieldSource(question, ["CT", "field_5"]);
       const getQuestionCtDoNotAsk = (question) =>
-        normalizeMultiValueField(getQuestionFieldSource(question, ["CT Do Not Ask 1", "CTCriteria1"]));
+        normalizeMultiValueField(getQuestionFieldSource(question, ["CT Do Not Ask 1", "field_7", "CTCriteria1"]));
       const getQuestionCtOverride = (question) =>
         normalizeMultiValueField(getQuestionFieldSource(question, ["CT Override Question", "CTOverrideQuestion"]));
 
@@ -3120,14 +3122,12 @@ Job Title: ${jobTitleValue || "N/A"}
             const hintHtml = getQuestionHintHtml(question) || "";
             return `
               <tr>
-                <td>${escapeHtml(question?.Title || "")}</td>
-                <td>${escapeHtml(question?.field_1 || "")}</td>
+                <td>${escapeHtml(getQuestionTitle(question))}</td>
+                <td>${escapeHtml(getQuestionSection(question))}</td>
                 <td>${questionTextHtml}</td>
                 <td>${hintHtml}</td>
                 <td>${escapeHtml(getQuestionObjective(question))}</td>
-                <td>${escapeHtml(getQuestionCt(question))}</td>
                 <td>${escapeHtml(getQuestionCtDoNotAsk(question))}</td>
-                <td>${escapeHtml(getQuestionCtOverride(question))}</td>
               </tr>
             `;
           })
@@ -3145,9 +3145,7 @@ Job Title: ${jobTitleValue || "N/A"}
                     <th>Question Details</th>
                     <th>Hints</th>
                     <th>Objective</th>
-                    <th>CT</th>
                     <th>CT Do Not Ask 1</th>
-                    <th>CT Override Question</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -3177,14 +3175,12 @@ Job Title: ${jobTitleValue || "N/A"}
 
         questionList.forEach((question) => {
           const tr = document.createElement("tr");
-          appendQuestionCell(tr, question?.Title || "");
-          appendQuestionCell(tr, question?.field_1 || "");
+          appendQuestionCell(tr, getQuestionTitle(question));
+          appendQuestionCell(tr, getQuestionSection(question));
           appendQuestionCell(tr, getQuestionTextHtml(question), { html: true });
           appendQuestionCell(tr, getQuestionHintHtml(question), { html: true });
           appendQuestionCell(tr, getQuestionObjective(question));
-          appendQuestionCell(tr, getQuestionCt(question));
           appendQuestionCell(tr, getQuestionCtDoNotAsk(question));
-          appendQuestionCell(tr, getQuestionCtOverride(question));
           questionsPreviewBodyEl.appendChild(tr);
         });
         questionsPreviewEmptyEl.classList.add("hidden");
@@ -3204,14 +3200,12 @@ Job Title: ${jobTitleValue || "N/A"}
         }
         questionList.forEach((question) => {
           const tr = document.createElement("tr");
-          appendQuestionCell(tr, question?.Title || "");
-          appendQuestionCell(tr, question?.field_1 || "");
+          appendQuestionCell(tr, getQuestionTitle(question));
+          appendQuestionCell(tr, getQuestionSection(question));
           appendQuestionCell(tr, getQuestionTextHtml(question), { html: true });
           appendQuestionCell(tr, getQuestionHintHtml(question), { html: true });
           appendQuestionCell(tr, getQuestionObjective(question));
-          appendQuestionCell(tr, getQuestionCt(question));
           appendQuestionCell(tr, getQuestionCtDoNotAsk(question));
-          appendQuestionCell(tr, getQuestionCtOverride(question));
           filteredQuestionsBodyEl.appendChild(tr);
         });
         filteredQuestionsEmptyEl.classList.add("hidden");

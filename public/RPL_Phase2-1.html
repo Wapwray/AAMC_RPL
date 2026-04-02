@@ -224,7 +224,7 @@
             "      filteredQuestions = questions.filter((question) => {",
             "        const ctDoNotAskRaw = typeof getQuestionCtDoNotAsk === \"function\"",
             "          ? getQuestionCtDoNotAsk(question)",
-            "          : String(question?.[\"CT Do Not Ask 1\"] ?? question?.CTCriteria1 ?? \"\").trim();",
+            "          : String(question?.[\"CT Do Not Ask 1\"] ?? question?.field_7 ?? question?.CTCriteria1 ?? \"\").trim();",
             "        if (!ctDoNotAskRaw || !ctDoNotAskRaw.trim()) return true;",
             "        const doNotAskItems = ctDoNotAskRaw",
             "          .split(\",\")",
