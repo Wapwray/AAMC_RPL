@@ -233,7 +233,7 @@
             "          .map((item) => item.trim().toUpperCase())",
             "          .filter(Boolean);",
             "        if (!doNotAskItems.length) return true;",
-            "        return !doNotAskItems.every((item) => selectedCTs.has(item));",
+            "        return !doNotAskItems.some((item) => selectedCTs.has(item));",
             "      });",
             "",
             "      if (typeof renderFilteredQuestions === \"function\") {",
