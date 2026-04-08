@@ -267,6 +267,35 @@
         );
 
         patched = patched.replace(
+          '        const number = currentIndex + 1;',
+          [
+            '        const titleNumberMatch = String(getQuestionTitle(question) || "").match(/\\d+/);',
+            '        const parsedTitleNumber = titleNumberMatch ? Number.parseInt(titleNumberMatch[0], 10) : Number.NaN;',
+            '        const number = Number.isFinite(parsedTitleNumber) && parsedTitleNumber > 0',
+            '          ? parsedTitleNumber',
+            '          : currentIndex + 1;',
+          ].join("\n")
+        );
+
+        patched = patched.replace(
+          '          questions = items;',
+          [
+            '          const runtimeFilterFn = window.__rplFilterQuestionList;',
+            '          const runtimeFiltered = typeof runtimeFilterFn === "function" ? runtimeFilterFn(items) : items;',
+            '          questions = Array.isArray(runtimeFiltered) ? runtimeFiltered : items;',
+          ].join("\n")
+        );
+
+        patched = patched.replace(
+          '          questions = items;',
+          [
+            '          const runtimeFilterFn = window.__rplFilterQuestionList;',
+            '          const runtimeFiltered = typeof runtimeFilterFn === "function" ? runtimeFilterFn(items) : items;',
+            '          questions = Array.isArray(runtimeFiltered) ? runtimeFiltered : items;',
+          ].join("\n")
+        );
+
+        patched = patched.replace(
           '      const renderQuestion = () => {',
           [
             '      const getHeaderQuestionMeta = () => {',
@@ -496,10 +525,41 @@
             '      if (typeof filteredQuestions !== "undefined") {',
             '        filteredQuestions = filtered;',
             '      }',
+            '      window.__rplFilteredQuestions = filtered;',
             '      if (typeof renderFilteredQuestions === "function") {',
             '        renderFilteredQuestions(filtered);',
             '      }',
             '      filteredQuestionsSectionEl?.classList.remove("hidden");',
+            '    };',
+
+            '    window.__rplFilterQuestionList = (questionList) => {',
+            '      if (!Array.isArray(questionList)) return [];',
+            '      const selectedCTs = new Set(',
+            '        getLookupItemsArray()',
+            '          .map((item) => String(item?.["Unit Code"] ?? "").trim().toUpperCase())',
+            '          .filter(Boolean)',
+            '      );',
+            '      if (!selectedCTs.size && typeof ct1El !== "undefined") {',
+            '        [ct1El?.value, ct2El?.value, ct3El?.value]',
+            '          .filter((value) => value && value.trim())',
+            '          .map((value) => value.trim().toUpperCase())',
+            '          .forEach((value) => selectedCTs.add(value));',
+            '      }',
+            '      if (!selectedCTs.size) return questionList;',
+            '      return questionList.filter((question) => {',
+            '        const ctDoNotAskRaw = typeof getQuestionCtDoNotAsk === "function"',
+            '          ? getQuestionCtDoNotAsk(question)',
+            '          : (typeof normalizeMultiValueField === "function"',
+            '            ? normalizeMultiValueField(question?.["CT Do Not Ask 1"] ?? question?.field_6 ?? question?.CTCriteria1)',
+            '            : String(question?.["CT Do Not Ask 1"] ?? question?.field_6 ?? question?.CTCriteria1 ?? "").trim());',
+            '        if (!ctDoNotAskRaw || !ctDoNotAskRaw.trim()) return true;',
+            '        const doNotAskItems = ctDoNotAskRaw',
+            '          .split(",")',
+            '          .map((item) => item.trim().toUpperCase())',
+            '          .filter(Boolean);',
+            '        if (!doNotAskItems.length) return true;',
+            '        return !doNotAskItems.some((item) => selectedCTs.has(item));',
+            '      });',
             '    };',
             '',
             '    const runCtLookup = async () => {',
