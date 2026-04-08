@@ -2260,7 +2260,8 @@ Job Title: ${jobTitleValue || "N/A"}
         `;
       };
 
-      const runUserLookup = async () => {
+      const runUserLookup = async (options = {}) => {
+        const { openOverlay = true } = options;
         if (userLookupPending) return;
         if (!userLookupOverlayEl || !userLookupBodyEl) return;
 
@@ -2269,7 +2270,11 @@ Job Title: ${jobTitleValue || "N/A"}
         if (userLookupBtn) userLookupBtn.disabled = true;
         if (userLookupFilterBtn) userLookupFilterBtn.disabled = true;
         userLookupBodyEl.innerHTML = '<div class="lookupResponseText">Loading user lookup...</div>';
-        userLookupOverlayEl.classList.remove("hidden");
+        if (openOverlay) {
+          userLookupOverlayEl.classList.remove("hidden");
+        } else {
+          userLookupOverlayEl.classList.add("hidden");
+        }
 
         try {
           const ctx = getStudentContext();
@@ -2307,10 +2312,10 @@ Job Title: ${jobTitleValue || "N/A"}
             return [];
           };
 
-          const ctItems = parseCtItems(parsed);
+          const ctItems = parseCtItems(parsed).filter((item) => getLookupStatusValue(item).toUpperCase() === "CT");
           if (ctItems.length) {
             userLookupItems = ctItems;
-            renderUserLookupItems(userLookupItems);
+            renderUserLookupItems(userLookupItems, { ctOnly: true });
             if (userLookupFilterBtn) userLookupFilterBtn.disabled = false;
           } else if (parsed && typeof parsed === "object") {
             userLookupBodyEl.innerHTML = `<pre class="lookupResponseText">${escapeLookupHtml(JSON.stringify(parsed, null, 2))}</pre>`;
@@ -2327,6 +2332,14 @@ Job Title: ${jobTitleValue || "N/A"}
           userLookupPending = false;
           if (userLookupBtn) userLookupBtn.disabled = false;
         }
+      };
+
+      const initialiseLookupAndFilter = async () => {
+        if (initStatusEl) initStatusEl.textContent = "Running user lookup…";
+        await preloadWelcomeData();
+        await runUserLookup({ openOverlay: false });
+        if (initStatusEl) initStatusEl.textContent = "Applying question filter…";
+        applyQuestionFilter();
       };
 
       const formatPlaybackTime = (value) => {
@@ -3212,20 +3225,26 @@ Job Title: ${jobTitleValue || "N/A"}
         filteredQuestionsTableEl.classList.remove("hidden");
       };
 
+      const getStoredCtUnitCodes = () => new Set(
+        (Array.isArray(userLookupItems) ? userLookupItems : [])
+          .filter((item) => getLookupStatusValue(item).toUpperCase() === "CT")
+          .map((item) => String(item?.["Unit Code"] ?? "").trim().toUpperCase())
+          .filter(Boolean)
+      );
+
       const applyQuestionFilter = () => {
         if (!Array.isArray(questions) || !questions.length) {
           if (filteredQuestionsEmptyEl) filteredQuestionsEmptyEl.textContent = "No questions loaded yet. Please wait for questions to load.";
           if (filteredQuestionsSectionEl) filteredQuestionsSectionEl.classList.remove("hidden");
           return;
         }
-        // Build a set of the selected CT values (upper-case for case-insensitive comparison)
-        const selectedCTs = new Set(
+        const selectedCTs = getStoredCtUnitCodes();
+        if (!selectedCTs.size) {
           [ct1El?.value, ct2El?.value, ct3El?.value]
-            .filter((v) => v && v.trim())
-            .map((v) => v.trim().toUpperCase())
-        );
-        // A question is excluded only when ALL items in its CT Do Not Ask 1
-        // column are present in the combined CT1 / CT2 / CT3 selection.
+            .filter((value) => value && value.trim())
+            .map((value) => value.trim().toUpperCase())
+            .forEach((value) => selectedCTs.add(value));
+        }
         filteredQuestions = questions.filter((question) => {
           const ctDoNotAskRaw = getQuestionCtDoNotAsk(question);
           if (!ctDoNotAskRaw || !ctDoNotAskRaw.trim()) return true;
@@ -3234,7 +3253,7 @@ Job Title: ${jobTitleValue || "N/A"}
             .map((item) => item.trim().toUpperCase())
             .filter(Boolean);
           if (!doNotAskItems.length) return true;
-          return !doNotAskItems.every((item) => selectedCTs.has(item));
+          return !doNotAskItems.some((item) => selectedCTs.has(item));
         });
         renderFilteredQuestions(filteredQuestions);
         if (filteredQuestionsSectionEl) filteredQuestionsSectionEl.classList.remove("hidden");
@@ -3659,6 +3678,7 @@ END_REVIEW>>>`;
         await loadPromptTemplates();
         await sendStudentContextOnLoad();
         await populateMicrophones();
+        await initialiseLookupAndFilter();
         if (!resume) {
           await populateCameras();
           await startCamera();
