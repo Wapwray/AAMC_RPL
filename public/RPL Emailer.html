@@ -131,17 +131,32 @@
         color: #334155;
       }
 
-      pre {
+      .studentDetails {
         margin: 0;
         padding: 12px;
         border-radius: 10px;
         background: #eef4fb;
         border: 1px solid #d8e3ee;
         color: #0f172a;
-        white-space: pre-wrap;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      .studentRow {
+        display: grid;
+        grid-template-columns: 130px 1fr;
+        gap: 8px;
+        padding: 4px 0;
+      }
+
+      .studentLabel {
+        font-weight: 700;
+        color: #1e293b;
+      }
+
+      .studentValue {
+        color: #0f172a;
         word-break: break-word;
-        font-size: 13px;
-        line-height: 1.4;
       }
 
       .confirmActions {
@@ -170,7 +185,7 @@
       <section id="responsePanel" class="responsePanel">
         <h2>Webhook Response</h2>
         <p>Is this the correct student?</p>
-        <pre id="responseData">No response yet.</pre>
+        <div id="responseData" class="studentDetails">No response yet.</div>
         <div class="confirmActions">
           <button class="primary" type="button">Yes</button>
           <button class="secondary" type="button">No</button>
@@ -197,8 +212,37 @@
         }
       };
 
+      const escapeHtml = (value) =>
+        String(value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+
+      const renderStudentField = (label, value) => {
+        const safeValue = value === null || value === undefined || value === "" ? "-" : String(value);
+        return [
+          '<div class="studentRow">',
+          `  <div class="studentLabel">${escapeHtml(label)}</div>`,
+          `  <div class="studentValue">${escapeHtml(safeValue)}</div>`,
+          "</div>",
+        ].join("\n");
+      };
+
       const showResponse = (data) => {
-        responseDataEl.textContent = JSON.stringify(data, null, 2);
+        const source = data && typeof data === "object" ? data : {};
+        const givenName = source.student_given_name || "";
+        const surname = source.student_surname || "";
+        const fullName = `${String(givenName).trim()} ${String(surname).trim()}`.trim();
+
+        responseDataEl.innerHTML = [
+          renderStudentField("Name", fullName),
+          renderStudentField("Contact ID", source.contact_id),
+          renderStudentField("Email", source.email),
+          renderStudentField("Mobile", source.mobile),
+        ].join("\n");
+
         responsePanelEl.style.display = "block";
       };
 
