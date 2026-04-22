@@ -164,6 +164,43 @@
         display: flex;
         gap: 10px;
       }
+
+      .assessorPanel {
+        margin-top: 18px;
+        border: 1px solid #d8e3ee;
+        border-radius: 12px;
+        background: #f8fbff;
+        padding: 14px;
+        display: none;
+      }
+
+      .assessorPanel p {
+        margin: 0 0 10px;
+        font-size: 14px;
+        font-weight: 600;
+        color: #0f172a;
+      }
+
+      select {
+        width: 100%;
+        border: 1px solid #c8d6e3;
+        border-radius: 10px;
+        font-size: 15px;
+        padding: 10px 12px;
+        background: #ffffff;
+        color: #0f172a;
+        box-sizing: border-box;
+        appearance: auto;
+      }
+
+      select:focus {
+        outline: 3px solid rgba(37, 99, 235, 0.2);
+        border-color: #2563eb;
+      }
+
+      .assessorConfirm {
+        margin-top: 12px;
+      }
     </style>
   </head>
   <body>
@@ -187,8 +224,22 @@
         <p>Is this the correct student?</p>
         <div id="responseData" class="studentDetails">No response yet.</div>
         <div class="confirmActions">
-          <button class="primary" type="button">Yes</button>
+          <button id="yesBtn" class="primary" type="button">Yes</button>
           <button class="secondary" type="button">No</button>
+        </div>
+      </section>
+
+      <section id="assessorPanel" class="assessorPanel">
+        <p>Select the assigned assessor</p>
+        <select id="assessorSelect">
+          <option value="">-- Select an assessor --</option>
+          <option value="Andrew Larcombe">Andrew Larcombe</option>
+          <option value="Sabina Luthra">Sabina Luthra</option>
+          <option value="Emeraude Raillard">Emeraude Raillard</option>
+          <option value="Erina Cunningham">Erina Cunningham</option>
+        </select>
+        <div class="assessorConfirm">
+          <button class="primary" type="button">Confirm</button>
         </div>
       </section>
     </main>
@@ -198,6 +249,13 @@
         "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/6550b2c761904160b0bae9baf9d59d7b/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=tDGXeZGMjeoZqZ3n6UsWXmAph7KPxQhCO29menDswtw";
 
       const formEl = document.getElementById("emailerForm");
+      const assessorPanelEl = document.getElementById("assessorPanel");
+      const yesBtnEl = document.getElementById("yesBtn");
+
+      yesBtnEl.addEventListener("click", () => {
+        assessorPanelEl.style.display = "block";
+        assessorPanelEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
       const inputEl = document.getElementById("contactIdInput");
       const submitBtnEl = document.getElementById("submitBtn");
       const statusEl = document.getElementById("statusMessage");
