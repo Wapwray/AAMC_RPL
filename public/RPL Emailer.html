@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RPL Emailer</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: #f3f7fb;
+        color: #0f172a;
+      }
+
+      body {
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+
+      .card {
+        width: min(760px, 100%);
+        background: #ffffff;
+        border: 1px solid #d8e3ee;
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: 24px;
+        font-weight: 700;
+      }
+
+      .subtitle {
+        margin: 0 0 20px;
+        color: #475569;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      .formRow {
+        display: grid;
+        gap: 10px;
+      }
+
+      label {
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      input {
+        width: 100%;
+        border: 1px solid #c8d6e3;
+        border-radius: 10px;
+        font-size: 16px;
+        padding: 12px;
+        box-sizing: border-box;
+      }
+
+      input:focus {
+        outline: 3px solid rgba(37, 99, 235, 0.2);
+        border-color: #2563eb;
+      }
+
+      .actions {
+        margin-top: 14px;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      button {
+        border: 1px solid transparent;
+        border-radius: 10px;
+        padding: 10px 16px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .primary {
+        background: #2563eb;
+        color: #ffffff;
+      }
+
+      .secondary {
+        background: #ffffff;
+        border-color: #c8d6e3;
+        color: #0f172a;
+      }
+
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .status {
+        margin-top: 16px;
+        min-height: 20px;
+        font-size: 14px;
+      }
+
+      .status.error {
+        color: #b91c1c;
+      }
+
+      .status.success {
+        color: #166534;
+      }
+
+      .responsePanel {
+        margin-top: 18px;
+        border: 1px solid #d8e3ee;
+        border-radius: 12px;
+        background: #f8fbff;
+        padding: 14px;
+        display: none;
+      }
+
+      .responsePanel h2 {
+        margin: 0 0 8px;
+        font-size: 18px;
+      }
+
+      .responsePanel p {
+        margin: 0 0 12px;
+        color: #334155;
+      }
+
+      pre {
+        margin: 0;
+        padding: 12px;
+        border-radius: 10px;
+        background: #eef4fb;
+        border: 1px solid #d8e3ee;
+        color: #0f172a;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-size: 13px;
+        line-height: 1.4;
+      }
+
+      .confirmActions {
+        margin-top: 12px;
+        display: flex;
+        gap: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <h1>RPL Emailer</h1>
+      <p class="subtitle">Enter a student Contact ID from Axcelerate and submit to fetch the student details.</p>
+
+      <form id="emailerForm" class="formRow">
+        <label for="contactIdInput">Student Contact ID (Axcelerate)</label>
+        <input id="contactIdInput" name="contactId" type="text" required autocomplete="off" />
+
+        <div class="actions">
+          <button id="submitBtn" class="primary" type="submit">Submit</button>
+        </div>
+      </form>
+
+      <div id="statusMessage" class="status" aria-live="polite"></div>
+
+      <section id="responsePanel" class="responsePanel">
+        <h2>Webhook Response</h2>
+        <p>Is this the correct student?</p>
+        <pre id="responseData">No response yet.</pre>
+        <div class="confirmActions">
+          <button class="primary" type="button">Yes</button>
+          <button class="secondary" type="button">No</button>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const WEBHOOK_URL =
+        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/6550b2c761904160b0bae9baf9d59d7b/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=tDGXeZGMjeoZqZ3n6UsWXmAph7KPxQhCO29menDswtw";
+
+      const formEl = document.getElementById("emailerForm");
+      const inputEl = document.getElementById("contactIdInput");
+      const submitBtnEl = document.getElementById("submitBtn");
+      const statusEl = document.getElementById("statusMessage");
+      const responsePanelEl = document.getElementById("responsePanel");
+      const responseDataEl = document.getElementById("responseData");
+
+      const setStatus = (message, kind) => {
+        statusEl.textContent = message;
+        statusEl.className = "status";
+        if (kind) {
+          statusEl.classList.add(kind);
+        }
+      };
+
+      const showResponse = (data) => {
+        responseDataEl.textContent = JSON.stringify(data, null, 2);
+        responsePanelEl.style.display = "block";
+      };
+
+      formEl.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const contactId = inputEl.value.trim();
+        if (!contactId) {
+          setStatus("Please enter a Contact ID.", "error");
+          responsePanelEl.style.display = "none";
+          return;
+        }
+
+        submitBtnEl.disabled = true;
+        setStatus("Submitting Contact ID...", "");
+        responsePanelEl.style.display = "none";
+
+        try {
+          const response = await fetch(WEBHOOK_URL, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              contactId,
+              ContactID: contactId,
+            }),
+          });
+
+          const responseText = await response.text();
+          let parsed;
+
+          try {
+            parsed = responseText ? JSON.parse(responseText) : { message: "No response body." };
+          } catch {
+            parsed = { message: responseText || "No response body." };
+          }
+
+          if (!response.ok) {
+            setStatus("Webhook call failed.", "error");
+            showResponse({
+              status: response.status,
+              statusText: response.statusText,
+              data: parsed,
+            });
+            return;
+          }
+
+          setStatus("Student data received.", "success");
+          showResponse(parsed);
+        } catch (error) {
+          setStatus("Unable to call the webhook. Check network/CORS settings.", "error");
+          showResponse({ error: String(error) });
+        } finally {
+          submitBtnEl.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>
