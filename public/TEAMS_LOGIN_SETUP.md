@@ -41,13 +41,13 @@ Edit [`public/teams-auth-config.json`](teams-auth-config.json):
 
 ```json
 {
-  "clientId": "<PASTE-APPLICATION-CLIENT-ID-HERE>",
+  "clientId": "5c13413f-3311-4668-a3a3-e549bed05acd",
   "tenantId": "63871d3c-d05d-49fa-86b6-420054699fb4",
-  "redirectUri": ""
+  "redirectUri": "https://aamc-rpl-live-ecgua6ceb4fkgfh0.australiaeast-01.azurewebsites.net/Live%20Assessment.html"
 }
 ```
 
-- `redirectUri` can stay empty — the page uses its own URL.
+- `redirectUri` should match your hosted app URL exactly (including the HTML filename). If left empty, the page will use its own URL, but it's recommended to set it explicitly to match your Entra app registration.
 - Commit and push. GitHub Pages will redeploy automatically.
 
 ### Alternative: URL override (no commit needed)
