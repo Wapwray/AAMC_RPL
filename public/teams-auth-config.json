@@ -1,6 +1,6 @@
 {
-  "_comment": "Populate clientId with the Application (client) ID of the Entra SPA app registration. Leave redirectUri empty to use the current page URL.",
-  "clientId": "",
+  "_comment": "Populate clientId with the Application (client) ID of the Entra SPA app registration. redirectUri must exactly match what is configured in the Entra App Registration.",
+  "clientId": "5c13413f-3311-4668-a3a3-e549bed05acd",
   "tenantId": "63871d3c-d05d-49fa-86b6-420054699fb4",
-  "redirectUri": ""
+  "redirectUri": "https://aamc-rpl-live-ecgua6ceb4fkgfh0.australiaeast-01.azurewebsites.net/Live%20Assessment.html"
 }

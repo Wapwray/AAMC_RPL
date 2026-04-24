@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>AAMC RPL Live Assessment V0.1</title>
+    <title>AAMC RPL Live Assessment V0.2</title>
     <script src="https://alcdn.msauth.net/browser/2.39.0/js/msal-browser.min.js"></script>
     <style>
       :root {
@@ -730,7 +730,7 @@
     <div class="page">
       <header class="topbar">
         <div class="brand">
-          <h1>AAMC RPL Live Assessment V0.1</h1>
+          <h1>AAMC RPL Live Assessment V0.2</h1>
           <span class="badge" id="sessionBadge">Not started</span>
         </div>
         <div class="status" id="status">Loading questions...</div>
@@ -1121,7 +1121,14 @@
         },
       ];
 
-      const setStatus = (message) => {
+      const setStatus = (message, sticky = false) => {
+        els.status.textContent = message;
+        // Mark sticky messages so subsequent non-sticky updates don't overwrite them
+        els.status.dataset.sticky = sticky ? "1" : "";
+      };
+
+      const setStatusIfNotSticky = (message) => {
+        if (els.status.dataset.sticky === "1") return;
         els.status.textContent = message;
       };
 
@@ -1359,7 +1366,7 @@
           if (!config.clientId) {
             setTeamsAuthStatus("Teams login not configured", "red");
             els.teamsLoginBtn.disabled = true;
-            setStatus("⚠️ Teams integration requires setup: (1) Create Entra App Registration at https://entra.microsoft.com, (2) Add Application Client ID to teams-auth-config.json, or (3) Append ?teamsClientId=YOUR_CLIENT_ID to the URL. See TEAMS_LOGIN_SETUP.md for detailed steps.");
+            setStatus("⚠️ Teams integration requires setup: (1) Create Entra App Registration at https://entra.microsoft.com, (2) Add Application Client ID to teams-auth-config.json, or (3) Append ?teamsClientId=YOUR_CLIENT_ID to the URL. See TEAMS_LOGIN_SETUP.md for detailed steps.", true);
             return;
           }
 
@@ -1385,9 +1392,9 @@
           const errorMsg = error?.message || String(error);
           setTeamsAuthStatus("Teams login unavailable", "red");
           if (errorMsg.includes("not found")) {
-            setStatus("⚠️ Teams auth config not found. Populate teams-auth-config.json with your Entra Application Client ID. See TEAMS_LOGIN_SETUP.md for detailed setup instructions.");
+            setStatus("⚠️ Teams auth config not found. Populate teams-auth-config.json with your Entra Application Client ID. See TEAMS_LOGIN_SETUP.md for detailed setup instructions.", true);
           } else {
-            setStatus(`Teams setup error: ${errorMsg}`);
+            setStatus(`Teams setup error: ${errorMsg}`, true);
           }
         }
       };
@@ -1908,7 +1915,7 @@
       };
 
       const loadQuestions = async () => {
-        setStatus("Loading questions...");
+        setStatusIfNotSticky("Loading questions...");
         try {
           const text = await fetchQuestionsPayload();
 
@@ -1923,11 +1930,11 @@
           state.currentIndex = 0;
           state.summaryOpen = false;
           state.sessionComplete = false;
-          setStatus("Questions ready.");
+          setStatusIfNotSticky("Questions ready.");
         } catch (error) {
           state.questions = [];
           state.records = [];
-          setStatus(error?.message || String(error));
+          setStatusIfNotSticky(error?.message || String(error));
           els.emptyMessage.textContent = error?.message || String(error);
         }
         render();
