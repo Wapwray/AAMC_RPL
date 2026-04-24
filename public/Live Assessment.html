@@ -904,7 +904,9 @@
     </div>
 
     <script>
-      const QUESTIONS_PROXY_URL = "/api/live-assessment/questions";
+      const QUESTIONS_PROXY_URL = "/api/industries";
+      const QUESTIONS_WEBHOOK_URL =
+        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/4e73e4946e2f4d68a1c327ffd94ab86e/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=PL4kQafihKKASyjQ6277VCbFKpq76tRgecIcNrKuBps";
 
       const els = {
         status: document.getElementById("status"),
@@ -1075,6 +1077,7 @@
           parsed.items,
           parsed.value,
           parsed.body,
+          parsed.rawText,
           parsed.d?.results,
         ];
 
@@ -1358,7 +1361,7 @@
           const response = await fetch(QUESTIONS_PROXY_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({}),
+            body: JSON.stringify({ upstreamUrl: QUESTIONS_WEBHOOK_URL }),
           });
           const text = await response.text();
           if (!response.ok) throw new Error(`Question webhook failed (${response.status})`);
