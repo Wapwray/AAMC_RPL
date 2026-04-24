@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>AAMC RPL Live Assessment V0.2</title>
+    <title>AAMC RPL Live Assessment V0.3</title>
     <script src="https://alcdn.msauth.net/browser/2.39.0/js/msal-browser.min.js"
             onerror="this.onerror=null;var s=document.createElement('script');s.src='https://unpkg.com/@azure/msal-browser@2.39.0/lib/msal-browser.min.js';s.onerror=function(){var t=document.createElement('script');t.src='https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.39.0/lib/msal-browser.min.js';document.head.appendChild(t);};document.head.appendChild(s);"></script>
     <style>
@@ -731,7 +731,7 @@
     <div class="page">
       <header class="topbar">
         <div class="brand">
-          <h1>AAMC RPL Live Assessment V0.2</h1>
+          <h1>AAMC RPL Live Assessment V0.3</h1>
           <span class="badge" id="sessionBadge">Not started</span>
         </div>
         <div class="status" id="status">Loading questions...</div>
@@ -862,17 +862,14 @@
               <button id="openMeetingFromPanelBtn" class="secondary" type="button">Open in Teams</button>
             </div>
             <div class="panelBody meetingCard">
-              <div class="meetingFrameWrap">
-                <iframe
-                  id="teamsMeetingFrame"
-                  class="meetingFrame"
-                  title="Selected Teams meeting"
-                  referrerpolicy="no-referrer"
-                  allow="camera; microphone; fullscreen; display-capture"
-                ></iframe>
-              </div>
-              <div class="meetingFallback">
-                If Microsoft Teams does not render in this panel, use Open in Teams. Microsoft may block full meeting experiences inside third-party iframes; the assessment and transcript polling remain on this page.
+              <div class="meetingFrameWrap" style="display:grid;place-items:center;padding:28px;background:linear-gradient(135deg,#0b6ea9,#075985);color:#fff;text-align:center;gap:12px;">
+                <div style="font-size:42px;line-height:1;">📹</div>
+                <div style="font-size:16px;font-weight:700;">Join this meeting in Microsoft Teams</div>
+                <div style="font-size:13px;opacity:0.9;max-width:480px;line-height:1.5;">
+                  Microsoft Teams meetings can't be embedded directly in web pages. Click "Open in Teams" above to join — keep this page open alongside the Teams client. Transcript polling continues automatically once transcription is turned on in the meeting.
+                </div>
+                <button id="openMeetingHeroBtn" type="button" style="background:#fff;color:#075985;margin-top:6px;">Open in Teams</button>
+                <iframe id="teamsMeetingFrame" style="display:none;" title="Hidden placeholder"></iframe>
               </div>
             </div>
           </section>
@@ -2231,6 +2228,8 @@
       };
 
       els.openTeamsBtn.addEventListener("click", openSelectedTeamsMeeting);
+      const heroBtn = document.getElementById("openMeetingHeroBtn");
+      if (heroBtn) heroBtn.addEventListener("click", openSelectedTeamsMeeting);
       els.openMeetingFromPanelBtn.addEventListener("click", openSelectedTeamsMeeting);
       els.teamsLoginBtn.addEventListener("click", loginToTeams);
       els.teamsLogoutBtn.addEventListener("click", logoutTeams);
