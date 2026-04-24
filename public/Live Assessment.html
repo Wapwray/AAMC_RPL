@@ -1695,11 +1695,13 @@
 
       const updateStartButtonState = () => {
         const hasNames = Boolean(els.studentName.value.trim() && els.assessorName.value.trim());
+        const hasTeamsAuth = Boolean(state.teamsAccount) || Boolean(state.teamsMeetingContextId);
+        const hasMeeting = Boolean(state.selectedMeeting) || Boolean(state.teamsMeetingContextId);
         const ready =
           state.questions.length > 0 &&
           hasNames &&
-          Boolean(state.teamsAccount) &&
-          Boolean(state.selectedMeeting);
+          hasTeamsAuth &&
+          hasMeeting;
         els.startSessionBtn.disabled = state.sessionStarted || !ready;
 
         // Build a helpful tooltip so the user can see what's still missing
@@ -2010,11 +2012,11 @@
           setStatus("Enter the student and assessor names before starting.");
           return;
         }
-        if (!state.teamsAccount) {
+        if (!state.teamsAccount && !state.teamsMeetingContextId) {
           setStatus("Login to Teams before starting.");
           return;
         }
-        if (!state.selectedMeeting) {
+        if (!state.selectedMeeting && !state.teamsMeetingContextId) {
           setStatus("Choose a Teams meeting before starting.");
           return;
         }
@@ -2378,6 +2380,44 @@
         }
         document.body.classList.add("in-teams");
         try { sdk.app.notifySuccess && sdk.app.notifySuccess(); } catch {}
+
+        // --- Configure (tab settings) handshake -------------------------
+        // When a user adds this app to a meeting, Teams loads the page in
+        // a "configure" dialog and waits for pages.config.setValidityState
+        // + a save handler. Without these the app sits as a modal overlay
+        // above the meeting video. We detect the configure surface via the
+        // URL (?configure=1) set in the manifest configurationUrl, or via
+        // frameContext === "settings".
+        try {
+          const urlParams = new URLSearchParams(window.location.search);
+          let frameContext = null;
+          try {
+            const ctx0 = await sdk.app.getContext();
+            frameContext = ctx0?.page?.frameContext || ctx0?.frameContext || null;
+          } catch {}
+          const isConfigureSurface = urlParams.get("configure") === "1" || frameContext === "settings";
+          if (isConfigureSurface && sdk.pages && sdk.pages.config) {
+            const base = window.location.origin + window.location.pathname;
+            sdk.pages.config.registerOnSaveHandler((saveEvent) => {
+              sdk.pages.config
+                .setConfig({
+                  entityId: "aamc-rpl-live-assessment",
+                  suggestedDisplayName: "AAMC RPL Live Assessment",
+                  contentUrl: base + "?inTeams=1&meetingMode=1",
+                  websiteUrl: base,
+                })
+                .then(() => saveEvent.notifySuccess())
+                .catch((e) => saveEvent.notifyFailure(String((e && e.message) || e)));
+            });
+            sdk.pages.config.setValidityState(true);
+            document.body.classList.add("teams-configure");
+            setStatusIfNotSticky("Click Save to add AAMC RPL Live Assessment to this meeting.");
+            // In configure mode we don't need the full assessment UI running.
+            return;
+          }
+        } catch (e) {
+          console.warn("Teams configure handshake failed", e);
+        }
 
         // Auto-populate assessor name from Teams context if field is empty,
         // and remember the signed-in user so MSAL can do silent SSO later.
