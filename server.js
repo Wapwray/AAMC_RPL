@@ -6,6 +6,15 @@ const INDUSTRY_API_URL =
 const LIVE_ASSESSMENT_QUESTIONS_URL =
   process.env.LIVE_ASSESSMENT_QUESTIONS_URL ||
   "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/4e73e4946e2f4d68a1c327ffd94ab86e/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=PL4kQafihKKASyjQ6277VCbFKpq76tRgecIcNrKuBps";
+const MS_TEAMS_CLIENT_ID =
+  process.env.MS_TEAMS_CLIENT_ID ||
+  process.env.MICROSOFT_CLIENT_ID ||
+  process.env.AZURE_CLIENT_ID ||
+  "";
+const MS_TEAMS_TENANT_ID =
+  process.env.MS_TEAMS_TENANT_ID ||
+  process.env.AZURE_TENANT_ID ||
+  "63871d3c-d05d-49fa-86b6-420054699fb4";
 const INDUSTRY_FALLBACK_ITEMS = [
   { Title: "Banking" },
   { Title: "Lending" },
@@ -18,6 +27,20 @@ const port = process.env.PORT || 3000;
 
 app.use(express.json({ limit: "1mb" }));
 app.use(express.static(path.join(__dirname, "public")));
+
+app.get("/api/teams-auth-config", (req, res) => {
+  const forwardedHost = req.headers["x-forwarded-host"];
+  const host = Array.isArray(forwardedHost) ? forwardedHost[0] : forwardedHost || req.headers.host;
+  const forwardedProto = req.headers["x-forwarded-proto"];
+  const proto = Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto || req.protocol || "https";
+  const baseUrl = `${proto}://${host}`;
+
+  res.json({
+    clientId: MS_TEAMS_CLIENT_ID,
+    tenantId: MS_TEAMS_TENANT_ID,
+    redirectUri: `${baseUrl}/Live%20Assessment.html`,
+  });
+});
 
 app.post("/api/industries", async (req, res) => {
   const bearerToken =
