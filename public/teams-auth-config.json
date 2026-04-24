@@ -1,0 +1,6 @@
+{
+  "_comment": "Populate clientId with the Application (client) ID of the Entra SPA app registration. Leave redirectUri empty to use the current page URL.",
+  "clientId": "",
+  "tenantId": "63871d3c-d05d-49fa-86b6-420054699fb4",
+  "redirectUri": ""
+}

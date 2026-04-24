@@ -790,7 +790,7 @@
                   <span id="transcriptionState">Off</span>
                 </div>
                 <label class="switch" aria-label="Transcription started">
-                  <input id="transcriptionToggle" type="checkbox" />
+                  <input id="transcriptionToggle" type="checkbox" checked />
                   <span class="slider"></span>
                 </label>
               </div>
@@ -1013,6 +1013,12 @@
       ];
       const TRANSCRIPT_POLL_MS = 30000;
 
+      const TEAM_AUTH_CONFIG_ENDPOINTS = [
+        "./teams-auth-config.json",
+        "/teams-auth-config.json",
+        "/api/teams-auth-config",
+      ];
+
       const els = {
         status: document.getElementById("status"),
         sessionBadge: document.getElementById("sessionBadge"),
@@ -1127,6 +1133,43 @@
       const setTeamsAuthStatus = (message, tone = "amber") => {
         els.teamsAuthStatus.textContent = message;
         els.teamsAuthStatus.className = `badge ${tone}`.trim();
+      };
+
+      const parseConfigFromQuery = () => {
+        const params = new URLSearchParams(window.location.search);
+        const clientId = pickFirst(
+          params.get("teamsClientId"),
+          params.get("clientId"),
+          params.get("msTeamsClientId")
+        );
+        if (!clientId) return null;
+        return {
+          clientId,
+          tenantId: pickFirst(params.get("teamsTenantId"), params.get("tenantId"), "organizations"),
+          redirectUri: pickFirst(params.get("teamsRedirectUri"), params.get("redirectUri")),
+        };
+      };
+
+      const loadFirstAvailableTeamsConfig = async () => {
+        for (const endpoint of TEAM_AUTH_CONFIG_ENDPOINTS) {
+          try {
+            const response = await fetch(endpoint, { cache: "no-store" });
+            if (!response.ok) continue;
+            const config = await response.json();
+            if (config && typeof config === "object") {
+              return { config, source: endpoint };
+            }
+          } catch {
+            // Try the next config source.
+          }
+        }
+
+        const queryConfig = parseConfigFromQuery();
+        if (queryConfig) {
+          return { config: queryConfig, source: "query" };
+        }
+
+        throw new Error("Teams auth config not found. Populate teams-auth-config.json with your Entra clientId, or append ?teamsClientId=<guid> to the URL.");
       };
 
       const pickFirst = (...values) => {
@@ -1310,15 +1353,13 @@
 
       const loadTeamsAuthConfig = async () => {
         try {
-          const response = await fetch("/api/teams-auth-config", { cache: "no-store" });
-          if (!response.ok) throw new Error(`Teams auth config failed (${response.status})`);
-          const config = await response.json();
+          const { config, source } = await loadFirstAvailableTeamsConfig();
           state.msalConfig = config;
 
           if (!config.clientId) {
             setTeamsAuthStatus("Teams login not configured", "red");
             els.teamsLoginBtn.disabled = true;
-            setStatus("Teams login requires an Entra app client ID on the server.");
+            setStatus("Set clientId in teams-auth-config.json (or pass ?teamsClientId=<guid>) to enable Teams login. See README for Entra App Registration steps.");
             return;
           }
 
@@ -1566,6 +1607,10 @@
 
       const startTranscriptPolling = () => {
         stopTranscriptPolling();
+        if (!els.transcriptionToggle.checked) {
+          setTranscriptStatus("Transcript polling paused", "amber");
+          return;
+        }
         if (!state.selectedMeeting || !state.teamsAccount) return;
         setTranscriptStatus("Polling Teams transcript", "amber");
         fetchSelectedMeetingTranscript();
@@ -1836,16 +1881,31 @@
         els.downloadSummaryCsvBtn.disabled = !state.sessionComplete;
       };
 
+      const fetchQuestionsPayload = async () => {
+        // Try the Power Automate webhook directly first (works on any static host).
+        try {
+          const direct = await fetch(QUESTIONS_WEBHOOK_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: "{}",
+          });
+          if (direct.ok) return await direct.text();
+        } catch {
+          // CORS or network issue — fall through to optional proxy.
+        }
+        const proxied = await fetch(QUESTIONS_PROXY_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ upstreamUrl: QUESTIONS_WEBHOOK_URL }),
+        });
+        if (!proxied.ok) throw new Error(`Question webhook failed (${proxied.status})`);
+        return proxied.text();
+      };
+
       const loadQuestions = async () => {
         setStatus("Loading questions...");
         try {
-          const response = await fetch(QUESTIONS_PROXY_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ upstreamUrl: QUESTIONS_WEBHOOK_URL }),
-          });
-          const text = await response.text();
-          if (!response.ok) throw new Error(`Question webhook failed (${response.status})`);
+          const text = await fetchQuestionsPayload();
 
           const payload = parsePossibleJson(text);
           const items = collectListItems(payload);
@@ -2135,6 +2195,7 @@
         els.resultSatisfactory.checked = false;
         els.resultNotSatisfactory.checked = false;
         els.timerBadge.textContent = "00:00";
+        setTranscriptStatus("Transcript idle", "amber");
         setStatus(state.questions.length ? "Questions ready." : "Ready.");
         render();
       };
@@ -2154,7 +2215,15 @@
 
       els.startSessionBtn.addEventListener("click", startSession);
       els.recordingToggle.addEventListener("change", render);
-      els.transcriptionToggle.addEventListener("change", render);
+      els.transcriptionToggle.addEventListener("change", () => {
+        if (els.transcriptionToggle.checked) {
+          startTranscriptPolling();
+        } else {
+          stopTranscriptPolling();
+          setTranscriptStatus("Transcript polling paused", "amber");
+        }
+        render();
+      });
       els.studentName.addEventListener("input", render);
       els.assessorName.addEventListener("input", render);
       els.retryLoadBtn.addEventListener("click", loadQuestions);
