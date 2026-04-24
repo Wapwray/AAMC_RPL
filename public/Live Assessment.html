@@ -4,7 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AAMC RPL Live Assessment V0.2</title>
-    <script src="https://alcdn.msauth.net/browser/2.39.0/js/msal-browser.min.js"></script>
+    <script src="https://alcdn.msauth.net/browser/2.39.0/js/msal-browser.min.js"
+            onerror="this.onerror=null;var s=document.createElement('script');s.src='https://unpkg.com/@azure/msal-browser@2.39.0/lib/msal-browser.min.js';s.onerror=function(){var t=document.createElement('script');t.src='https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.39.0/lib/msal-browser.min.js';document.head.appendChild(t);};document.head.appendChild(s);"></script>
     <style>
       :root {
         color-scheme: light;
@@ -1358,8 +1359,19 @@
         return response.text();
       };
 
+      const waitForMsal = async (timeoutMs = 8000) => {
+        const start = Date.now();
+        while (typeof msal === "undefined" || !msal.PublicClientApplication) {
+          if (Date.now() - start > timeoutMs) {
+            throw new Error("MSAL library failed to load. Check your internet connection or ad blocker — the MSAL script (msal-browser.min.js) could not be loaded from the CDN.");
+          }
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+      };
+
       const loadTeamsAuthConfig = async () => {
         try {
+          await waitForMsal();
           const { config, source } = await loadFirstAvailableTeamsConfig();
           state.msalConfig = config;
 
