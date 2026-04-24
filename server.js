@@ -3,6 +3,9 @@ const path = require("path");
 
 const INDUSTRY_API_URL =
   "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/cdaf89af8b5349478d4801c5d3bc1587/triggers/manual/paths/invoke?api-version=1";
+const LIVE_ASSESSMENT_QUESTIONS_URL =
+  process.env.LIVE_ASSESSMENT_QUESTIONS_URL ||
+  "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/4e73e4946e2f4d68a1c327ffd94ab86e/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=PL4kQafihKKASyjQ6277VCbFKpq76tRgecIcNrKuBps";
 const INDUSTRY_FALLBACK_ITEMS = [
   { Title: "Banking" },
   { Title: "Lending" },
@@ -63,6 +66,23 @@ app.post("/api/industries", async (req, res) => {
     }
 
     res.status(response.status).send(text || "Industry API error");
+  } catch (error) {
+    res.status(500).json({ error: error?.message || String(error) });
+  }
+});
+
+app.post("/api/live-assessment/questions", async (_req, res) => {
+  try {
+    const response = await fetch(LIVE_ASSESSMENT_QUESTIONS_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    const text = await response.text();
+
+    res.status(response.status);
+    res.type(response.headers.get("content-type") || "application/json");
+    res.send(text || "");
   } catch (error) {
     res.status(500).json({ error: error?.message || String(error) });
   }

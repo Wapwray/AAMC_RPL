@@ -1,0 +1,1719 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AAMC RPL Live Assessment</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        --page: #f5f7fa;
+        --surface: #ffffff;
+        --surface-soft: #f8fafc;
+        --surface-strong: #eef3f7;
+        --text: #172033;
+        --muted: #64748b;
+        --line: #dbe3eb;
+        --primary: #0b6ea9;
+        --primary-dark: #075985;
+        --green: #0f8b63;
+        --red: #b4234b;
+        --amber: #a35f00;
+        --shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+      }
+
+      * { box-sizing: border-box; }
+
+      html,
+      body {
+        min-height: 100%;
+      }
+
+      body {
+        margin: 0;
+        background: var(--page);
+        color: var(--text);
+      }
+
+      button,
+      input,
+      textarea {
+        font: inherit;
+      }
+
+      button {
+        border: 0;
+        border-radius: 8px;
+        padding: 10px 14px;
+        background: var(--primary);
+        color: #ffffff;
+        font-weight: 700;
+        cursor: pointer;
+        min-height: 42px;
+      }
+
+      button:hover:not(:disabled) {
+        background: var(--primary-dark);
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+
+      button.secondary {
+        background: #ffffff;
+        color: var(--primary);
+        border: 1px solid #bad4e8;
+      }
+
+      button.secondary:hover:not(:disabled) {
+        background: #edf7ff;
+      }
+
+      button.danger {
+        background: #ffffff;
+        color: var(--red);
+        border: 1px solid #f0b8c6;
+      }
+
+      button.danger:hover:not(:disabled) {
+        background: #fff1f4;
+      }
+
+      input,
+      textarea {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #ffffff;
+        color: var(--text);
+        padding: 10px 12px;
+      }
+
+      textarea {
+        resize: vertical;
+        min-height: 170px;
+        line-height: 1.45;
+      }
+
+      label {
+        display: grid;
+        gap: 6px;
+        font-size: 13px;
+        font-weight: 700;
+        color: #334155;
+      }
+
+      .page {
+        min-height: 100vh;
+        display: grid;
+        grid-template-rows: auto 1fr;
+      }
+
+      .topbar {
+        background: #ffffff;
+        border-bottom: 1px solid var(--line);
+        padding: 14px 22px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+
+      .brand {
+        display: flex;
+        align-items: baseline;
+        gap: 14px;
+        min-width: 0;
+      }
+
+      .brand h1 {
+        font-size: 20px;
+        margin: 0;
+        white-space: nowrap;
+      }
+
+      .status {
+        color: var(--muted);
+        font-size: 13px;
+        min-width: 180px;
+        text-align: right;
+      }
+
+      .main {
+        width: min(1500px, 100%);
+        margin: 0 auto;
+        padding: 20px;
+        display: grid;
+        grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+        gap: 18px;
+        align-items: start;
+      }
+
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        box-shadow: var(--shadow);
+      }
+
+      .side {
+        position: sticky;
+        top: 82px;
+        display: grid;
+        gap: 14px;
+      }
+
+      .panelHeader {
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .panelHeader h2,
+      .panelHeader h3 {
+        margin: 0;
+        font-size: 15px;
+      }
+
+      .panelBody {
+        padding: 16px;
+        display: grid;
+        gap: 14px;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .actions button {
+        flex: 1 1 auto;
+      }
+
+      .stack {
+        display: grid;
+        gap: 10px;
+      }
+
+      .metaGrid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .metric {
+        border: 1px solid var(--line);
+        background: var(--surface-soft);
+        border-radius: 8px;
+        padding: 10px;
+        min-height: 68px;
+        display: grid;
+        align-content: center;
+        gap: 4px;
+      }
+
+      .metricValue {
+        font-size: 20px;
+        font-weight: 800;
+      }
+
+      .metricLabel {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .toggleRow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 10px 12px;
+        background: var(--surface-soft);
+      }
+
+      .toggleLabel {
+        display: grid;
+        gap: 2px;
+        min-width: 0;
+      }
+
+      .toggleLabel strong {
+        font-size: 13px;
+      }
+
+      .toggleLabel span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .switch {
+        position: relative;
+        width: 48px;
+        height: 28px;
+        flex: 0 0 48px;
+      }
+
+      .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+
+      .slider {
+        position: absolute;
+        cursor: pointer;
+        inset: 0;
+        background: #cbd5e1;
+        border-radius: 999px;
+        transition: background 0.18s ease;
+      }
+
+      .slider::before {
+        content: "";
+        position: absolute;
+        width: 22px;
+        height: 22px;
+        left: 3px;
+        top: 3px;
+        background: #ffffff;
+        border-radius: 999px;
+        box-shadow: 0 1px 4px rgba(15, 23, 42, 0.24);
+        transition: transform 0.18s ease;
+      }
+
+      .switch input:checked + .slider {
+        background: var(--green);
+      }
+
+      .switch input:checked + .slider::before {
+        transform: translateX(20px);
+      }
+
+      .workspace {
+        display: grid;
+        gap: 18px;
+      }
+
+      .questionHero {
+        min-height: 230px;
+      }
+
+      .questionTitle {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .questionTitle h2 {
+        margin: 0;
+        font-size: 22px;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 28px;
+        padding: 5px 10px;
+        border-radius: 999px;
+        background: var(--surface-strong);
+        color: #334155;
+        font-size: 12px;
+        font-weight: 800;
+        white-space: nowrap;
+      }
+
+      .badge.green {
+        background: #e8f7f1;
+        color: #0f6c4e;
+      }
+
+      .badge.red {
+        background: #fff0f3;
+        color: #9f1d42;
+      }
+
+      .badge.amber {
+        background: #fff7e8;
+        color: var(--amber);
+      }
+
+      .questionText {
+        font-size: 18px;
+        line-height: 1.5;
+        margin: 0;
+      }
+
+      .detailsGrid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .detailBlock {
+        border-top: 1px solid var(--line);
+        padding-top: 10px;
+        display: grid;
+        gap: 4px;
+        min-width: 0;
+      }
+
+      .detailLabel {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      .detailText {
+        font-size: 14px;
+        line-height: 1.4;
+        white-space: pre-wrap;
+      }
+
+      .editorGrid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.85fr);
+        gap: 18px;
+      }
+
+      .assessmentResult {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      .assessmentResult input {
+        position: absolute;
+        opacity: 0;
+      }
+
+      .assessmentResult label {
+        min-height: 48px;
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+        color: #334155;
+        background: #ffffff;
+        border: 0;
+        border-radius: 0;
+        font-size: 14px;
+        text-align: center;
+      }
+
+      .assessmentResult label + input + label,
+      .assessmentResult label + label {
+        border-left: 1px solid var(--line);
+      }
+
+      .assessmentResult input:checked + label[for="resultSatisfactory"] {
+        background: #e8f7f1;
+        color: #0f6c4e;
+      }
+
+      .assessmentResult input:checked + label[for="resultNotSatisfactory"] {
+        background: #fff0f3;
+        color: #9f1d42;
+      }
+
+      .navRow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .navRow .actions {
+        justify-content: flex-end;
+      }
+
+      .progressWrap {
+        display: grid;
+        gap: 8px;
+      }
+
+      .progressBar {
+        height: 9px;
+        border-radius: 999px;
+        background: #dfe7ef;
+        overflow: hidden;
+      }
+
+      .progressFill {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, #0b6ea9, #0f8b63);
+      }
+
+      .questionList {
+        display: grid;
+        gap: 6px;
+        max-height: 330px;
+        overflow: auto;
+        padding-right: 2px;
+      }
+
+      .questionNavButton {
+        width: 100%;
+        min-height: 44px;
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: 8px;
+        text-align: left;
+        border: 1px solid var(--line);
+        background: #ffffff;
+        color: var(--text);
+        padding: 8px 9px;
+      }
+
+      .questionNavButton:hover:not(:disabled),
+      .questionNavButton.active {
+        border-color: #90c7ec;
+        background: #eef8ff;
+      }
+
+      .questionNavButton .number {
+        font-weight: 800;
+        color: var(--primary-dark);
+      }
+
+      .questionNavButton .shortTitle {
+        min-width: 0;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: #cbd5e1;
+      }
+
+      .dot.done {
+        background: var(--green);
+      }
+
+      .dot.notSat {
+        background: var(--red);
+      }
+
+      .emptyState {
+        min-height: 460px;
+        display: grid;
+        place-items: center;
+        text-align: center;
+        padding: 24px;
+      }
+
+      .emptyStateInner {
+        display: grid;
+        gap: 12px;
+        max-width: 520px;
+      }
+
+      .emptyState h2 {
+        margin: 0;
+        font-size: 24px;
+      }
+
+      .emptyState p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      .fileRow {
+        display: grid;
+        gap: 8px;
+      }
+
+      .fileInput {
+        border: 1px dashed #a8c8df;
+        background: #f8fbfd;
+      }
+
+      .summaryTableWrap {
+        overflow: auto;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 720px;
+      }
+
+      th,
+      td {
+        border-bottom: 1px solid var(--line);
+        padding: 9px 10px;
+        text-align: left;
+        vertical-align: top;
+        font-size: 13px;
+      }
+
+      th {
+        background: var(--surface-soft);
+        color: #334155;
+        font-size: 12px;
+        text-transform: uppercase;
+      }
+
+      tr:last-child td {
+        border-bottom: 0;
+      }
+
+      .summaryCsvTable {
+        min-width: 1900px;
+      }
+
+      .summaryCsvTable th {
+        white-space: nowrap;
+      }
+
+      .summaryInput,
+      .summaryTextarea,
+      .summarySelect {
+        width: 100%;
+        min-width: 150px;
+        border-radius: 6px;
+        padding: 7px 8px;
+        font-size: 13px;
+      }
+
+      .summaryTextarea {
+        min-width: 240px;
+        min-height: 90px;
+      }
+
+      .summarySelect {
+        min-width: 180px;
+        background: #ffffff;
+        border: 1px solid var(--line);
+        color: var(--text);
+      }
+
+      @media (max-width: 1050px) {
+        .main {
+          grid-template-columns: 1fr;
+        }
+
+        .side {
+          position: static;
+        }
+
+        .editorGrid,
+        .detailsGrid {
+          grid-template-columns: 1fr;
+        }
+
+        .questionList {
+          max-height: 220px;
+        }
+      }
+
+      @media (max-width: 680px) {
+        .topbar {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .brand {
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .brand h1 {
+          white-space: normal;
+        }
+
+        .status {
+          min-width: 0;
+          text-align: left;
+        }
+
+        .main {
+          padding: 12px;
+        }
+
+        .metaGrid,
+        .assessmentResult {
+          grid-template-columns: 1fr;
+        }
+
+        .questionTitle {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="topbar">
+        <div class="brand">
+          <h1>AAMC RPL Live Assessment</h1>
+          <span class="badge" id="sessionBadge">Not started</span>
+        </div>
+        <div class="status" id="status">Loading questions...</div>
+      </header>
+
+      <main class="main">
+        <aside class="side">
+          <section class="panel">
+            <div class="panelHeader">
+              <h2>Teams Session</h2>
+              <span class="badge" id="timerBadge">00:00</span>
+            </div>
+            <div class="panelBody">
+              <label>
+                Student name
+                <input id="studentName" autocomplete="name" placeholder="Student name" />
+              </label>
+              <label>
+                Assessor name
+                <input id="assessorName" autocomplete="name" placeholder="Assessor name" />
+              </label>
+              <label>
+                Teams meeting link
+                <input id="meetingLink" inputmode="url" placeholder="https://teams.microsoft.com/..." />
+              </label>
+              <div class="actions">
+                <button id="openTeamsBtn" type="button">Open Teams</button>
+                <button id="startSessionBtn" class="secondary" type="button" disabled>Start Session</button>
+              </div>
+              <div class="toggleRow">
+                <div class="toggleLabel">
+                  <strong>Recording</strong>
+                  <span id="recordingState">Off</span>
+                </div>
+                <label class="switch" aria-label="Recording started">
+                  <input id="recordingToggle" type="checkbox" />
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div class="toggleRow">
+                <div class="toggleLabel">
+                  <strong>Transcription</strong>
+                  <span id="transcriptionState">Off</span>
+                </div>
+                <label class="switch" aria-label="Transcription started">
+                  <input id="transcriptionToggle" type="checkbox" />
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <label>
+                SharePoint recording location
+                <input id="sharepointLocation" placeholder="Add later" disabled />
+              </label>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panelHeader">
+              <h2>Progress</h2>
+              <span class="badge" id="questionCountBadge">0 questions</span>
+            </div>
+            <div class="panelBody">
+              <div class="metaGrid">
+                <div class="metric">
+                  <div class="metricValue" id="completedCount">0</div>
+                  <div class="metricLabel">Completed</div>
+                </div>
+                <div class="metric">
+                  <div class="metricValue" id="notSatCount">0</div>
+                  <div class="metricLabel">Not satisfactory</div>
+                </div>
+              </div>
+              <div class="progressWrap">
+                <div class="progressBar" aria-hidden="true">
+                  <div class="progressFill" id="progressFill"></div>
+                </div>
+                <div class="metricLabel" id="progressText">0 of 0 questions assessed</div>
+              </div>
+              <div class="questionList" id="questionList"></div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panelHeader">
+              <h2>Data</h2>
+            </div>
+            <div class="panelBody">
+              <div class="fileRow">
+                <label>
+                  Import Teams transcript
+                  <input class="fileInput" id="transcriptFile" type="file" accept=".vtt,.txt,.text" />
+                </label>
+              </div>
+              <div class="actions">
+                <button id="summaryPageBtn" class="secondary" type="button" disabled>Summary / Edit CSV</button>
+                <button id="downloadCsvBtn" type="button" disabled>Download CSV</button>
+                <button id="simulateBtn" class="secondary" type="button">Simulate Complete</button>
+                <button id="resetBtn" class="danger" type="button">Reset</button>
+              </div>
+            </div>
+          </section>
+        </aside>
+
+        <section class="workspace">
+          <section class="panel emptyState" id="emptyState">
+            <div class="emptyStateInner">
+              <h2>Preparing the live assessment</h2>
+              <p id="emptyMessage">Questions are being loaded from the assessment list.</p>
+              <div class="actions">
+                <button id="retryLoadBtn" type="button">Reload Questions</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel questionHero hidden" id="questionPanel">
+            <div class="panelHeader">
+              <div class="questionTitle">
+                <h2 id="questionHeading">Question</h2>
+                <span class="badge" id="questionStatusBadge">Awaiting result</span>
+              </div>
+            </div>
+            <div class="panelBody">
+              <p class="questionText" id="questionDetails"></p>
+              <div class="detailsGrid">
+                <div class="detailBlock">
+                  <div class="detailLabel">Section</div>
+                  <div class="detailText" id="questionSection"></div>
+                </div>
+                <div class="detailBlock">
+                  <div class="detailLabel">Objective</div>
+                  <div class="detailText" id="questionObjective"></div>
+                </div>
+                <div class="detailBlock">
+                  <div class="detailLabel">Hints</div>
+                  <div class="detailText" id="questionHints"></div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="editorGrid hidden" id="assessmentEditor">
+            <section class="panel">
+              <div class="panelHeader">
+                <h3>Question Transcript</h3>
+                <span class="badge" id="questionWindowBadge">No timing</span>
+              </div>
+              <div class="panelBody">
+                <textarea id="transcriptText" placeholder="Paste or import the Teams transcript for this question."></textarea>
+                <div class="actions">
+                  <button id="markQuestionStartBtn" class="secondary" type="button">Mark Question Start</button>
+                  <button id="copyMarkerBtn" class="secondary" type="button">Copy Marker</button>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panelHeader">
+                <h3>Assessment</h3>
+              </div>
+              <div class="panelBody">
+                <label>
+                  Notes
+                  <textarea id="notesText" placeholder="Assessor notes"></textarea>
+                </label>
+                <div class="stack">
+                  <strong>Result</strong>
+                  <div class="assessmentResult" role="radiogroup" aria-label="Assessment result">
+                    <input id="resultSatisfactory" name="questionResult" type="radio" value="Satisfactory" />
+                    <label for="resultSatisfactory">Satisfactory</label>
+                    <input id="resultNotSatisfactory" name="questionResult" type="radio" value="Not Satisfactory" />
+                    <label for="resultNotSatisfactory">Not Satisfactory</label>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </section>
+
+          <section class="panel hidden" id="navigationPanel">
+            <div class="panelBody">
+              <div class="navRow">
+                <div class="actions">
+                  <button id="previousBtn" class="secondary" type="button">Previous</button>
+                  <button id="nextBtn" type="button" disabled>Next Question</button>
+                  <button id="completeBtn" type="button" disabled>Complete Session</button>
+                </div>
+                <span class="metricLabel" id="navigationHint">Select a result before moving on.</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel hidden" id="summaryPanel">
+            <div class="panelHeader">
+              <h2>Editable CSV Summary</h2>
+              <div class="actions">
+                <button id="backToAssessmentBtn" class="secondary" type="button">Back to Assessment</button>
+                <button id="downloadSummaryCsvBtn" type="button" disabled>Download CSV</button>
+              </div>
+            </div>
+            <div class="panelBody">
+              <div class="summaryTableWrap">
+                <table class="summaryCsvTable">
+                  <thead>
+                    <tr>
+                      <th>Student Name</th>
+                      <th>Assessor Name</th>
+                      <th>Question Number</th>
+                      <th>Section</th>
+                      <th>Question Details</th>
+                      <th>Hints</th>
+                      <th>Objective</th>
+                      <th>Transcription</th>
+                      <th>Notes</th>
+                      <th>Satisfactory / Not Satisfactory</th>
+                    </tr>
+                  </thead>
+                  <tbody id="summaryBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      const QUESTIONS_PROXY_URL = "/api/live-assessment/questions";
+
+      const els = {
+        status: document.getElementById("status"),
+        sessionBadge: document.getElementById("sessionBadge"),
+        timerBadge: document.getElementById("timerBadge"),
+        studentName: document.getElementById("studentName"),
+        assessorName: document.getElementById("assessorName"),
+        meetingLink: document.getElementById("meetingLink"),
+        openTeamsBtn: document.getElementById("openTeamsBtn"),
+        startSessionBtn: document.getElementById("startSessionBtn"),
+        recordingToggle: document.getElementById("recordingToggle"),
+        transcriptionToggle: document.getElementById("transcriptionToggle"),
+        recordingState: document.getElementById("recordingState"),
+        transcriptionState: document.getElementById("transcriptionState"),
+        questionCountBadge: document.getElementById("questionCountBadge"),
+        completedCount: document.getElementById("completedCount"),
+        notSatCount: document.getElementById("notSatCount"),
+        progressFill: document.getElementById("progressFill"),
+        progressText: document.getElementById("progressText"),
+        questionList: document.getElementById("questionList"),
+        transcriptFile: document.getElementById("transcriptFile"),
+        summaryPageBtn: document.getElementById("summaryPageBtn"),
+        downloadCsvBtn: document.getElementById("downloadCsvBtn"),
+        simulateBtn: document.getElementById("simulateBtn"),
+        resetBtn: document.getElementById("resetBtn"),
+        emptyState: document.getElementById("emptyState"),
+        emptyMessage: document.getElementById("emptyMessage"),
+        retryLoadBtn: document.getElementById("retryLoadBtn"),
+        questionPanel: document.getElementById("questionPanel"),
+        assessmentEditor: document.getElementById("assessmentEditor"),
+        navigationPanel: document.getElementById("navigationPanel"),
+        questionHeading: document.getElementById("questionHeading"),
+        questionStatusBadge: document.getElementById("questionStatusBadge"),
+        questionDetails: document.getElementById("questionDetails"),
+        questionSection: document.getElementById("questionSection"),
+        questionObjective: document.getElementById("questionObjective"),
+        questionHints: document.getElementById("questionHints"),
+        questionWindowBadge: document.getElementById("questionWindowBadge"),
+        transcriptText: document.getElementById("transcriptText"),
+        markQuestionStartBtn: document.getElementById("markQuestionStartBtn"),
+        copyMarkerBtn: document.getElementById("copyMarkerBtn"),
+        notesText: document.getElementById("notesText"),
+        resultSatisfactory: document.getElementById("resultSatisfactory"),
+        resultNotSatisfactory: document.getElementById("resultNotSatisfactory"),
+        previousBtn: document.getElementById("previousBtn"),
+        nextBtn: document.getElementById("nextBtn"),
+        completeBtn: document.getElementById("completeBtn"),
+        navigationHint: document.getElementById("navigationHint"),
+        summaryPanel: document.getElementById("summaryPanel"),
+        summaryBody: document.getElementById("summaryBody"),
+        backToAssessmentBtn: document.getElementById("backToAssessmentBtn"),
+        downloadSummaryCsvBtn: document.getElementById("downloadSummaryCsvBtn"),
+      };
+
+      const state = {
+        questions: [],
+        records: [],
+        currentIndex: 0,
+        summaryOpen: false,
+        sessionStarted: false,
+        sessionComplete: false,
+        startedAt: null,
+        timerId: null,
+      };
+
+      const CSV_COLUMNS = [
+        { header: "Student Name", source: "global", field: "studentName", singleLine: true },
+        { header: "Assessor Name", source: "global", field: "assessorName", singleLine: true },
+        { header: "Question Number", source: "question", field: "number", singleLine: true },
+        { header: "Section", source: "question", field: "section", singleLine: true },
+        { header: "Question Details", source: "question", field: "details", multiline: true },
+        { header: "Hints", source: "question", field: "hints", multiline: true },
+        { header: "Objective", source: "question", field: "objective", multiline: true },
+        { header: "Transcription", source: "record", field: "transcript", multiline: true },
+        { header: "Notes", source: "record", field: "notes", multiline: true },
+        {
+          header: "Satisfactory / Not Satisfactory",
+          source: "record",
+          field: "result",
+          options: ["", "Satisfactory", "Not Satisfactory"],
+        },
+      ];
+
+      const setStatus = (message) => {
+        els.status.textContent = message;
+      };
+
+      const pickFirst = (...values) => {
+        for (const value of values) {
+          if (value === undefined || value === null) continue;
+          const text = typeof value === "string" ? value : String(value);
+          if (text.trim()) return text.trim();
+        }
+        return "";
+      };
+
+      const stripHtml = (value) => {
+        const text = pickFirst(value);
+        if (!/[<&]/.test(text)) return text;
+        const template = document.createElement("template");
+        template.innerHTML = text;
+        return (template.content.textContent || "").trim();
+      };
+
+      const getField = (item, fieldName, fallbacks = []) => {
+        if (!item || typeof item !== "object") return "";
+        const direct = item[fieldName];
+        if (direct !== undefined && direct !== null) return stripHtml(direct);
+
+        const normalizedTarget = fieldName.replace(/\s+/g, "").toLowerCase();
+        const key = Object.keys(item).find((candidate) =>
+          candidate.replace(/_x0020_/gi, "").replace(/\s+/g, "").toLowerCase() === normalizedTarget
+        );
+        if (key) return stripHtml(item[key]);
+
+        for (const fallback of fallbacks) {
+          if (item[fallback] !== undefined && item[fallback] !== null) {
+            return stripHtml(item[fallback]);
+          }
+        }
+        return "";
+      };
+
+      const extractQuestionNumber = (title, index) => {
+        const match = String(title || "").match(/\b(\d{1,3})\b/);
+        return match ? match[1] : String(index + 1);
+      };
+
+      const normalizeQuestion = (item, index) => {
+        const title = getField(item, "Title", ["Question Number", "QuestionNumber", "field_1"]);
+        const details = getField(item, "Question Details", [
+          "QuestionDetails",
+          "Question_x0020_Details",
+          "Question",
+          "field_2",
+          "field_5",
+        ]);
+        return {
+          number: extractQuestionNumber(title, index),
+          title: title || String(index + 1),
+          section: getField(item, "Section", ["field_1"]),
+          details: details || title || `Question ${index + 1}`,
+          hints: getField(item, "Hints", ["Hint", "field_3"]),
+          objective: getField(item, "Objective", ["Objectives", "field_4"]),
+          raw: item,
+        };
+      };
+
+      const parsePossibleJson = (value) => {
+        if (typeof value !== "string") return value;
+        const text = value.trim();
+        if (!text || !/^[\[{]/.test(text)) return value;
+        try {
+          return JSON.parse(text);
+        } catch {
+          return value;
+        }
+      };
+
+      const collectListItems = (payload) => {
+        const parsed = parsePossibleJson(payload);
+        if (Array.isArray(parsed)) return parsed;
+        if (!parsed || typeof parsed !== "object") return [];
+
+        const candidates = [
+          parsed.listitems,
+          parsed.listItems,
+          parsed.items,
+          parsed.value,
+          parsed.body,
+          parsed.d?.results,
+        ];
+
+        for (const candidate of candidates) {
+          const candidateParsed = parsePossibleJson(candidate);
+          if (Array.isArray(candidateParsed)) return candidateParsed;
+          if (candidateParsed && typeof candidateParsed === "object") {
+            const nested = collectListItems(candidateParsed);
+            if (nested.length) return nested;
+          }
+        }
+        return [];
+      };
+
+      const createBlankRecord = () => ({
+        transcript: "",
+        notes: "",
+        result: "",
+        startedAt: null,
+        endedAt: null,
+        startedOffsetMs: null,
+        endedOffsetMs: null,
+      });
+
+      const currentRecord = () => state.records[state.currentIndex] || createBlankRecord();
+
+      const elapsedMs = () => {
+        if (!state.startedAt) return 0;
+        return Math.max(0, Date.now() - state.startedAt.getTime());
+      };
+
+      const formatClock = (ms) => {
+        const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+      };
+
+      const updateTimer = () => {
+        els.timerBadge.textContent = formatClock(elapsedMs());
+      };
+
+      const saveCurrentInputs = () => {
+        if (!state.records.length) return;
+        const record = currentRecord();
+        record.transcript = els.transcriptText.value;
+        record.notes = els.notesText.value;
+        const selected = document.querySelector("input[name='questionResult']:checked");
+        record.result = selected?.value || "";
+      };
+
+      const updateStartButtonState = () => {
+        const hasNames = Boolean(els.studentName.value.trim() && els.assessorName.value.trim());
+        const ready = state.questions.length > 0 && hasNames && els.recordingToggle.checked && els.transcriptionToggle.checked;
+        els.startSessionBtn.disabled = state.sessionStarted || !ready;
+        els.studentName.disabled = state.sessionStarted;
+        els.assessorName.disabled = state.sessionStarted;
+        els.recordingState.textContent = els.recordingToggle.checked ? "On" : "Off";
+        els.transcriptionState.textContent = els.transcriptionToggle.checked ? "On" : "Off";
+      };
+
+      const updateSessionBadge = () => {
+        els.sessionBadge.className = "badge";
+        if (state.sessionComplete) {
+          els.sessionBadge.textContent = "Complete";
+          els.sessionBadge.classList.add("green");
+          return;
+        }
+        if (state.sessionStarted) {
+          els.sessionBadge.textContent = "In progress";
+          els.sessionBadge.classList.add("amber");
+          return;
+        }
+        els.sessionBadge.textContent = "Not started";
+      };
+
+      const updateProgress = () => {
+        const total = state.questions.length;
+        const completed = state.records.filter((record) => record.result).length;
+        const notSat = state.records.filter((record) => record.result === "Not Satisfactory").length;
+        els.questionCountBadge.textContent = `${total} ${total === 1 ? "question" : "questions"}`;
+        els.completedCount.textContent = String(completed);
+        els.notSatCount.textContent = String(notSat);
+        const percent = total ? Math.round((completed / total) * 100) : 0;
+        els.progressFill.style.width = `${percent}%`;
+        els.progressText.textContent = `${completed} of ${total} questions assessed`;
+      };
+
+      const allQuestionsAssessed = () =>
+        state.questions.length > 0 && state.records.every((record) => record.result);
+
+      const resultBadgeClass = (result) => {
+        if (result === "Satisfactory") return "badge green";
+        if (result === "Not Satisfactory") return "badge red";
+        return "badge amber";
+      };
+
+      const resultLabel = (result) => result || "Awaiting result";
+
+      const renderQuestionList = () => {
+        els.questionList.innerHTML = "";
+        state.questions.forEach((question, index) => {
+          const record = state.records[index] || createBlankRecord();
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = `questionNavButton${index === state.currentIndex ? " active" : ""}`;
+          button.disabled = !state.sessionStarted;
+
+          const number = document.createElement("span");
+          number.className = "number";
+          number.textContent = question.number;
+
+          const title = document.createElement("span");
+          title.className = "shortTitle";
+          title.textContent = question.section || question.details;
+
+          const dot = document.createElement("span");
+          dot.className = `dot${record.result ? " done" : ""}${record.result === "Not Satisfactory" ? " notSat" : ""}`;
+
+          button.append(number, title, dot);
+          button.addEventListener("click", () => {
+            saveCurrentInputs();
+            state.summaryOpen = false;
+            state.currentIndex = index;
+            render();
+          });
+          els.questionList.appendChild(button);
+        });
+      };
+
+      const renderQuestion = () => {
+        if (!state.questions.length || !state.sessionStarted) return;
+        const question = state.questions[state.currentIndex];
+        const record = currentRecord();
+
+        els.questionHeading.textContent = `Question ${question.number} of ${state.questions.length}`;
+        els.questionStatusBadge.className = resultBadgeClass(record.result);
+        els.questionStatusBadge.textContent = resultLabel(record.result);
+        els.questionDetails.textContent = question.details;
+        els.questionSection.textContent = question.section || "Not supplied";
+        els.questionObjective.textContent = question.objective || "Not supplied";
+        els.questionHints.textContent = question.hints || "Not supplied";
+        els.transcriptText.value = record.transcript || "";
+        els.notesText.value = record.notes || "";
+        els.resultSatisfactory.checked = record.result === "Satisfactory";
+        els.resultNotSatisfactory.checked = record.result === "Not Satisfactory";
+        els.previousBtn.disabled = state.currentIndex === 0;
+
+        const isLast = state.currentIndex >= state.questions.length - 1;
+        els.nextBtn.classList.toggle("hidden", isLast);
+        els.completeBtn.classList.toggle("hidden", !isLast);
+        els.nextBtn.disabled = state.sessionComplete;
+        els.completeBtn.disabled = !allQuestionsAssessed() || state.sessionComplete;
+        els.navigationHint.textContent = allQuestionsAssessed()
+          ? "All questions have results. Complete the session when ready."
+          : record.result
+            ? "Result saved. You can move forwards or backwards."
+            : "Result still needed for this question before the session can be completed.";
+
+        if (record.startedOffsetMs !== null) {
+          const end = record.endedOffsetMs === null ? elapsedMs() : record.endedOffsetMs;
+          els.questionWindowBadge.textContent = `${formatClock(record.startedOffsetMs)} - ${formatClock(end)}`;
+        } else {
+          els.questionWindowBadge.textContent = "No timing";
+        }
+      };
+
+      const getSummaryValue = (column, question, record) => {
+        if (column.source === "global") return els[column.field]?.value || "";
+        if (column.source === "question") return question?.[column.field] || "";
+        if (column.source === "record") return record?.[column.field] || "";
+        return "";
+      };
+
+      const syncGlobalSummaryCells = (field, value, activeControl) => {
+        document
+          .querySelectorAll(`[data-summary-field="${field}"]`)
+          .forEach((control) => {
+            if (control !== activeControl) control.value = value;
+          });
+      };
+
+      const setSummaryValue = (column, index, value, activeControl) => {
+        if (column.source === "global") {
+          if (els[column.field]) els[column.field].value = value;
+          syncGlobalSummaryCells(column.field, value, activeControl);
+          updateStartButtonState();
+          return;
+        }
+
+        if (column.source === "question" && state.questions[index]) {
+          state.questions[index][column.field] = value;
+          return;
+        }
+
+        if (column.source === "record" && state.records[index]) {
+          state.records[index][column.field] = value;
+          if (column.field === "result") {
+            updateProgress();
+            renderQuestionList();
+          }
+        }
+      };
+
+      const createSummaryControl = (column, question, record, index) => {
+        const value = getSummaryValue(column, question, record);
+
+        if (column.options) {
+          const select = document.createElement("select");
+          select.className = "summarySelect";
+          select.dataset.summaryField = column.field;
+          column.options.forEach((optionValue) => {
+            const option = document.createElement("option");
+            option.value = optionValue;
+            option.textContent = optionValue || "Select result";
+            select.appendChild(option);
+          });
+          select.value = value;
+          select.addEventListener("change", () => {
+            setSummaryValue(column, index, select.value, select);
+          });
+          return select;
+        }
+
+        const control = document.createElement(column.multiline ? "textarea" : "input");
+        control.className = column.multiline ? "summaryTextarea" : "summaryInput";
+        control.dataset.summaryField = column.field;
+        if (!column.multiline) control.type = "text";
+        control.value = value;
+        control.addEventListener("input", () => {
+          setSummaryValue(column, index, control.value, control);
+        });
+        return control;
+      };
+
+      const renderSummary = () => {
+        els.summaryBody.innerHTML = "";
+        state.questions.forEach((question, index) => {
+          const record = state.records[index] || createBlankRecord();
+          const row = document.createElement("tr");
+          CSV_COLUMNS.forEach((column) => {
+            const cell = document.createElement("td");
+            cell.appendChild(createSummaryControl(column, question, record, index));
+            row.appendChild(cell);
+          });
+          els.summaryBody.appendChild(row);
+        });
+      };
+
+      const render = () => {
+        const hasQuestions = state.questions.length > 0;
+        const showSummary = hasQuestions && state.summaryOpen;
+        const showAssessment = hasQuestions && state.sessionStarted && !showSummary;
+
+        els.emptyState.classList.toggle("hidden", showAssessment || showSummary);
+        els.questionPanel.classList.toggle("hidden", !showAssessment);
+        els.assessmentEditor.classList.toggle("hidden", !showAssessment);
+        els.navigationPanel.classList.toggle("hidden", !showAssessment);
+        els.summaryPanel.classList.toggle("hidden", !showSummary);
+
+        if (!hasQuestions) {
+          els.emptyMessage.textContent = "Questions are being loaded from the assessment list.";
+        } else if (!state.sessionStarted) {
+          els.emptyMessage.textContent = "Enter the student and assessor names, open Teams, start recording and transcription, then start the session.";
+        }
+
+        updateStartButtonState();
+        updateSessionBadge();
+        updateProgress();
+        renderQuestionList();
+        renderQuestion();
+        renderSummary();
+        els.summaryPageBtn.disabled = !hasQuestions;
+        els.downloadCsvBtn.disabled = !state.sessionComplete;
+        els.downloadSummaryCsvBtn.disabled = !state.sessionComplete;
+      };
+
+      const loadQuestions = async () => {
+        setStatus("Loading questions...");
+        try {
+          const response = await fetch(QUESTIONS_PROXY_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+          });
+          const text = await response.text();
+          if (!response.ok) throw new Error(`Question webhook failed (${response.status})`);
+
+          const payload = parsePossibleJson(text);
+          const items = collectListItems(payload);
+          if (!items.length) {
+            throw new Error("No questions returned.");
+          }
+
+          state.questions = items.map(normalizeQuestion);
+          state.records = state.questions.map(createBlankRecord);
+          state.currentIndex = 0;
+          state.summaryOpen = false;
+          state.sessionComplete = false;
+          setStatus("Questions ready.");
+        } catch (error) {
+          state.questions = [];
+          state.records = [];
+          setStatus(error?.message || String(error));
+          els.emptyMessage.textContent = error?.message || String(error);
+        }
+        render();
+      };
+
+      const startSession = () => {
+        if (!state.questions.length) return;
+        if (!els.studentName.value.trim() || !els.assessorName.value.trim()) {
+          setStatus("Enter the student and assessor names before starting.");
+          return;
+        }
+        state.sessionStarted = true;
+        state.sessionComplete = false;
+        state.summaryOpen = false;
+        state.startedAt = new Date();
+        state.currentIndex = 0;
+        const firstRecord = currentRecord();
+        firstRecord.startedAt = new Date().toISOString();
+        firstRecord.startedOffsetMs = 0;
+        if (state.timerId) clearInterval(state.timerId);
+        state.timerId = setInterval(() => {
+          updateTimer();
+          renderQuestion();
+        }, 1000);
+        setStatus("Live assessment in progress.");
+        render();
+      };
+
+      const closeCurrentQuestionWindow = () => {
+        const record = currentRecord();
+        const now = new Date();
+        if (!record.startedAt) {
+          record.startedAt = now.toISOString();
+          record.startedOffsetMs = elapsedMs();
+        }
+        record.endedAt = now.toISOString();
+        record.endedOffsetMs = elapsedMs();
+      };
+
+      const openCurrentQuestionWindow = () => {
+        const record = currentRecord();
+        if (!record.startedAt) {
+          record.startedAt = new Date().toISOString();
+          record.startedOffsetMs = elapsedMs();
+        }
+        record.endedAt = null;
+        record.endedOffsetMs = null;
+      };
+
+      const goToQuestion = (index) => {
+        saveCurrentInputs();
+        closeCurrentQuestionWindow();
+        state.summaryOpen = false;
+        state.currentIndex = Math.max(0, Math.min(index, state.questions.length - 1));
+        openCurrentQuestionWindow();
+        render();
+      };
+
+      const openSummaryPage = () => {
+        saveCurrentInputs();
+        state.summaryOpen = true;
+        setStatus("Review and edit the CSV summary.");
+        render();
+      };
+
+      const closeSummaryPage = () => {
+        saveCurrentInputs();
+        state.summaryOpen = false;
+        setStatus(state.sessionComplete ? "Session complete. CSV is ready." : "Returned to assessment.");
+        render();
+      };
+
+      const completeSession = () => {
+        saveCurrentInputs();
+        if (!allQuestionsAssessed()) {
+          setStatus("Add a Satisfactory or Not Satisfactory result for every question before completing.");
+          render();
+          return;
+        }
+        closeCurrentQuestionWindow();
+        state.sessionComplete = true;
+        state.summaryOpen = true;
+        if (state.timerId) {
+          clearInterval(state.timerId);
+          state.timerId = null;
+        }
+        setStatus("Session complete. CSV is ready.");
+        render();
+      };
+
+      const escapeCsv = (value) => {
+        const text = value === undefined || value === null ? "" : String(value);
+        return `"${text.replace(/"/g, '""')}"`;
+      };
+
+      const buildCsv = () => {
+        const headers = CSV_COLUMNS.map((column) => column.header);
+        const rows = state.questions.map((question, index) => {
+          const record = state.records[index] || createBlankRecord();
+          return CSV_COLUMNS.map((column) => getSummaryValue(column, question, record));
+        });
+        return [headers, ...rows]
+          .map((row) => row.map(escapeCsv).join(","))
+          .join("\r\n");
+      };
+
+      const downloadCsv = () => {
+        saveCurrentInputs();
+        const csv = buildCsv();
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const stamp = new Date().toISOString().slice(0, 10);
+        const student = (els.studentName.value || "student").replace(/[^\w.-]+/g, "_");
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `Live_Assessment_${student}_${stamp}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      };
+
+      const parseVttTime = (value) => {
+        const parts = value.trim().replace(",", ".").split(":");
+        if (parts.length < 2) return null;
+        const seconds = Number(parts.pop());
+        const minutes = Number(parts.pop());
+        const hours = parts.length ? Number(parts.pop()) : 0;
+        if (![seconds, minutes, hours].every(Number.isFinite)) return null;
+        return Math.round(((hours * 60 * 60) + (minutes * 60) + seconds) * 1000);
+      };
+
+      const cleanTranscriptLine = (value) => value
+        .replace(/<v\s+([^>]+)>/gi, "$1: ")
+        .replace(/<[^>]+>/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      const parseVttCues = (text) => {
+        const lines = text.replace(/\r/g, "").split("\n");
+        const cues = [];
+        for (let index = 0; index < lines.length; index += 1) {
+          const timing = lines[index].match(/(\d{1,2}:)?\d{2}:\d{2}[.,]\d{3}\s+-->\s+(\d{1,2}:)?\d{2}:\d{2}[.,]\d{3}/);
+          if (!timing) continue;
+
+          const [startText, endText] = lines[index].split("-->").map((part) => part.trim().split(/\s+/)[0]);
+          const start = parseVttTime(startText);
+          const end = parseVttTime(endText);
+          const body = [];
+          index += 1;
+          while (index < lines.length && lines[index].trim()) {
+            const line = cleanTranscriptLine(lines[index]);
+            if (line) body.push(line);
+            index += 1;
+          }
+          if (start !== null && end !== null && body.length) {
+            cues.push({ start, end, text: body.join(" ") });
+          }
+        }
+        return cues;
+      };
+
+      const importTranscriptText = (text) => {
+        saveCurrentInputs();
+        const cues = parseVttCues(text);
+        if (!cues.length) {
+          const record = currentRecord();
+          record.transcript = [record.transcript, text.trim()].filter(Boolean).join("\n\n");
+          setStatus("Transcript added to current question.");
+          render();
+          return;
+        }
+
+        let assigned = 0;
+        state.records.forEach((record, index) => {
+          const start = record.startedOffsetMs;
+          const end = record.endedOffsetMs ?? (index === state.currentIndex ? elapsedMs() : null);
+          if (start === null || end === null || end < start) return;
+
+          const textForQuestion = cues
+            .filter((cue) => cue.start >= start && cue.start <= end)
+            .map((cue) => cue.text)
+            .join("\n");
+
+          if (textForQuestion) {
+            record.transcript = [record.transcript, textForQuestion].filter(Boolean).join("\n\n");
+            assigned += 1;
+          }
+        });
+
+        if (!assigned) {
+          const record = currentRecord();
+          record.transcript = [record.transcript, cues.map((cue) => cue.text).join("\n")].filter(Boolean).join("\n\n");
+          setStatus("Transcript imported to current question.");
+        } else {
+          setStatus(`Transcript allocated to ${assigned} question${assigned === 1 ? "" : "s"}.`);
+        }
+        render();
+      };
+
+      const simulateComplete = () => {
+        if (!els.studentName.value.trim()) els.studentName.value = "Simulated Student";
+        if (!els.assessorName.value.trim()) els.assessorName.value = "Simulated Assessor";
+        if (!state.questions.length) {
+          state.questions = [
+            normalizeQuestion({
+              Title: "1",
+              Section: "Compliance",
+              "Question Details": "Explain how you verify a client's identity before providing credit assistance.",
+              Hints: "Client identification, verification, record keeping.",
+              Objective: "Demonstrates compliant client identification practice.",
+            }, 0),
+            normalizeQuestion({
+              Title: "2",
+              Section: "Responsible Lending",
+              "Question Details": "Describe how you assess whether a loan is not unsuitable for a client.",
+              Hints: "Needs, objectives, financial situation, verification.",
+              Objective: "Demonstrates responsible lending assessment process.",
+            }, 1),
+          ];
+          state.records = state.questions.map(createBlankRecord);
+        }
+
+        state.sessionStarted = true;
+        state.sessionComplete = true;
+        state.summaryOpen = true;
+        state.startedAt = state.startedAt || new Date(Date.now() - state.questions.length * 90000);
+        state.records = state.questions.map((question, index) => ({
+          transcript: `Assessor: ${question.details}\nStudent: Simulated response for question ${question.number}, covering the objective and relevant workplace example.`,
+          notes: `Simulated assessor note for question ${question.number}.`,
+          result: "Satisfactory",
+          startedAt: new Date(state.startedAt.getTime() + index * 90000).toISOString(),
+          endedAt: new Date(state.startedAt.getTime() + (index + 1) * 90000 - 1).toISOString(),
+          startedOffsetMs: index * 90000,
+          endedOffsetMs: (index + 1) * 90000 - 1,
+        }));
+        state.currentIndex = 0;
+        if (state.timerId) {
+          clearInterval(state.timerId);
+          state.timerId = null;
+        }
+        setStatus("Simulated completed session ready.");
+        render();
+      };
+
+      const resetSession = () => {
+        if (state.timerId) {
+          clearInterval(state.timerId);
+          state.timerId = null;
+        }
+        state.records = state.questions.map(createBlankRecord);
+        state.currentIndex = 0;
+        state.summaryOpen = false;
+        state.sessionStarted = false;
+        state.sessionComplete = false;
+        state.startedAt = null;
+        els.transcriptText.value = "";
+        els.notesText.value = "";
+        els.resultSatisfactory.checked = false;
+        els.resultNotSatisfactory.checked = false;
+        els.timerBadge.textContent = "00:00";
+        setStatus(state.questions.length ? "Questions ready." : "Ready.");
+        render();
+      };
+
+      els.openTeamsBtn.addEventListener("click", () => {
+        const rawLink = els.meetingLink.value.trim();
+        const target = rawLink || "https://teams.microsoft.com/v2/";
+        window.open(target, "_blank", "noopener,noreferrer");
+      });
+
+      els.startSessionBtn.addEventListener("click", startSession);
+      els.recordingToggle.addEventListener("change", render);
+      els.transcriptionToggle.addEventListener("change", render);
+      els.studentName.addEventListener("input", render);
+      els.assessorName.addEventListener("input", render);
+      els.retryLoadBtn.addEventListener("click", loadQuestions);
+      els.previousBtn.addEventListener("click", () => goToQuestion(state.currentIndex - 1));
+      els.nextBtn.addEventListener("click", () => goToQuestion(state.currentIndex + 1));
+      els.completeBtn.addEventListener("click", completeSession);
+      els.summaryPageBtn.addEventListener("click", openSummaryPage);
+      els.backToAssessmentBtn.addEventListener("click", closeSummaryPage);
+      els.downloadCsvBtn.addEventListener("click", downloadCsv);
+      els.downloadSummaryCsvBtn.addEventListener("click", downloadCsv);
+      els.simulateBtn.addEventListener("click", simulateComplete);
+      els.resetBtn.addEventListener("click", resetSession);
+
+      [els.transcriptText, els.notesText].forEach((field) => {
+        field.addEventListener("input", () => {
+          saveCurrentInputs();
+        });
+      });
+
+      [els.resultSatisfactory, els.resultNotSatisfactory].forEach((field) => {
+        field.addEventListener("change", () => {
+          saveCurrentInputs();
+          render();
+        });
+      });
+
+      els.markQuestionStartBtn.addEventListener("click", () => {
+        saveCurrentInputs();
+        const record = currentRecord();
+        record.startedAt = new Date().toISOString();
+        record.startedOffsetMs = elapsedMs();
+        record.endedAt = null;
+        record.endedOffsetMs = null;
+        setStatus(`Question ${state.questions[state.currentIndex]?.number || ""} start marked.`);
+        render();
+      });
+
+      els.copyMarkerBtn.addEventListener("click", async () => {
+        const question = state.questions[state.currentIndex];
+        const marker = `Question ${question?.number || state.currentIndex + 1}: ${question?.details || ""}`;
+        try {
+          await navigator.clipboard.writeText(marker);
+          setStatus("Question marker copied.");
+        } catch {
+          setStatus(marker);
+        }
+      });
+
+      els.transcriptFile.addEventListener("change", async () => {
+        const file = els.transcriptFile.files?.[0];
+        if (!file) return;
+        const text = await file.text();
+        importTranscriptText(text);
+        els.transcriptFile.value = "";
+      });
+
+      window.addEventListener("beforeunload", () => {
+        if (state.timerId) clearInterval(state.timerId);
+      });
+
+      loadQuestions();
+    </script>
+  </body>
+</html>
