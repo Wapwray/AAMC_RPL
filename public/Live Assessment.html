@@ -3,9 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>AAMC RPL Live Assessment V0.3</title>
+    <title>AAMC RPL Live Assessment V0.4</title>
     <script src="https://alcdn.msauth.net/browser/2.39.0/js/msal-browser.min.js"
             onerror="this.onerror=null;var s=document.createElement('script');s.src='https://unpkg.com/@azure/msal-browser@2.39.0/lib/msal-browser.min.js';s.onerror=function(){var t=document.createElement('script');t.src='https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.39.0/lib/msal-browser.min.js';document.head.appendChild(t);};document.head.appendChild(s);"></script>
+    <script src="https://res.cdn.office.net/teams-js/2.24.0/js/MicrosoftTeams.min.js" crossorigin="anonymous"></script>
     <style>
       :root {
         color-scheme: light;
@@ -725,13 +726,41 @@
           flex-direction: column;
         }
       }
+
+      /* ---- Teams host overrides (personal tab + meeting side panel) ---- */
+      body.in-teams {
+        background: #f5f5f5;
+      }
+      body.in-teams .topbar {
+        padding: 10px 14px;
+      }
+      body.in-teams .brand h1 {
+        font-size: 16px;
+      }
+      body.in-teams .main {
+        padding: 12px;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 12px;
+      }
+      body.in-teams .side {
+        position: static;
+      }
+      body.in-teams .editorGrid,
+      body.in-teams .detailsGrid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      /* Hide the non-functional "Open in Teams" hero when already inside Teams */
+      body.in-teams #openMeetingHeroBtn,
+      body.in-teams .meetingFrameWrap {
+        display: none !important;
+      }
     </style>
   </head>
   <body>
     <div class="page">
       <header class="topbar">
         <div class="brand">
-          <h1>AAMC RPL Live Assessment V0.3</h1>
+          <h1>AAMC RPL Live Assessment V0.4</h1>
           <span class="badge" id="sessionBadge">Not started</span>
         </div>
         <div class="status" id="status">Loading questions...</div>
@@ -1424,7 +1453,17 @@
           if (!state.msalApp) return;
         }
         try {
-          const result = await state.msalApp.loginPopup({ scopes: GRAPH_LOGIN_SCOPES });
+          // When hosted inside Teams, prefill the login hint so MSAL can
+          // silently sign in the user without a popup prompt whenever possible.
+          const loginRequest = { scopes: GRAPH_LOGIN_SCOPES };
+          if (state.teamsUserHint) loginRequest.loginHint = state.teamsUserHint;
+
+          let result = null;
+          try {
+            result = await state.msalApp.ssoSilent(loginRequest);
+          } catch {
+            result = await state.msalApp.loginPopup(loginRequest);
+          }
           state.teamsAccount = result.account;
           await afterTeamsLogin();
         } catch (error) {
@@ -1662,6 +1701,22 @@
           Boolean(state.teamsAccount) &&
           Boolean(state.selectedMeeting);
         els.startSessionBtn.disabled = state.sessionStarted || !ready;
+
+        // Build a helpful tooltip so the user can see what's still missing
+        if (state.sessionStarted) {
+          els.startSessionBtn.title = "Session already started";
+        } else if (ready) {
+          els.startSessionBtn.title = "Start the assessment session";
+        } else {
+          const missing = [];
+          if (!state.questions.length) missing.push("questions loaded");
+          if (!state.teamsAccount) missing.push("Teams login");
+          if (!state.selectedMeeting) missing.push("Teams meeting selected");
+          if (!els.studentName.value.trim()) missing.push("Student name");
+          if (!els.assessorName.value.trim()) missing.push("Assessor name");
+          els.startSessionBtn.title = "Still needed: " + missing.join(", ");
+        }
+
         els.studentName.disabled = state.sessionStarted;
         els.assessorName.disabled = state.sessionStarted;
         els.teamsLoginBtn.disabled = state.sessionStarted || !state.msalConfig?.clientId || Boolean(state.teamsAccount);
@@ -2308,8 +2363,76 @@
         if (state.timerId) clearInterval(state.timerId);
       });
 
+      // --- Microsoft Teams host integration ----------------------------------
+      // When this page is loaded inside a Teams tab / meeting side panel, the
+      // Teams JS SDK is available on window.microsoftTeams. We initialize it so
+      // Teams stops showing the loading spinner, then try to pull meeting
+      // context to auto-select the current meeting in the dropdown.
+      const initTeamsHost = async () => {
+        const sdk = window.microsoftTeams;
+        if (!sdk || !sdk.app || !sdk.app.initialize) return;
+        try {
+          await sdk.app.initialize();
+        } catch {
+          return; // Not actually hosted in Teams
+        }
+        document.body.classList.add("in-teams");
+        try { sdk.app.notifySuccess && sdk.app.notifySuccess(); } catch {}
+
+        // Auto-populate assessor name from Teams context if field is empty,
+        // and remember the signed-in user so MSAL can do silent SSO later.
+        try {
+          const ctx = await sdk.app.getContext();
+          const userHint = ctx?.user?.loginHint || ctx?.user?.userPrincipalName || "";
+          if (userHint) state.teamsUserHint = userHint;
+          if (ctx?.user && !els.assessorName.value) {
+            els.assessorName.value = ctx.user.userPrincipalName || ctx.user.displayName || "";
+            render();
+          }
+          // If inside a meeting, remember the meeting context id for transcript lookup.
+          if (ctx?.meeting?.id) {
+            state.teamsMeetingContextId = ctx.meeting.id;
+            setStatusIfNotSticky("Teams meeting detected. Signing in...");
+          }
+          // Try silent SSO immediately so user never sees a popup.
+          if (state.msalApp && !state.teamsAccount) {
+            try {
+              const result = await state.msalApp.ssoSilent({
+                scopes: GRAPH_LOGIN_SCOPES,
+                loginHint: userHint,
+              });
+              state.teamsAccount = result.account;
+              await afterTeamsLogin();
+              // After meetings load, try to auto-select the one matching context.
+              if (state.teamsMeetingContextId) autoSelectTeamsMeetingFromContext();
+            } catch {
+              // Silent failed — user will need to click "Login to Teams".
+            }
+          }
+        } catch (err) {
+          console.warn("Teams context unavailable", err);
+        }
+      };
+
+      // When the calendar dropdown is populated, try to match the active
+      // meeting from Teams context and select it automatically.
+      const autoSelectTeamsMeetingFromContext = () => {
+        if (!state.teamsMeetingContextId || !state.meetings?.length) return;
+        const target = state.teamsMeetingContextId;
+        const idx = state.meetings.findIndex((m) => {
+          const joinUrl = findTeamsJoinUrl(m) || "";
+          // Teams meeting ids include the threadId from the joinUrl.
+          return joinUrl.indexOf(target) !== -1 || (m.id && m.id === target);
+        });
+        if (idx >= 0) {
+          els.teamsMeetingSelect.value = String(idx);
+          selectTeamsMeeting(String(idx));
+        }
+      };
+
       loadTeamsAuthConfig();
       loadQuestions();
+      initTeamsHost();
     </script>
   </body>
 </html>

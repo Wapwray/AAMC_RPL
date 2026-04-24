@@ -1,0 +1,66 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.17",
+  "version": "1.0.0",
+  "id": "a9f3e8d2-4c7b-4f5e-9d1a-8b2c6f3e0d45",
+  "packageName": "au.com.aamc.rpl.liveassessment",
+  "developer": {
+    "name": "AAMC",
+    "websiteUrl": "https://aamc-rpl-live-ecgua6ceb4fkgfh0.australiaeast-01.azurewebsites.net/",
+    "privacyUrl": "https://aamc-rpl-live-ecgua6ceb4fkgfh0.australiaeast-01.azurewebsites.net/privacy.html",
+    "termsOfUseUrl": "https://aamc-rpl-live-ecgua6ceb4fkgfh0.australiaeast-01.azurewebsites.net/terms.html"
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "name": {
+    "short": "AAMC RPL",
+    "full": "AAMC RPL Live Assessment"
+  },
+  "description": {
+    "short": "Conduct RPL live assessments inside Teams meetings.",
+    "full": "Runs the AAMC Recognition of Prior Learning live assessment workflow alongside a Teams meeting. Pulls questions from Power Automate and captures the meeting transcript via Microsoft Graph."
+  },
+  "accentColor": "#0B6EA9",
+  "staticTabs": [
+    {
+      "entityId": "liveAssessment",
+      "name": "Live Assessment",
+      "contentUrl": "https://aamc-rpl-live-ecgua6ceb4fkgfh0.australiaeast-01.azurewebsites.net/Live%20Assessment.html?inTeams=1",
+      "websiteUrl": "https://aamc-rpl-live-ecgua6ceb4fkgfh0.australiaeast-01.azurewebsites.net/Live%20Assessment.html",
+      "scopes": ["personal"]
+    }
+  ],
+  "configurableTabs": [
+    {
+      "configurationUrl": "https://aamc-rpl-live-ecgua6ceb4fkgfh0.australiaeast-01.azurewebsites.net/Live%20Assessment.html?inTeams=1&configure=1",
+      "canUpdateConfiguration": false,
+      "scopes": ["groupChat", "team"],
+      "context": ["meetingSidePanel", "meetingChatTab", "meetingDetailsTab"],
+      "meetingSurfaces": ["sidePanel", "stage"]
+    }
+  ],
+  "permissions": ["identity", "messageTeamMembers"],
+  "validDomains": [
+    "aamc-rpl-live-ecgua6ceb4fkgfh0.australiaeast-01.azurewebsites.net"
+  ],
+  "webApplicationInfo": {
+    "id": "5c13413f-3311-4668-a3a3-e549bed05acd",
+    "resource": "api://aamc-rpl-live-ecgua6ceb4fkgfh0.australiaeast-01.azurewebsites.net/5c13413f-3311-4668-a3a3-e549bed05acd"
+  },
+  "authorization": {
+    "permissions": {
+      "resourceSpecific": [
+        {
+          "name": "OnlineMeeting.ReadBasic.Chat",
+          "type": "Delegated"
+        },
+        {
+          "name": "ChatMessage.Read.Chat",
+          "type": "Delegated"
+        }
+      ]
+    }
+  }
+}
