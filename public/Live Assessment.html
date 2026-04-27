@@ -828,6 +828,15 @@
                 </label>
               </div>
               <label>
+                Microphone source (match Teams meeting device)
+                <select id="micDeviceSelect" class="meetingSelect">
+                  <option value="default">Default microphone</option>
+                </select>
+              </label>
+              <div class="actions">
+                <button id="refreshMicsBtn" class="secondary" type="button">Refresh microphones</button>
+              </div>
+              <label>
                 SharePoint recording location
                 <input id="sharepointLocation" placeholder="Add later" disabled />
               </label>
@@ -1065,6 +1074,8 @@
         startSessionBtn: document.getElementById("startSessionBtn"),
         recordingToggle: document.getElementById("recordingToggle"),
         transcriptionToggle: document.getElementById("transcriptionToggle"),
+        micDeviceSelect: document.getElementById("micDeviceSelect"),
+        refreshMicsBtn: document.getElementById("refreshMicsBtn"),
         recordingState: document.getElementById("recordingState"),
         transcriptionState: document.getElementById("transcriptionState"),
         questionCountBadge: document.getElementById("questionCountBadge"),
@@ -1134,6 +1145,8 @@
         speechRecognizer: null,
         speechRegion: "",
         speechTokenExpiresAt: 0,
+        micDevices: [],
+        selectedMicDeviceId: "default",
       };
 
       const CSV_COLUMNS = [
@@ -1366,6 +1379,47 @@
           throw new Error(text || "Azure Speech token unavailable.");
         }
         return response.json();
+      };
+
+      const populateMicrophoneSelect = () => {
+        if (!els.micDeviceSelect) return;
+        const current = state.selectedMicDeviceId || "default";
+        els.micDeviceSelect.innerHTML = "";
+
+        const defaultOption = document.createElement("option");
+        defaultOption.value = "default";
+        defaultOption.textContent = "Default microphone";
+        els.micDeviceSelect.appendChild(defaultOption);
+
+        state.micDevices.forEach((device, index) => {
+          const option = document.createElement("option");
+          option.value = device.deviceId;
+          option.textContent = device.label || `Microphone ${index + 1}`;
+          els.micDeviceSelect.appendChild(option);
+        });
+
+        const hasCurrent = Array.from(els.micDeviceSelect.options).some((o) => o.value === current);
+        els.micDeviceSelect.value = hasCurrent ? current : "default";
+        state.selectedMicDeviceId = els.micDeviceSelect.value;
+      };
+
+      const refreshMicrophoneDevices = async (requestPermission = false) => {
+        if (!navigator.mediaDevices?.enumerateDevices) return;
+        try {
+          if (requestPermission && navigator.mediaDevices.getUserMedia) {
+            const constraints =
+              state.selectedMicDeviceId && state.selectedMicDeviceId !== "default"
+                ? { audio: { deviceId: { exact: state.selectedMicDeviceId } } }
+                : { audio: true };
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            stream.getTracks().forEach((track) => track.stop());
+          }
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          state.micDevices = devices.filter((d) => d.kind === "audioinput");
+          populateMicrophoneSelect();
+        } catch {
+          populateMicrophoneSelect();
+        }
       };
 
       const waitForMsal = async (timeoutMs = 8000) => {
@@ -1624,7 +1678,13 @@
 
         const speechConfig = SpeechSDK.SpeechConfig.fromAuthorizationToken(token, region);
         speechConfig.speechRecognitionLanguage = "en-AU";
-        const audioConfig = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
+        const selectedDeviceId =
+          state.selectedMicDeviceId && state.selectedMicDeviceId !== "default"
+            ? state.selectedMicDeviceId
+            : "";
+        const audioConfig = selectedDeviceId
+          ? SpeechSDK.AudioConfig.fromMicrophoneInput(selectedDeviceId)
+          : SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
         const recognizer = new SpeechSDK.SpeechRecognizer(speechConfig, audioConfig);
 
         recognizer.recognized = (_sender, event) => {
@@ -1656,6 +1716,7 @@
         }
         try {
           setTranscriptStatus("Starting microphone transcription", "amber");
+          await refreshMicrophoneDevices(true);
           const recognizer = await createSpeechRecognizer();
           state.speechRecognizer = recognizer;
           await new Promise((resolve, reject) => recognizer.startContinuousRecognitionAsync(resolve, reject));
@@ -2303,6 +2364,20 @@
         }
         render();
       });
+      els.refreshMicsBtn.addEventListener("click", async () => {
+        await refreshMicrophoneDevices(true);
+        const using =
+          state.selectedMicDeviceId === "default"
+            ? "Default microphone"
+            : els.micDeviceSelect.options[els.micDeviceSelect.selectedIndex]?.text || "Selected microphone";
+        setStatusIfNotSticky(`Microphones refreshed. Using: ${using}.`);
+      });
+      els.micDeviceSelect.addEventListener("change", async () => {
+        state.selectedMicDeviceId = els.micDeviceSelect.value || "default";
+        if (state.sessionStarted && els.transcriptionToggle.checked) {
+          await startTranscriptPolling();
+        }
+      });
       els.studentName.addEventListener("input", render);
       els.assessorName.addEventListener("input", render);
       els.retryLoadBtn.addEventListener("click", loadQuestions);
@@ -2432,6 +2507,7 @@
       };
 
       setTeamsAuthStatus("No Teams login required", "green");
+      refreshMicrophoneDevices();
       loadQuestions();
       initTeamsHost();
     </script>
