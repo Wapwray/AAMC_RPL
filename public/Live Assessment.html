@@ -4,8 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AAMC RPL Live Assessment V0.4</title>
-    <script src="https://alcdn.msauth.net/browser/2.39.0/js/msal-browser.min.js"
-            onerror="this.onerror=null;var s=document.createElement('script');s.src='https://unpkg.com/@azure/msal-browser@2.39.0/lib/msal-browser.min.js';s.onerror=function(){var t=document.createElement('script');t.src='https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.39.0/lib/msal-browser.min.js';document.head.appendChild(t);};document.head.appendChild(s);"></script>
+        <script src="https://aka.ms/csspeech/jsbrowserpackageraw"></script>
     <script src="https://res.cdn.office.net/teams-js/2.24.0/js/MicrosoftTeams.min.js" crossorigin="anonymous"></script>
     <style>
       :root {
@@ -770,19 +769,19 @@
         <aside class="side">
           <section class="panel">
             <div class="panelHeader">
-              <h2>Teams Session</h2>
+              <h2>Assessment Session</h2>
               <span class="badge" id="timerBadge">00:00</span>
             </div>
             <div class="panelBody">
               <div class="teamsAuthRow">
-                <span class="badge amber" id="teamsAuthStatus">Teams login required</span>
-                <button id="teamsLoginBtn" type="button">Login to Teams</button>
+                <span class="badge green" id="teamsAuthStatus">No Teams login required</span>
+                <button id="teamsLoginBtn" type="button" hidden>Login to Teams</button>
               </div>
-              <div class="actions">
+              <div class="actions" hidden>
                 <button id="refreshMeetingsBtn" class="secondary" type="button" disabled>Refresh Meetings</button>
                 <button id="teamsLogoutBtn" class="secondary" type="button" disabled>Sign Out</button>
               </div>
-              <label>
+              <label hidden>
                 Choose Teams meeting
                 <select id="teamsMeetingSelect" class="meetingSelect" disabled>
                   <option value="">Login to load Teams meetings</option>
@@ -796,12 +795,12 @@
                 Assessor name
                 <input id="assessorName" autocomplete="name" placeholder="Assessor name" />
               </label>
-              <label>
+              <label hidden>
                 Teams meeting link
                 <input id="meetingLink" inputmode="url" placeholder="https://teams.microsoft.com/..." />
               </label>
               <div class="actions">
-                <button id="openTeamsBtn" type="button" disabled>Open Selected Meeting</button>
+                <button id="openTeamsBtn" type="button" disabled hidden>Open Selected Meeting</button>
                 <button id="startSessionBtn" class="secondary" type="button" disabled>Start Session</button>
               </div>
               <div class="toggleRow">
@@ -864,7 +863,7 @@
             <div class="panelBody">
               <div class="fileRow">
                 <label>
-                  Import Teams transcript
+                  Import transcript file
                   <input class="fileInput" id="transcriptFile" type="file" accept=".vtt,.txt,.text" />
                 </label>
               </div>
@@ -1128,6 +1127,9 @@
         lastTranscriptId: "",
         startedAt: null,
         timerId: null,
+        speechRecognizer: null,
+        speechRegion: "",
+        speechTokenExpiresAt: 0,
       };
 
       const CSV_COLUMNS = [
@@ -1339,50 +1341,27 @@
         });
       };
 
-      const encodeGraphFilterString = (value) => String(value || "").replace(/'/g, "''");
-
-      const findTeamsJoinUrl = (event) =>
-        pickFirst(
-          event?.onlineMeeting?.joinUrl,
-          event?.onlineMeetingUrl,
-          event?.webLink?.includes("teams.microsoft.com") ? event.webLink : "",
-          (event?.bodyPreview || "").match(/https:\/\/teams\.microsoft\.com\/[^\s<"]+/i)?.[0]
-        );
-
       const updateTimer = () => {
         els.timerBadge.textContent = formatClock(elapsedMs());
       };
 
-      const graphRequest = async (path, options = {}, scopes = GRAPH_LOGIN_SCOPES) => {
-        if (!state.msalApp || !state.teamsAccount) {
-          throw new Error("Login to Teams first.");
+      const waitForSpeechSdk = async (timeoutMs = 8000) => {
+        const start = Date.now();
+        while (typeof SpeechSDK === "undefined" || !SpeechSDK.SpeechRecognizer) {
+          if (Date.now() - start > timeoutMs) {
+            throw new Error("Azure Speech SDK failed to load.");
+          }
+          await new Promise((resolve) => setTimeout(resolve, 100));
         }
+      };
 
-        const tokenResponse = await state.msalApp.acquireTokenSilent({
-          account: state.teamsAccount,
-          scopes,
-        }).catch(async () => state.msalApp.acquireTokenPopup({
-          account: state.teamsAccount,
-          scopes,
-        }));
-
-        const response = await fetch(`${GRAPH_BASE_URL}${path}`, {
-          ...options,
-          headers: {
-            Accept: "application/json",
-            ...(options.headers || {}),
-            Authorization: `Bearer ${tokenResponse.accessToken}`,
-          },
-        });
-
+      const fetchSpeechToken = async () => {
+        const response = await fetch("/api/speech/token", { method: "POST" });
         if (!response.ok) {
           const text = await response.text();
-          throw new Error(text || `Graph request failed (${response.status})`);
+          throw new Error(text || "Azure Speech token unavailable.");
         }
-
-        const contentType = response.headers.get("content-type") || "";
-        if (contentType.includes("application/json")) return response.json();
-        return response.text();
+        return response.json();
       };
 
       const waitForMsal = async (timeoutMs = 8000) => {
@@ -1620,64 +1599,78 @@
         return true;
       };
 
-      const fetchSelectedMeetingTranscript = async () => {
-        if (!state.selectedMeeting || !state.teamsAccount) return;
-        if (!state.selectedOnlineMeeting) {
-          await resolveSelectedOnlineMeeting();
+      const appendLiveTranscriptText = (plainText) => {
+        const normalized = String(plainText || "").trim();
+        if (!normalized) return false;
+        const record = currentRecord();
+        const lines = record.transcript ? record.transcript.split("\n") : [];
+        if (lines.at(-1) === normalized) return false;
+        record.transcript = [...lines, normalized].filter(Boolean).join("\n");
+        if (els.transcriptText && !state.summaryOpen) {
+          els.transcriptText.value = record.transcript;
         }
-        if (!state.selectedOnlineMeeting?.id) {
-          setTranscriptStatus("Waiting for Teams transcript", "amber");
-          return;
-        }
-
-        try {
-          const transcripts = await graphRequest(
-            `/me/onlineMeetings/${encodeURIComponent(state.selectedOnlineMeeting.id)}/transcripts`,
-            {},
-            GRAPH_TRANSCRIPT_SCOPES
-          );
-          const latest = (transcripts.value || []).slice().sort((a, b) =>
-            new Date(b.createdDateTime || b.endDateTime || 0) - new Date(a.createdDateTime || a.endDateTime || 0)
-          )[0];
-
-          if (!latest?.id) {
-            setTranscriptStatus("Waiting for Teams transcript", "amber");
-            return;
-          }
-
-          const content = await graphRequest(
-            `/me/onlineMeetings/${encodeURIComponent(state.selectedOnlineMeeting.id)}/transcripts/${encodeURIComponent(latest.id)}/content?$format=text/vtt`,
-            { headers: { Accept: "text/vtt" } },
-            GRAPH_TRANSCRIPT_SCOPES
-          );
-          const plainText = extractTranscriptPlainText(content);
-          const changed = appendTeamsTranscriptDelta(plainText);
-          state.lastTranscriptId = latest.id;
-          setTranscriptStatus(changed ? "Transcript updated" : "Transcript synced", "green");
-        } catch (error) {
-          const message = error?.message || "";
-          setTranscriptStatus(
-            message.includes("consent") || message.includes("Authorization_RequestDenied")
-              ? "Transcript permission needed"
-              : "Transcript not available yet",
-            "amber"
-          );
-        }
+        return true;
       };
 
-      const startTranscriptPolling = () => {
+      const createSpeechRecognizer = async () => {
+        await waitForSpeechSdk();
+        const { token, region, expiresIn } = await fetchSpeechToken();
+        state.speechRegion = region;
+        state.speechTokenExpiresAt = Date.now() + Math.max((expiresIn || 540) - 60, 60) * 1000;
+
+        const speechConfig = SpeechSDK.SpeechConfig.fromAuthorizationToken(token, region);
+        speechConfig.speechRecognitionLanguage = "en-AU";
+        const audioConfig = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
+        const recognizer = new SpeechSDK.SpeechRecognizer(speechConfig, audioConfig);
+
+        recognizer.recognized = (_sender, event) => {
+          if (event.result?.reason !== SpeechSDK.ResultReason.RecognizedSpeech) return;
+          const changed = appendLiveTranscriptText(event.result.text);
+          if (changed) setTranscriptStatus("Microphone transcription live", "green");
+        };
+        recognizer.canceled = (_sender, event) => {
+          const reason = event.errorDetails || event.reason || "Microphone transcription stopped";
+          setTranscriptStatus(String(reason), "amber");
+        };
+        recognizer.sessionStopped = () => {
+          if (state.sessionStarted && els.transcriptionToggle.checked) {
+            setTranscriptStatus("Microphone transcription stopped", "amber");
+          }
+        };
+        return recognizer;
+      };
+
+      const startTranscriptPolling = async () => {
         stopTranscriptPolling();
         if (!els.transcriptionToggle.checked) {
-          setTranscriptStatus("Transcript polling paused", "amber");
+          setTranscriptStatus("Microphone transcription paused", "amber");
           return;
         }
-        if (!state.selectedMeeting || !state.teamsAccount) return;
-        setTranscriptStatus("Polling Teams transcript", "amber");
-        fetchSelectedMeetingTranscript();
-        state.transcriptPollId = window.setInterval(fetchSelectedMeetingTranscript, TRANSCRIPT_POLL_MS);
+        if (!state.sessionStarted) {
+          setTranscriptStatus("Transcription will start with the session", "amber");
+          return;
+        }
+        try {
+          setTranscriptStatus("Starting microphone transcription", "amber");
+          const recognizer = await createSpeechRecognizer();
+          state.speechRecognizer = recognizer;
+          await new Promise((resolve, reject) => recognizer.startContinuousRecognitionAsync(resolve, reject));
+          setTranscriptStatus("Microphone transcription live", "green");
+          setTeamsAuthStatus("Microphone transcription enabled", "green");
+        } catch (error) {
+          setTranscriptStatus("Microphone transcription unavailable", "red");
+          setStatus(error?.message || String(error), true);
+        }
       };
 
       function stopTranscriptPolling() {
+        if (state.speechRecognizer) {
+          try {
+            state.speechRecognizer.stopContinuousRecognitionAsync(() => {}, () => {});
+            state.speechRecognizer.close();
+          } catch {}
+          state.speechRecognizer = null;
+        }
         if (state.transcriptPollId) {
           window.clearInterval(state.transcriptPollId);
           state.transcriptPollId = null;
@@ -1695,13 +1688,9 @@
 
       const updateStartButtonState = () => {
         const hasNames = Boolean(els.studentName.value.trim() && els.assessorName.value.trim());
-        const hasTeamsAuth = Boolean(state.teamsAccount) || Boolean(state.teamsMeetingContextId);
-        const hasMeeting = Boolean(state.selectedMeeting) || Boolean(state.teamsMeetingContextId);
         const ready =
           state.questions.length > 0 &&
-          hasNames &&
-          hasTeamsAuth &&
-          hasMeeting;
+          hasNames;
         els.startSessionBtn.disabled = state.sessionStarted || !ready;
 
         // Build a helpful tooltip so the user can see what's still missing
@@ -1712,8 +1701,6 @@
         } else {
           const missing = [];
           if (!state.questions.length) missing.push("questions loaded");
-          if (!state.teamsAccount) missing.push("Teams login");
-          if (!state.selectedMeeting) missing.push("Teams meeting selected");
           if (!els.studentName.value.trim()) missing.push("Student name");
           if (!els.assessorName.value.trim()) missing.push("Assessor name");
           els.startSessionBtn.title = "Still needed: " + missing.join(", ");
@@ -1721,12 +1708,12 @@
 
         els.studentName.disabled = state.sessionStarted;
         els.assessorName.disabled = state.sessionStarted;
-        els.teamsLoginBtn.disabled = state.sessionStarted || !state.msalConfig?.clientId || Boolean(state.teamsAccount);
-        els.teamsLogoutBtn.disabled = state.sessionStarted || !state.teamsAccount;
-        els.refreshMeetingsBtn.disabled = state.sessionStarted || !state.teamsAccount;
-        els.teamsMeetingSelect.disabled = state.sessionStarted || !state.teamsAccount || !state.meetings.length;
-        els.openTeamsBtn.disabled = !state.selectedMeeting;
-        els.openMeetingFromPanelBtn.disabled = !state.selectedMeeting;
+        els.teamsLoginBtn.disabled = true;
+        els.teamsLogoutBtn.disabled = true;
+        els.refreshMeetingsBtn.disabled = true;
+        els.teamsMeetingSelect.disabled = true;
+        els.openTeamsBtn.disabled = true;
+        els.openMeetingFromPanelBtn.disabled = true;
         els.recordingState.textContent = els.recordingToggle.checked ? "On" : "Off";
         els.transcriptionState.textContent = els.transcriptionToggle.checked ? "On" : "Off";
       };
@@ -1923,7 +1910,7 @@
         const hasQuestions = state.questions.length > 0;
         const showSummary = hasQuestions && state.summaryOpen;
         const showAssessment = hasQuestions && state.sessionStarted && !showSummary;
-        const showMeeting = Boolean(state.selectedMeeting) && !showSummary;
+        const showMeeting = false;
 
         els.emptyState.classList.toggle("hidden", showAssessment || showSummary);
         els.meetingPanel.classList.toggle("hidden", !showMeeting);
@@ -1935,7 +1922,7 @@
         if (!hasQuestions) {
           els.emptyMessage.textContent = "Questions are being loaded from the assessment list.";
         } else if (!state.sessionStarted) {
-          els.emptyMessage.textContent = "Login to Teams, choose a meeting, enter the student and assessor names, then start the assessment session.";
+          els.emptyMessage.textContent = "Enter the student and assessor names, then start the assessment session. Transcription uses your microphone or an imported transcript file.";
         }
 
         if (state.selectedMeeting) {
@@ -2010,14 +1997,6 @@
         if (!state.questions.length) return;
         if (!els.studentName.value.trim() || !els.assessorName.value.trim()) {
           setStatus("Enter the student and assessor names before starting.");
-          return;
-        }
-        if (!state.teamsAccount && !state.teamsMeetingContextId) {
-          setStatus("Login to Teams before starting.");
-          return;
-        }
-        if (!state.selectedMeeting && !state.teamsMeetingContextId) {
-          setStatus("Choose a Teams meeting before starting.");
           return;
         }
         state.sessionStarted = true;
@@ -2274,6 +2253,7 @@
         els.resultNotSatisfactory.checked = false;
         els.timerBadge.textContent = "00:00";
         setTranscriptStatus("Transcript idle", "amber");
+        setTeamsAuthStatus("No Teams login required", "green");
         setStatus(state.questions.length ? "Questions ready." : "Ready.");
         render();
       };
@@ -2300,7 +2280,7 @@
           startTranscriptPolling();
         } else {
           stopTranscriptPolling();
-          setTranscriptStatus("Transcript polling paused", "amber");
+          setTranscriptStatus("Microphone transcription paused", "amber");
         }
         render();
       });
@@ -2419,58 +2399,20 @@
           console.warn("Teams configure handshake failed", e);
         }
 
-        // Auto-populate assessor name from Teams context if field is empty,
-        // and remember the signed-in user so MSAL can do silent SSO later.
+        // Auto-populate assessor name from Teams context if field is empty.
         try {
           const ctx = await sdk.app.getContext();
-          const userHint = ctx?.user?.loginHint || ctx?.user?.userPrincipalName || "";
-          if (userHint) state.teamsUserHint = userHint;
           if (ctx?.user && !els.assessorName.value) {
             els.assessorName.value = ctx.user.userPrincipalName || ctx.user.displayName || "";
             render();
           }
-          // If inside a meeting, remember the meeting context id for transcript lookup.
-          if (ctx?.meeting?.id) {
-            state.teamsMeetingContextId = ctx.meeting.id;
-            setStatusIfNotSticky("Teams meeting detected. Signing in...");
-          }
-          // Try silent SSO immediately so user never sees a popup.
-          if (state.msalApp && !state.teamsAccount) {
-            try {
-              const result = await state.msalApp.ssoSilent({
-                scopes: GRAPH_LOGIN_SCOPES,
-                loginHint: userHint,
-              });
-              state.teamsAccount = result.account;
-              await afterTeamsLogin();
-              // After meetings load, try to auto-select the one matching context.
-              if (state.teamsMeetingContextId) autoSelectTeamsMeetingFromContext();
-            } catch {
-              // Silent failed — user will need to click "Login to Teams".
-            }
-          }
+          setStatusIfNotSticky("Questions ready. Microphone transcription is available.");
         } catch (err) {
           console.warn("Teams context unavailable", err);
         }
       };
 
-      // When the calendar dropdown is populated, try to match the active
-      // meeting from Teams context and select it automatically.
-      const autoSelectTeamsMeetingFromContext = () => {
-        if (!state.teamsMeetingContextId || !state.meetings?.length) return;
-        const target = state.teamsMeetingContextId;
-        const idx = state.meetings.findIndex((m) => {
-          const joinUrl = findTeamsJoinUrl(m) || "";
-          // Teams meeting ids include the threadId from the joinUrl.
-          return joinUrl.indexOf(target) !== -1 || (m.id && m.id === target);
-        });
-        if (idx >= 0) {
-          els.teamsMeetingSelect.value = String(idx);
-          selectTeamsMeeting(String(idx));
-        }
-      };
-
-      loadTeamsAuthConfig();
+      setTeamsAuthStatus("No Teams login required", "green");
       loadQuestions();
       initTeamsHost();
     </script>
