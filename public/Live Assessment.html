@@ -599,6 +599,10 @@
         display: none !important;
       }
 
+      .uiHidden {
+        display: none !important;
+      }
+
       .fileRow {
         display: grid;
         gap: 8px;
@@ -773,15 +777,15 @@
               <span class="badge" id="timerBadge">00:00</span>
             </div>
             <div class="panelBody">
-              <div class="teamsAuthRow">
+              <div class="teamsAuthRow uiHidden">
                 <span class="badge green" id="teamsAuthStatus">No Teams login required</span>
                 <button id="teamsLoginBtn" type="button" hidden>Login to Teams</button>
               </div>
-              <div class="actions" hidden>
+              <div class="actions uiHidden" hidden>
                 <button id="refreshMeetingsBtn" class="secondary" type="button" disabled>Refresh Meetings</button>
                 <button id="teamsLogoutBtn" class="secondary" type="button" disabled>Sign Out</button>
               </div>
-              <label hidden>
+              <label class="uiHidden" hidden>
                 Choose Teams meeting
                 <select id="teamsMeetingSelect" class="meetingSelect" disabled>
                   <option value="">Login to load Teams meetings</option>
@@ -795,12 +799,12 @@
                 Assessor name
                 <input id="assessorName" autocomplete="name" placeholder="Assessor name" />
               </label>
-              <label hidden>
+              <label class="uiHidden" hidden>
                 Teams meeting link
                 <input id="meetingLink" inputmode="url" placeholder="https://teams.microsoft.com/..." />
               </label>
               <div class="actions">
-                <button id="openTeamsBtn" type="button" disabled hidden>Open Selected Meeting</button>
+                <button id="openTeamsBtn" class="uiHidden" type="button" disabled hidden>Open Selected Meeting</button>
                 <button id="startSessionBtn" class="secondary" type="button" disabled>Start Session</button>
               </div>
               <div class="toggleRow">
@@ -1658,8 +1662,23 @@
           setTranscriptStatus("Microphone transcription live", "green");
           setTeamsAuthStatus("Microphone transcription enabled", "green");
         } catch (error) {
-          setTranscriptStatus("Microphone transcription unavailable", "red");
-          setStatus(error?.message || String(error), true);
+          const message = String(error?.message || error || "");
+          const isPermissionDenied =
+            error?.name === "NotAllowedError" ||
+            message.includes("NotAllowedError") ||
+            /permission denied/i.test(message);
+          if (isPermissionDenied) {
+            setTranscriptStatus("Microphone permission denied", "red");
+            setStatus(
+              "Microphone access was denied. Allow microphone permission for Teams/browser, then toggle Transcription on again. You can still use Import transcript file.",
+              true
+            );
+          } else {
+            setTranscriptStatus("Microphone transcription unavailable", "red");
+            setStatus(message || "Microphone transcription unavailable.", true);
+          }
+          els.transcriptionToggle.checked = false;
+          render();
         }
       };
 
