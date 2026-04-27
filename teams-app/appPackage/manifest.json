@@ -1,7 +1,7 @@
 {
   "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
   "manifestVersion": "1.17",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "id": "a9f3e8d2-4c7b-4f5e-9d1a-8b2c6f3e0d45",
   "packageName": "au.com.aamc.rpl.liveassessment",
   "developer": {
@@ -20,7 +20,7 @@
   },
   "description": {
     "short": "Conduct RPL live assessments inside Teams meetings.",
-    "full": "Runs the AAMC Recognition of Prior Learning live assessment workflow alongside a Teams meeting. Pulls questions from Power Automate and captures the meeting transcript via Microsoft Graph."
+    "full": "Runs the AAMC Recognition of Prior Learning live assessment workflow alongside a Teams meeting. Pulls questions from Power Automate and captures transcription directly in the assessment app without requiring Teams sign-in."
   },
   "accentColor": "#0B6EA9",
   "staticTabs": [
