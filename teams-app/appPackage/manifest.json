@@ -1,9 +1,8 @@
 {
   "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
   "manifestVersion": "1.17",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "id": "a9f3e8d2-4c7b-4f5e-9d1a-8b2c6f3e0d45",
-  "packageName": "au.com.aamc.rpl.liveassessment",
   "developer": {
     "name": "AAMC",
     "websiteUrl": "https://aamc-rpl-live-ecgua6ceb4fkgfh0.australiaeast-01.azurewebsites.net/",
