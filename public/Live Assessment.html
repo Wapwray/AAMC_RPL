@@ -4,7 +4,13 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AAMC RPL Live Assessment V0.4</title>
-        <script src="https://aka.ms/csspeech/jsbrowserpackageraw"></script>
+    <script>
+      if (new URLSearchParams(window.location.search).get("inTeams") === "1") {
+        document.documentElement.classList.add("teams-app-mode");
+      }
+    </script>
+    <script src="https://aka.ms/csspeech/jsbrowserpackageraw"></script>
+    <script src="https://alcdn.msauth.net/browser/2.38.0/js/msal-browser.min.js" crossorigin="anonymous"></script>
     <script src="https://res.cdn.office.net/teams-js/2.24.0/js/MicrosoftTeams.min.js" crossorigin="anonymous"></script>
     <style>
       :root {
@@ -603,6 +609,10 @@
         display: none !important;
       }
 
+      html.teams-app-mode .teamsAppHidden {
+        display: none !important;
+      }
+
       .fileRow {
         display: grid;
         gap: 8px;
@@ -807,7 +817,7 @@
                 <button id="openTeamsBtn" class="uiHidden" type="button" disabled hidden>Open Selected Meeting</button>
                 <button id="startSessionBtn" class="secondary" type="button" disabled>Start Session</button>
               </div>
-              <div class="toggleRow">
+              <div class="toggleRow teamsAppHidden">
                 <div class="toggleLabel">
                   <strong>Recording</strong>
                   <span id="recordingState">Off</span>
@@ -817,7 +827,7 @@
                   <span class="slider"></span>
                 </label>
               </div>
-              <div class="toggleRow">
+              <div class="toggleRow teamsAppHidden">
                 <div class="toggleLabel">
                   <strong>Transcription</strong>
                   <span id="transcriptionState">Off</span>
@@ -827,16 +837,16 @@
                   <span class="slider"></span>
                 </label>
               </div>
-              <label>
+              <label class="teamsAppHidden">
                 Microphone source (match Teams meeting device)
                 <select id="micDeviceSelect" class="meetingSelect">
                   <option value="default">Default microphone</option>
                 </select>
               </label>
-              <div class="actions">
+              <div class="actions teamsAppHidden">
                 <button id="refreshMicsBtn" class="secondary" type="button">Refresh microphones</button>
               </div>
-              <label>
+              <label class="teamsAppHidden">
                 SharePoint recording location
                 <input id="sharepointLocation" placeholder="Add later" disabled />
               </label>
@@ -1051,12 +1061,17 @@
         "OnlineMeetingArtifact.Read.All",
       ];
       const TRANSCRIPT_POLL_MS = 30000;
+      const IS_TEAMS_APP = new URLSearchParams(window.location.search).get("inTeams") === "1";
 
       const TEAM_AUTH_CONFIG_ENDPOINTS = [
         "./teams-auth-config.json",
         "/teams-auth-config.json",
         "/api/teams-auth-config",
       ];
+
+      if (IS_TEAMS_APP) {
+        document.querySelectorAll(".teamsAppHidden").forEach((element) => element.remove());
+      }
 
       const els = {
         status: document.getElementById("status"),
@@ -1134,6 +1149,8 @@
         msalConfig: null,
         msalApp: null,
         teamsAccount: null,
+        teamsContext: null,
+        teamsUserHint: "",
         meetings: [],
         selectedMeeting: null,
         selectedOnlineMeeting: null,
@@ -1362,6 +1379,76 @@
         els.timerBadge.textContent = formatClock(elapsedMs());
       };
 
+      const findTeamsJoinUrl = (event) => {
+        const direct = pickFirst(
+          event?.onlineMeeting?.joinUrl,
+          event?.onlineMeetingUrl,
+          event?.teamsJoinUrl
+        );
+        if (direct) return direct;
+
+        const text = [event?.bodyPreview, event?.body?.content, event?.webLink].filter(Boolean).join("\n");
+        const match = String(text).match(/https:\/\/teams\.microsoft\.com\/l\/meetup-join\/[^\s\"'<)]+/i);
+        return match ? match[0] : "";
+      };
+
+      const encodeGraphFilterString = (value) => String(value || "").replace(/'/g, "''");
+
+      const isInteractionRequired = (error) => {
+        const text = [error?.errorCode, error?.errorMessage, error?.message, error?.name]
+          .filter(Boolean)
+          .join(" ");
+        return /interaction_required|login_required|consent_required|no_account/i.test(text);
+      };
+
+      const ensureTeamsAccount = async (scopes = GRAPH_LOGIN_SCOPES) => {
+        if (!state.msalApp) {
+          await loadTeamsAuthConfig();
+        }
+        if (state.teamsAccount) return state.teamsAccount;
+        return loginToTeams(scopes);
+      };
+
+      const acquireGraphToken = async (scopes = GRAPH_LOGIN_SCOPES) => {
+        await ensureTeamsAccount(scopes);
+        const request = {
+          account: state.teamsAccount,
+          scopes,
+        };
+        try {
+          const result = await state.msalApp.acquireTokenSilent(request);
+          return result.accessToken;
+        } catch (error) {
+          if (!isInteractionRequired(error)) throw error;
+          const result = await state.msalApp.acquireTokenPopup({
+            scopes,
+            loginHint: state.teamsUserHint || state.teamsAccount?.username,
+          });
+          state.teamsAccount = result.account;
+          return result.accessToken;
+        }
+      };
+
+      const graphRequest = async (path, options = {}, scopes = GRAPH_LOGIN_SCOPES) => {
+        const token = await acquireGraphToken(scopes);
+        const headers = new Headers(options.headers || {});
+        headers.set("Authorization", `Bearer ${token}`);
+        if (!headers.has("Accept")) headers.set("Accept", "application/json");
+
+        const response = await fetch(`${GRAPH_BASE_URL}${path}`, {
+          ...options,
+          headers,
+        });
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || `Microsoft Graph request failed (${response.status})`);
+        }
+        if (response.status === 204) return null;
+        const contentType = response.headers.get("content-type") || "";
+        if (contentType.includes("application/json")) return response.json();
+        return response.text();
+      };
+
       const waitForSpeechSdk = async (timeoutMs = 8000) => {
         const start = Date.now();
         while (typeof SpeechSDK === "undefined" || !SpeechSDK.SpeechRecognizer) {
@@ -1484,7 +1571,7 @@
         render();
       };
 
-      const loginToTeams = async () => {
+      const loginToTeams = async (scopes = GRAPH_LOGIN_SCOPES) => {
         if (!state.msalApp) {
           await loadTeamsAuthConfig();
           if (!state.msalApp) return;
@@ -1492,7 +1579,7 @@
         try {
           // When hosted inside Teams, prefill the login hint so MSAL can
           // silently sign in the user without a popup prompt whenever possible.
-          const loginRequest = { scopes: GRAPH_LOGIN_SCOPES };
+          const loginRequest = { scopes };
           if (state.teamsUserHint) loginRequest.loginHint = state.teamsUserHint;
 
           let result = null;
@@ -1503,9 +1590,11 @@
           }
           state.teamsAccount = result.account;
           await afterTeamsLogin();
+          return state.teamsAccount;
         } catch (error) {
           setTeamsAuthStatus("Teams login failed", "red");
           setStatus(error?.message || String(error));
+          throw error;
         }
       };
 
@@ -1527,9 +1616,9 @@
         render();
       };
 
-      const loadTeamsMeetings = async () => {
+      const loadTeamsMeetings = async (options = {}) => {
         if (!state.teamsAccount) return;
-        setStatus("Loading Teams meetings...");
+        if (!options.silent) setStatus("Loading Teams meetings...");
         els.refreshMeetingsBtn.disabled = true;
         try {
           const start = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
@@ -1548,7 +1637,9 @@
             .map((event) => ({ ...event, teamsJoinUrl: findTeamsJoinUrl(event) }))
             .filter((event) => event.teamsJoinUrl);
           populateMeetingSelect();
-          setStatus(state.meetings.length ? "Choose a Teams meeting." : "No Teams meetings found in the next 14 days.");
+          if (!options.silent) {
+            setStatus(state.meetings.length ? "Choose a Teams meeting." : "No Teams meetings found in the next 14 days.");
+          }
         } catch (error) {
           setStatus(error?.message || String(error));
         } finally {
@@ -1608,9 +1699,48 @@
       };
 
       const resolveSelectedOnlineMeeting = async () => {
-        if (!state.selectedMeeting?.teamsJoinUrl) return null;
+        if (state.selectedOnlineMeeting?.id) return state.selectedOnlineMeeting;
+
+        const teamsContextJoinUrl = pickFirst(
+          state.teamsContext?.meeting?.joinUrl,
+          state.teamsContext?.meeting?.joinWebUrl,
+          state.teamsContext?.page?.subPageId?.startsWith?.("https://teams.microsoft.com")
+            ? state.teamsContext.page.subPageId
+            : ""
+        );
+        const joinWebUrl = state.selectedMeeting?.teamsJoinUrl || teamsContextJoinUrl;
+
+        if (!joinWebUrl && IS_TEAMS_APP && !state.selectedMeeting && state.teamsAccount) {
+          await loadTeamsMeetings({ silent: true });
+          const now = Date.now();
+          const currentMeetings = state.meetings.filter((meeting) => {
+            const start = Date.parse(meeting.start?.dateTime || "");
+            const end = Date.parse(meeting.end?.dateTime || "");
+            if (!Number.isFinite(start) || !Number.isFinite(end)) return false;
+            return start - 15 * 60 * 1000 <= now && now <= end + 45 * 60 * 1000;
+          });
+          if (currentMeetings.length === 1) {
+            state.selectedMeeting = currentMeetings[0];
+            els.meetingLink.value = state.selectedMeeting.teamsJoinUrl;
+          }
+        }
+
+        const selectedJoinUrl = state.selectedMeeting?.teamsJoinUrl || joinWebUrl;
+        if (!selectedJoinUrl) {
+          const contextMeetingId = pickFirst(
+            state.teamsContext?.meeting?.id,
+            state.teamsContext?.meetingId
+          );
+          if (contextMeetingId) {
+            state.selectedOnlineMeeting = { id: contextMeetingId, subject: "Current Teams meeting" };
+            setTranscriptStatus("Teams transcript lookup ready", "amber");
+            return state.selectedOnlineMeeting;
+          }
+          return null;
+        }
+
         try {
-          const joinUrl = encodeGraphFilterString(state.selectedMeeting.teamsJoinUrl);
+          const joinUrl = encodeGraphFilterString(selectedJoinUrl);
           const query = new URLSearchParams({ "$filter": `JoinWebUrl eq '${joinUrl}'` });
           const data = await graphRequest(`/me/onlineMeetings?${query.toString()}`);
           state.selectedOnlineMeeting = data.value?.[0] || null;
@@ -1630,9 +1760,13 @@
         if (!text) return "";
         const cues = parseVttCues(text);
         if (cues.length) return cues.map((cue) => cue.text).join("\n").trim();
+        const timingLinePattern = new RegExp(
+          "\\d{2}:\\d{2}:\\d{2}[.,]\\d{3}\\s+-->\\s+\\d{2}:\\d{2}:\\d{2}[.,]\\d{3}.*$",
+          "gm"
+        );
         return String(text)
           .replace(/^WEBVTT.*$/gim, "")
-          .replace(/\d{2}:\d{2}:\d{2}[.,]\d{3}\s+-->\s+\d{2}:\d{2}:\d{2}[.,]\d{3}.*$/gm, "")
+          .replace(timingLinePattern, "")
           .replace(/<[^>]+>/g, "")
           .replace(/\n{3,}/g, "\n\n")
           .trim();
@@ -1655,6 +1789,44 @@
           els.transcriptText.value = record.transcript;
         }
         return true;
+      };
+
+      const latestTranscript = (transcripts) => {
+        return [...transcripts].sort((left, right) => {
+          const leftDate = Date.parse(left.endDateTime || left.createdDateTime || "") || 0;
+          const rightDate = Date.parse(right.endDateTime || right.createdDateTime || "") || 0;
+          return rightDate - leftDate;
+        })[0] || null;
+      };
+
+      const pollTeamsTranscriptOnce = async () => {
+        const meeting = await resolveSelectedOnlineMeeting();
+        if (!meeting?.id) {
+          setTranscriptStatus("Waiting for Teams meeting context", "amber");
+          return false;
+        }
+
+        const list = await graphRequest(
+          `/me/onlineMeetings/${encodeURIComponent(meeting.id)}/transcripts`,
+          {},
+          GRAPH_TRANSCRIPT_SCOPES
+        );
+        const transcript = latestTranscript(list?.value || []);
+        if (!transcript?.id) {
+          setTranscriptStatus("Waiting for Teams transcription", "amber");
+          return false;
+        }
+
+        const content = await graphRequest(
+          `/me/onlineMeetings/${encodeURIComponent(meeting.id)}/transcripts/${encodeURIComponent(transcript.id)}/content?$format=text/vtt`,
+          { headers: { Accept: "text/vtt" } },
+          GRAPH_TRANSCRIPT_SCOPES
+        );
+        const plainText = extractTranscriptPlainText(content);
+        const changed = appendTeamsTranscriptDelta(plainText);
+        state.lastTranscriptId = transcript.id;
+        setTranscriptStatus(changed ? "Teams transcript updated" : "Teams transcript connected", "green");
+        return changed;
       };
 
       const appendLiveTranscriptText = (plainText) => {
@@ -1706,6 +1878,28 @@
 
       const startTranscriptPolling = async () => {
         stopTranscriptPolling();
+        if (IS_TEAMS_APP) {
+          if (!state.sessionStarted) {
+            setTranscriptStatus("Teams transcription will start with the session", "amber");
+            return;
+          }
+          try {
+            setTranscriptStatus("Connecting to Teams transcription", "amber");
+            await ensureTeamsAccount(GRAPH_TRANSCRIPT_SCOPES);
+            await pollTeamsTranscriptOnce();
+            state.transcriptPollId = window.setInterval(() => {
+              pollTeamsTranscriptOnce().catch((error) => {
+                setTranscriptStatus(error?.message || "Teams transcript polling failed", "red");
+              });
+            }, TRANSCRIPT_POLL_MS);
+            return;
+          } catch (error) {
+            setTranscriptStatus("Teams transcription unavailable", "red");
+            setStatus(error?.message || String(error), true);
+            return;
+          }
+        }
+
         if (!els.transcriptionToggle.checked) {
           setTranscriptStatus("Microphone transcription paused", "amber");
           return;
@@ -1794,8 +1988,12 @@
         els.teamsMeetingSelect.disabled = true;
         els.openTeamsBtn.disabled = true;
         els.openMeetingFromPanelBtn.disabled = true;
-        els.recordingState.textContent = els.recordingToggle.checked ? "On" : "Off";
-        els.transcriptionState.textContent = els.transcriptionToggle.checked ? "On" : "Off";
+        if (els.recordingState && els.recordingToggle) {
+          els.recordingState.textContent = els.recordingToggle.checked ? "On" : "Off";
+        }
+        if (els.transcriptionState && els.transcriptionToggle) {
+          els.transcriptionState.textContent = els.transcriptionToggle.checked ? "On" : "Off";
+        }
       };
 
       const updateSessionBadge = () => {
@@ -2002,7 +2200,9 @@
         if (!hasQuestions) {
           els.emptyMessage.textContent = "Questions are being loaded from the assessment list.";
         } else if (!state.sessionStarted) {
-          els.emptyMessage.textContent = "Enter the student and assessor names, then start the assessment session. Transcription uses your microphone or an imported transcript file.";
+          els.emptyMessage.textContent = IS_TEAMS_APP
+            ? "Enter the student and assessor names, then start the assessment session. Transcription uses Teams transcription or an imported transcript file."
+            : "Enter the student and assessor names, then start the assessment session. Transcription uses your microphone or an imported transcript file.";
         }
 
         if (state.selectedMeeting) {
@@ -2333,7 +2533,7 @@
         els.resultNotSatisfactory.checked = false;
         els.timerBadge.textContent = "00:00";
         setTranscriptStatus("Transcript idle", "amber");
-        setTeamsAuthStatus("No Teams login required", "green");
+        setTeamsAuthStatus(IS_TEAMS_APP ? "Teams transcription ready" : "No Teams login required", "green");
         setStatus(state.questions.length ? "Questions ready." : "Ready.");
         render();
       };
@@ -2348,36 +2548,42 @@
       const heroBtn = document.getElementById("openMeetingHeroBtn");
       if (heroBtn) heroBtn.addEventListener("click", openSelectedTeamsMeeting);
       els.openMeetingFromPanelBtn.addEventListener("click", openSelectedTeamsMeeting);
-      els.teamsLoginBtn.addEventListener("click", loginToTeams);
+      els.teamsLoginBtn.addEventListener("click", () => loginToTeams());
       els.teamsLogoutBtn.addEventListener("click", logoutTeams);
       els.refreshMeetingsBtn.addEventListener("click", loadTeamsMeetings);
       els.teamsMeetingSelect.addEventListener("change", () => selectTeamsMeeting(els.teamsMeetingSelect.value));
 
       els.startSessionBtn.addEventListener("click", startSession);
-      els.recordingToggle.addEventListener("change", render);
-      els.transcriptionToggle.addEventListener("change", () => {
-        if (els.transcriptionToggle.checked) {
-          startTranscriptPolling();
-        } else {
-          stopTranscriptPolling();
-          setTranscriptStatus("Microphone transcription paused", "amber");
-        }
-        render();
-      });
-      els.refreshMicsBtn.addEventListener("click", async () => {
-        await refreshMicrophoneDevices(true);
-        const using =
-          state.selectedMicDeviceId === "default"
-            ? "Default microphone"
-            : els.micDeviceSelect.options[els.micDeviceSelect.selectedIndex]?.text || "Selected microphone";
-        setStatusIfNotSticky(`Microphones refreshed. Using: ${using}.`);
-      });
-      els.micDeviceSelect.addEventListener("change", async () => {
-        state.selectedMicDeviceId = els.micDeviceSelect.value || "default";
-        if (state.sessionStarted && els.transcriptionToggle.checked) {
-          await startTranscriptPolling();
-        }
-      });
+      if (els.recordingToggle) els.recordingToggle.addEventListener("change", render);
+      if (els.transcriptionToggle) {
+        els.transcriptionToggle.addEventListener("change", () => {
+          if (els.transcriptionToggle.checked) {
+            startTranscriptPolling();
+          } else {
+            stopTranscriptPolling();
+            setTranscriptStatus("Microphone transcription paused", "amber");
+          }
+          render();
+        });
+      }
+      if (els.refreshMicsBtn) {
+        els.refreshMicsBtn.addEventListener("click", async () => {
+          await refreshMicrophoneDevices(true);
+          const using =
+            state.selectedMicDeviceId === "default"
+              ? "Default microphone"
+              : els.micDeviceSelect.options[els.micDeviceSelect.selectedIndex]?.text || "Selected microphone";
+          setStatusIfNotSticky(`Microphones refreshed. Using: ${using}.`);
+        });
+      }
+      if (els.micDeviceSelect) {
+        els.micDeviceSelect.addEventListener("change", async () => {
+          state.selectedMicDeviceId = els.micDeviceSelect.value || "default";
+          if (state.sessionStarted && els.transcriptionToggle?.checked) {
+            await startTranscriptPolling();
+          }
+        });
+      }
       els.studentName.addEventListener("input", render);
       els.assessorName.addEventListener("input", render);
       els.retryLoadBtn.addEventListener("click", loadQuestions);
@@ -2496,18 +2702,25 @@
         // Auto-populate assessor name from Teams context if field is empty.
         try {
           const ctx = await sdk.app.getContext();
+          state.teamsContext = ctx;
+          state.teamsUserHint = pickFirst(
+            ctx?.user?.loginHint,
+            ctx?.user?.userPrincipalName,
+            ctx?.user?.email
+          );
           if (ctx?.user && !els.assessorName.value) {
             els.assessorName.value = ctx.user.userPrincipalName || ctx.user.displayName || "";
             render();
           }
-          setStatusIfNotSticky("Questions ready. Microphone transcription is available.");
+          setStatusIfNotSticky("Questions ready. Teams transcription is available.");
         } catch (err) {
           console.warn("Teams context unavailable", err);
         }
       };
 
-      setTeamsAuthStatus("No Teams login required", "green");
-      refreshMicrophoneDevices();
+      setTeamsAuthStatus(IS_TEAMS_APP ? "Teams transcription ready" : "No Teams login required", "green");
+      if (!IS_TEAMS_APP) refreshMicrophoneDevices();
+      if (IS_TEAMS_APP) loadTeamsAuthConfig().catch(() => {});
       loadQuestions();
       initTeamsHost();
     </script>
