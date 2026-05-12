@@ -57,11 +57,13 @@ export interface RplFilterConfig {
   output?: OutputSelectionConfig;
   outputFields?: string[];
   diagnostics?: DiagnosticsConfig;
+  managedStaffField?: string;
 }
 
 export interface RplFilterInput {
   units: RplRecord[];
   questions: RplRecord[];
+  managedStaff?: boolean | "Yes" | "No";
   config?: RplFilterConfig;
 }
 
@@ -74,6 +76,7 @@ export interface RplFilterCounts {
   questionsExcluded: number;
   studentQuestions: number;
   assessorQuestions: number;
+  managedStaffQuestionsFiltered: number;
 }
 
 export interface ExcludedByDiagnostic {
@@ -107,6 +110,8 @@ export interface RplDiagnostics {
     caseSensitive: boolean;
     questionLiveField: string;
     output: Required<OutputSelectionConfig>;
+    managedStaffField: string;
+    managedStaffEnabled: boolean;
   };
 }
 
@@ -145,6 +150,8 @@ interface ResolvedFilterConfig {
   assessorRule: ResolvedQuestionRule;
   output: Required<OutputSelectionConfig>;
   diagnostics: Required<DiagnosticsConfig>;
+  managedStaffField: string;
+  managedStaffEnabled: boolean;
 }
 
 interface FieldLookup {
@@ -157,6 +164,7 @@ const DEFAULT_UNIT_STATUS_FIELDS = ["STATUS", "Status", "status", "Unit Status",
 const DEFAULT_UNIT_CODE_FIELDS = ["CODE", "Code", "code", "Unit Code", "unitCode", "UnitCode"];
 const DEFAULT_EXCLUSION_FIELDS = ["CT Do Not Ask 1"];
 const DEFAULT_QUESTION_LIVE_FIELD = "Question Live";
+const DEFAULT_MANAGED_STAFF_FIELD = "Managed Staff";
 
 const VALID_RULE_OPERATORS: QuestionRuleOperator[] = [
   "equals",
@@ -173,7 +181,7 @@ const VALID_RULE_OPERATORS: QuestionRuleOperator[] = [
 ];
 
 export function filterRplQuestions(input: RplFilterInput, configOverride?: RplFilterConfig): RplFilterResponse {
-  const config = resolveConfig(input.config, configOverride);
+  const config = resolveConfig(input.config, configOverride, input.managedStaff);
   const warnings: string[] = [];
   const missingFields: MissingFieldDiagnostics = {
     unitStatus: 0,
@@ -222,9 +230,21 @@ export function filterRplQuestions(input: RplFilterInput, configOverride?: RplFi
   const excludedBy: ExcludedByDiagnostic[] = [];
   const unclassifiedQuestionIndexes: number[] = [];
   const dualMatchedQuestionIndexes: number[] = [];
+  let managedStaffQuestionsFiltered = 0;
 
   questions.forEach((question, questionIndex) => {
     const questionRecord = asRecord(question);
+
+    // Exclude managed-staff questions when the caller has not enabled them
+    if (!config.managedStaffEnabled) {
+      const msLookup = resolveField(questionRecord, [config.managedStaffField]);
+      if (msLookup.found && toText(msLookup.value).trim().toLowerCase() === "yes") {
+        managedStaffQuestionsFiltered += 1;
+        excludedQuestions.push(projectQuestion(questionRecord, config, missingFields));
+        return;
+      }
+    }
+
     const exclusionMatch = getQuestionExclusionMatch(questionRecord, questionIndex, unitCodeSet, config, missingFields);
     const projectedQuestion = projectQuestion(questionRecord, config, missingFields);
 
@@ -261,6 +281,7 @@ export function filterRplQuestions(input: RplFilterInput, configOverride?: RplFi
     questionsExcluded: excludedQuestions.length,
     studentQuestions: studentQuestions.length,
     assessorQuestions: assessorQuestions.length,
+    managedStaffQuestionsFiltered,
   };
 
   addSummaryWarnings(warnings, missingFields, counts, config, unclassifiedQuestionIndexes, dualMatchedQuestionIndexes);
@@ -278,6 +299,8 @@ export function filterRplQuestions(input: RplFilterInput, configOverride?: RplFi
       caseSensitive: config.caseSensitive,
       questionLiveField: config.questionLiveField,
       output: config.output,
+      managedStaffField: config.managedStaffField,
+      managedStaffEnabled: config.managedStaffEnabled,
     },
   };
 
@@ -308,6 +331,7 @@ export function filterRplQuestions(input: RplFilterInput, configOverride?: RplFi
 }
 
 function resolveConfig(inputConfig?: RplFilterConfig, overrideConfig?: RplFilterConfig): ResolvedFilterConfig {
+function resolveConfig(inputConfig?: RplFilterConfig, overrideConfig?: RplFilterConfig, managedStaff?: boolean | "Yes" | "No"): ResolvedFilterConfig {
   const merged = mergeFilterConfig(inputConfig, overrideConfig);
   const questionLiveField = cleanString(merged.questionLiveField) || DEFAULT_QUESTION_LIVE_FIELD;
   const caseSensitive = typeof merged.caseSensitive === "boolean" ? merged.caseSensitive : false;
@@ -352,6 +376,8 @@ function resolveConfig(inputConfig?: RplFilterConfig, overrideConfig?: RplFilter
       includeCounts: merged.diagnostics?.includeCounts !== false,
       includeWarnings: merged.diagnostics?.includeWarnings !== false,
     },
+    managedStaffField: cleanString(merged.managedStaffField) || DEFAULT_MANAGED_STAFF_FIELD,
+    managedStaffEnabled: resolveManagedStaffFlag(managedStaff),
   };
 }
 
@@ -670,4 +696,10 @@ function addUniqueWarning(warnings: string[], warning: string): void {
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function resolveManagedStaffFlag(value?: boolean | "Yes" | "No"): boolean {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") return value.trim().toLowerCase() === "yes";
+  return false;
 }
