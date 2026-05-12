@@ -234,17 +234,6 @@ export function filterRplQuestions(input: RplFilterInput, configOverride?: RplFi
 
   questions.forEach((question, questionIndex) => {
     const questionRecord = asRecord(question);
-
-    // Exclude managed-staff questions when the caller has not enabled them
-    if (!config.managedStaffEnabled) {
-      const msLookup = resolveField(questionRecord, [config.managedStaffField]);
-      if (msLookup.found && toText(msLookup.value).trim().toLowerCase() === "yes") {
-        managedStaffQuestionsFiltered += 1;
-        excludedQuestions.push(projectQuestion(questionRecord, config, missingFields));
-        return;
-      }
-    }
-
     const exclusionMatch = getQuestionExclusionMatch(questionRecord, questionIndex, unitCodeSet, config, missingFields);
     const projectedQuestion = projectQuestion(questionRecord, config, missingFields);
 
@@ -252,6 +241,16 @@ export function filterRplQuestions(input: RplFilterInput, configOverride?: RplFi
       excludedQuestions.push(projectedQuestion);
       excludedBy.push(exclusionMatch);
       return;
+    }
+
+    // Exclude managed-staff questions when the caller has not enabled them
+    if (!config.managedStaffEnabled) {
+      const msLookup = resolveField(questionRecord, [config.managedStaffField]);
+      if (msLookup.found && toText(msLookup.value).trim().toLowerCase() === "yes") {
+        managedStaffQuestionsFiltered += 1;
+        excludedQuestions.push(projectedQuestion);
+        return;
+      }
     }
 
     includedQuestions.push(projectedQuestion);

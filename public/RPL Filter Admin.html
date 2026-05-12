@@ -160,13 +160,19 @@
           <div class="panelTitle">
             <div>
               <h2>Student And Assessor Split</h2>
-              <p>Defaults match Student = Question Live equals Yes and Assessor = Question Live not equal Yes.</p>
+              <p>Default mapping: Question Live = field_7, Managed Staff = field_8, and CT Do Not Ask 1 = field_6.</p>
             </div>
           </div>
-          <label>
-            Question live field
-            <input id="questionLiveField" />
-          </label>
+          <div class="two">
+            <label>
+              Question live field
+              <input id="questionLiveField" />
+            </label>
+            <label>
+              Managed staff field
+              <input id="managedStaffField" />
+            </label>
+          </div>
           <div class="two">
             <div class="grid">
               <h3>Student rule</h3>
@@ -262,15 +268,16 @@
       const operators = ["equals", "notEquals", "contains", "notContains", "startsWith", "endsWith", "exists", "missing", "regex", "always", "never"];
       const defaultConfig = {
         unitStatusFieldCandidates: ["STATUS", "Status", "status", "Unit Status", "unitStatus", "UnitStatus"],
-        unitCodeFieldCandidates: ["CODE", "Code", "code", "Unit Code", "unitCode", "UnitCode"],
+        unitCodeFieldCandidates: ["Unit Code", "unitCode", "UnitCode", "CODE", "Code", "code"],
         ctMatch: { type: "startsWith", value: "CT", flags: "" },
-        exclusionFields: ["CT Do Not Ask 1"],
+        exclusionFields: ["field_6"],
         exclusionDelimiters: ["comma"],
         trimExclusionValues: true,
         caseSensitive: false,
-        questionLiveField: "Question Live",
-        studentRule: { field: "Question Live", operator: "equals", value: "Yes" },
-        assessorRule: { field: "Question Live", operator: "notEquals", value: "Yes" },
+        questionLiveField: "field_7",
+        managedStaffField: "field_8",
+        studentRule: { field: "field_7", operator: "equals", value: "Yes" },
+        assessorRule: { field: "field_7", operator: "notEquals", value: "Yes" },
         output: { mode: "all", fields: [] },
         diagnostics: {
           includeExcludedQuestions: true,
@@ -348,6 +355,7 @@
 
       const buildConfig = () => {
         const outputMode = document.querySelector('input[name="outputMode"]:checked')?.value || "all";
+        const questionLiveField = $("questionLiveField").value.trim() || "field_7";
         return {
           unitStatusFieldCandidates: parseLines($("unitStatusFields").value),
           unitCodeFieldCandidates: parseLines($("unitCodeFields").value),
@@ -360,14 +368,15 @@
           exclusionDelimiters: getSelectedDelimiters(),
           trimExclusionValues: $("trimValues").checked,
           caseSensitive: $("caseSensitive").checked,
-          questionLiveField: $("questionLiveField").value.trim() || "Question Live",
+          questionLiveField,
+          managedStaffField: $("managedStaffField").value.trim() || "field_8",
           studentRule: {
-            field: $("studentField").value.trim() || $("questionLiveField").value.trim() || "Question Live",
+            field: $("studentField").value.trim() || questionLiveField,
             operator: $("studentOperator").value,
             value: $("studentValue").value
           },
           assessorRule: {
-            field: $("assessorField").value.trim() || $("questionLiveField").value.trim() || "Question Live",
+            field: $("assessorField").value.trim() || questionLiveField,
             operator: $("assessorOperator").value,
             value: $("assessorValue").value
           },
@@ -401,11 +410,12 @@
         setSelectedDelimiters(next.exclusionDelimiters);
         $("trimValues").checked = next.trimExclusionValues !== false;
         $("caseSensitive").checked = next.caseSensitive === true;
-        $("questionLiveField").value = next.questionLiveField || "Question Live";
-        $("studentField").value = next.studentRule.field || next.questionLiveField || "Question Live";
+        $("questionLiveField").value = next.questionLiveField || "field_7";
+        $("managedStaffField").value = next.managedStaffField || "field_8";
+        $("studentField").value = next.studentRule.field || next.questionLiveField || "field_7";
         $("studentOperator").value = next.studentRule.operator || "equals";
         $("studentValue").value = next.studentRule.value ?? "Yes";
-        $("assessorField").value = next.assessorRule.field || next.questionLiveField || "Question Live";
+        $("assessorField").value = next.assessorRule.field || next.questionLiveField || "field_7";
         $("assessorOperator").value = next.assessorRule.operator || "notEquals";
         $("assessorValue").value = next.assessorRule.value ?? "Yes";
         document.querySelector(`input[name="outputMode"][value="${next.output.mode || "all"}"]`).checked = true;
@@ -417,14 +427,57 @@
       };
 
       const sampleRequest = () => ({
+        managedStaff: "No",
         units: [
-          { STATUS: "CT - Credit Transfer", CODE: "BSBABC123" },
-          { Status: "Competent", "Unit Code": "BSBDEF456" }
+          { "Unit Code": "FNSFMK515", Status: "CT - Credit Transfer" },
+          { "Unit Code": "FNSFMB411", Status: "CT - Credit Transfer" },
+          { "Unit Code": "FNSINC412", Status: "CT - Credit Transfer" }
         ],
         questions: [
-          { Title: "Student question", "Question Live": "Yes", "CT Do Not Ask 1": "" },
-          { Title: "Excluded question", "Question Live": "Yes", "CT Do Not Ask 1": "BSBABC123, BSBZZZ999" },
-          { Title: "Assessor question", "Question Live": "No", "CT Do Not Ask 1": null }
+          {
+            Title: "01",
+            field_1: "Compliance",
+            field_2: "<div>Describe a recent regulatory change that impacted your role?</div>",
+            field_3: "<div>Think of BID, DDO, AML/CTF. What did your compliance team change to meet requirements?</div>",
+            field_4: "Student identifies one recent regulatory change and its impact on their role",
+            field_5: "If CT for FNSFMK515 and FNSINC411 and FNSCMP501 don't ask this question.",
+            field_6: ["FNSFMK515", "FNSINC411", "FNSCMP501"],
+            field_7: { Value: "Yes" },
+            field_8: { Value: "No" }
+          },
+          {
+            Title: "02",
+            field_1: "Compliance",
+            field_2: "<div>What impact did the regulation change have on the products or services you offer?</div>",
+            field_3: "<div>Using the previous regulatory change mentioned, describe how the change impacted ie; lender policy, risk appetite, interest rates, borrowing capacity.</div>",
+            field_4: "Student states one impact the change had on products or services.",
+            field_5: "If CT for FNSFMK515 and FNSINC411 and FNSCMP501 don't ask this question.",
+            field_6: [],
+            field_7: { Value: "Yes" },
+            field_8: { Value: "No" }
+          },
+          {
+            Title: "07",
+            field_1: "Customer Service",
+            field_2: "<div>Explain how you collect feedback from clients about your service, and what actions you take to improve your service?</div>",
+            field_3: "<div>Think about how you currently get feedback – surveys, emails, follow-up calls, online reviews. Then give one example of how you used that feedback to improve.</div>",
+            field_4: "Student names one method they use to collect client feedback and gives one example of improvement.",
+            field_5: "If CT for FNSCUS403 then do not ask",
+            field_6: "FNSCUS403",
+            field_7: { Value: "Yes" },
+            field_8: { Value: "Yes" }
+          },
+          {
+            Title: "08",
+            field_1: "Complex Lending",
+            field_2: "<div>When handling multiple clients with complex or special financial circumstances at the same time, what tools or methods do you use to manage your workload?</div>",
+            field_3: "<div>Think about practical tools (CRM systems, aggregator platforms, task trackers, diaries, checklists, or delegation strategies).</div>",
+            field_4: "Student identifies one tool or method they use to manage workload",
+            field_5: "NO CT - always asked",
+            field_6: [],
+            field_7: { Value: "No" },
+            field_8: { Value: "No" }
+          }
         ],
         config: buildConfig()
       });
