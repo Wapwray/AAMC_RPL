@@ -1,0 +1,80 @@
+{
+  "type": "object",
+  "properties": {
+    "success": { "type": "boolean" },
+    "unitCodes": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "studentQuestions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "assessorQuestions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "includedQuestions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "excludedQuestions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "counts": {
+      "type": "object",
+      "properties": {
+        "unitsReceived": { "type": "integer" },
+        "ctUnitsFound": { "type": "integer" },
+        "unitCodes": { "type": "integer" },
+        "questionsReceived": { "type": "integer" },
+        "questionsIncluded": { "type": "integer" },
+        "questionsExcluded": { "type": "integer" },
+        "studentQuestions": { "type": "integer" },
+        "assessorQuestions": { "type": "integer" }
+      },
+      "required": [
+        "unitsReceived",
+        "ctUnitsFound",
+        "unitCodes",
+        "questionsReceived",
+        "questionsIncluded",
+        "questionsExcluded",
+        "studentQuestions",
+        "assessorQuestions"
+      ]
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "diagnostics": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "success",
+    "unitCodes",
+    "studentQuestions",
+    "assessorQuestions",
+    "includedQuestions",
+    "excludedQuestions",
+    "counts",
+    "warnings",
+    "diagnostics"
+  ]
+}

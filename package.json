@@ -6,10 +6,13 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "build": "echo \"No build step defined\"",
-    "test": "echo \"No tests defined\""
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test tests/*.test.js"
   },
   "dependencies": {
     "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
   }
 }

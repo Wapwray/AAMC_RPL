@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RPL Filter Admin</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        --page: #f5f7fa;
+        --surface: #ffffff;
+        --surface-strong: #eef4f7;
+        --text: #14202e;
+        --muted: #5c6b7a;
+        --border: #d7e0e7;
+        --primary: #006f77;
+        --primary-dark: #00555c;
+        --danger: #b42318;
+        --success: #157347;
+        --focus: rgba(0, 111, 119, 0.22);
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--page); color: var(--text); }
+      .page { min-height: 100vh; padding: 22px; }
+      .shell { width: min(1180px, 100%); margin: 0 auto; display: grid; gap: 14px; }
+      header, section { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 18px; }
+      header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+      h1, h2, h3 { margin: 0; line-height: 1.2; }
+      h1 { font-size: 26px; }
+      h2 { font-size: 18px; }
+      h3 { font-size: 15px; }
+      p { margin: 6px 0 0; color: var(--muted); line-height: 1.45; }
+      label { display: grid; gap: 6px; font-weight: 650; font-size: 13px; }
+      input, select, textarea {
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 10px 11px;
+        color: var(--text);
+        background: #ffffff;
+        font: inherit;
+      }
+      textarea { min-height: 96px; resize: vertical; font-family: Consolas, "Courier New", monospace; font-size: 13px; }
+      input:focus, select:focus, textarea:focus { outline: 3px solid var(--focus); border-color: var(--primary); }
+      button {
+        border: 1px solid transparent;
+        border-radius: 8px;
+        background: var(--primary);
+        color: #ffffff;
+        padding: 9px 13px;
+        min-height: 38px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      button:hover { background: var(--primary-dark); }
+      button.secondary { background: #ffffff; color: var(--primary); border-color: #9fc3c7; }
+      button.secondary:hover { background: #edf7f8; }
+      button.danger { background: #ffffff; color: var(--danger); border-color: #f1b7b2; }
+      button.danger:hover { background: #fff3f2; }
+      .grid { display: grid; gap: 14px; }
+      .two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+      .three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+      .actions { display: flex; gap: 9px; flex-wrap: wrap; align-items: center; }
+      .inline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+      .inline label, label.inlineCheck { display: flex; grid-template-columns: none; align-items: center; gap: 8px; font-weight: 600; }
+      input[type="checkbox"], input[type="radio"] { width: auto; }
+      .status { min-height: 22px; color: var(--muted); font-size: 13px; }
+      .status.success { color: var(--success); }
+      .status.error { color: var(--danger); }
+      .fieldList { display: grid; gap: 8px; }
+      .fieldRow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+      .panelTitle { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 12px; }
+      .muted { color: var(--muted); font-size: 13px; }
+      .notice { background: var(--surface-strong); border: 1px solid var(--border); border-radius: 8px; padding: 10px; color: #324456; font-size: 13px; }
+      .outputBox { min-height: 260px; }
+      .hidden { display: none; }
+      @media (max-width: 760px) {
+        .page { padding: 12px; }
+        header { display: grid; }
+        .two, .three { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="shell">
+        <header>
+          <div>
+            <h1>RPL Filter Admin</h1>
+            <p>Configure CT unit filtering, test a Power Automate payload, and export the JSON config.</p>
+          </div>
+          <div class="actions">
+            <button id="saveLocalBtn">Save local</button>
+            <button id="loadLocalBtn" class="secondary">Load local</button>
+            <button id="exportConfigBtn" class="secondary">Export config</button>
+            <button id="importConfigBtn" class="secondary">Import config</button>
+            <input id="importFile" class="hidden" type="file" accept="application/json,.json" />
+          </div>
+        </header>
+
+        <section class="grid">
+          <div class="panelTitle">
+            <div>
+              <h2>Unit Detection</h2>
+              <p>Candidate names are checked exactly, then by case-insensitive normalised field name.</p>
+            </div>
+          </div>
+          <div class="two">
+            <label>
+              Unit status field candidates
+              <textarea id="unitStatusFields"></textarea>
+            </label>
+            <label>
+              Unit code field candidates
+              <textarea id="unitCodeFields"></textarea>
+            </label>
+          </div>
+          <div class="three">
+            <label>
+              CT match rule
+              <select id="ctRuleType">
+                <option value="startsWith">starts with CT</option>
+                <option value="equals">equals CT</option>
+                <option value="prefix">custom prefix</option>
+                <option value="regex">custom regex</option>
+              </select>
+            </label>
+            <label>
+              CT match value
+              <input id="ctRuleValue" value="CT" />
+            </label>
+            <label>
+              Regex flags
+              <input id="ctRegexFlags" placeholder="i" />
+            </label>
+          </div>
+        </section>
+
+        <section class="grid">
+          <div class="panelTitle">
+            <div>
+              <h2>Question Exclusions</h2>
+              <p>Questions are excluded when any configured exclusion field contains a CT unit code.</p>
+            </div>
+            <button id="addExclusionFieldBtn" class="secondary">Add field</button>
+          </div>
+          <div id="exclusionFields" class="fieldList"></div>
+          <div class="inline">
+            <label class="inlineCheck"><input type="checkbox" id="delimiterComma" checked /> comma</label>
+            <label class="inlineCheck"><input type="checkbox" id="delimiterSemicolon" /> semicolon</label>
+            <label class="inlineCheck"><input type="checkbox" id="delimiterNewline" /> newline</label>
+            <label class="inlineCheck"><input type="checkbox" id="delimiterPipe" /> pipe</label>
+            <label class="inlineCheck"><input type="checkbox" id="trimValues" checked /> trim whitespace</label>
+            <label class="inlineCheck"><input type="checkbox" id="caseSensitive" /> case-sensitive matching</label>
+          </div>
+        </section>
+
+        <section class="grid">
+          <div class="panelTitle">
+            <div>
+              <h2>Student And Assessor Split</h2>
+              <p>Defaults match Student = Question Live equals Yes and Assessor = Question Live not equal Yes.</p>
+            </div>
+          </div>
+          <label>
+            Question live field
+            <input id="questionLiveField" />
+          </label>
+          <div class="two">
+            <div class="grid">
+              <h3>Student rule</h3>
+              <div class="three">
+                <label>Field<input id="studentField" /></label>
+                <label>Operator<select id="studentOperator"></select></label>
+                <label>Value<input id="studentValue" /></label>
+              </div>
+            </div>
+            <div class="grid">
+              <h3>Assessor rule</h3>
+              <div class="three">
+                <label>Field<input id="assessorField" /></label>
+                <label>Operator<select id="assessorOperator"></select></label>
+                <label>Value<input id="assessorValue" /></label>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="grid">
+          <div class="panelTitle">
+            <div>
+              <h2>Output And Diagnostics</h2>
+              <p>Keeping all fields preserves SharePoint question objects exactly in the output arrays.</p>
+            </div>
+          </div>
+          <div class="two">
+            <div class="grid">
+              <label class="inlineCheck"><input type="radio" name="outputMode" value="all" checked /> keep all original fields</label>
+              <label class="inlineCheck"><input type="radio" name="outputMode" value="selected" /> return only selected fields</label>
+              <label>
+                Selected output fields
+                <textarea id="outputFields" placeholder="Title&#10;Question Details&#10;Question Live"></textarea>
+              </label>
+            </div>
+            <div class="grid">
+              <label class="inlineCheck"><input type="checkbox" id="diagExcludedQuestions" checked /> include excludedQuestions diagnostics</label>
+              <label class="inlineCheck"><input type="checkbox" id="diagExcludedBy" checked /> include excludedBy unit codes</label>
+              <label class="inlineCheck"><input type="checkbox" id="diagCounts" checked /> include counts</label>
+              <label class="inlineCheck"><input type="checkbox" id="diagWarnings" checked /> include warnings</label>
+            </div>
+          </div>
+          <div class="notice">Backend config persistence is optional and is not enabled in this app. Local save uses browser localStorage only. API keys and bearer tokens are never saved by this page.</div>
+        </section>
+
+        <section class="grid">
+          <div class="panelTitle">
+            <div>
+              <h2>API Test</h2>
+              <p>Paste Power Automate sample JSON, apply the config, and call the protected endpoint.</p>
+            </div>
+            <div class="actions">
+              <button id="loadSampleBtn" class="secondary">Load sample</button>
+              <button id="applyConfigBtn" class="secondary">Apply config to body</button>
+              <button id="testApiBtn">Test endpoint</button>
+            </div>
+          </div>
+          <div class="three">
+            <label>
+              Endpoint URL
+              <input id="endpointUrl" value="/api/rpl/filter" />
+            </label>
+            <label>
+              Auth type
+              <select id="authType">
+                <option value="apiKey">x-api-key</option>
+                <option value="bearer">Bearer token</option>
+              </select>
+            </label>
+            <label>
+              Auth value
+              <input id="authValue" type="password" autocomplete="off" />
+            </label>
+          </div>
+          <div class="two">
+            <label>
+              Request JSON
+              <textarea id="requestJson" class="outputBox"></textarea>
+            </label>
+            <label>
+              Response JSON
+              <textarea id="responseJson" class="outputBox" readonly></textarea>
+            </label>
+          </div>
+          <div id="status" class="status" aria-live="polite">Ready.</div>
+        </section>
+      </div>
+    </div>
+
+    <script>
+      const STORAGE_KEY = "rplFilterAdminConfig";
+      const operators = ["equals", "notEquals", "contains", "notContains", "startsWith", "endsWith", "exists", "missing", "regex", "always", "never"];
+      const defaultConfig = {
+        unitStatusFieldCandidates: ["STATUS", "Status", "status", "Unit Status", "unitStatus", "UnitStatus"],
+        unitCodeFieldCandidates: ["CODE", "Code", "code", "Unit Code", "unitCode", "UnitCode"],
+        ctMatch: { type: "startsWith", value: "CT", flags: "" },
+        exclusionFields: ["CT Do Not Ask 1"],
+        exclusionDelimiters: ["comma"],
+        trimExclusionValues: true,
+        caseSensitive: false,
+        questionLiveField: "Question Live",
+        studentRule: { field: "Question Live", operator: "equals", value: "Yes" },
+        assessorRule: { field: "Question Live", operator: "notEquals", value: "Yes" },
+        output: { mode: "all", fields: [] },
+        diagnostics: {
+          includeExcludedQuestions: true,
+          includeExcludedByUnitCodes: true,
+          includeCounts: true,
+          includeWarnings: true
+        }
+      };
+      let exclusionFields = [...defaultConfig.exclusionFields];
+
+      const $ = (id) => document.getElementById(id);
+      const statusEl = $("status");
+      const setStatus = (message, kind = "") => {
+        statusEl.textContent = message;
+        statusEl.className = kind ? `status ${kind}` : "status";
+      };
+      const parseLines = (value) => value.split(/[\n,]+/).map((item) => item.trim()).filter(Boolean);
+      const toLines = (items) => (items || []).join("\n");
+
+      const populateOperators = () => {
+        ["studentOperator", "assessorOperator"].forEach((id) => {
+          const select = $(id);
+          select.textContent = "";
+          operators.forEach((operator) => {
+            const option = document.createElement("option");
+            option.value = operator;
+            option.textContent = operator;
+            select.appendChild(option);
+          });
+        });
+      };
+
+      const renderExclusionFields = () => {
+        const wrap = $("exclusionFields");
+        wrap.textContent = "";
+        exclusionFields.forEach((field, index) => {
+          const row = document.createElement("div");
+          row.className = "fieldRow";
+          const input = document.createElement("input");
+          input.value = field;
+          input.addEventListener("input", () => {
+            exclusionFields[index] = input.value;
+          });
+          const remove = document.createElement("button");
+          remove.type = "button";
+          remove.className = "danger";
+          remove.textContent = "Remove";
+          remove.addEventListener("click", () => {
+            exclusionFields.splice(index, 1);
+            if (!exclusionFields.length) exclusionFields.push("CT Do Not Ask 1");
+            renderExclusionFields();
+          });
+          row.appendChild(input);
+          row.appendChild(remove);
+          wrap.appendChild(row);
+        });
+      };
+
+      const getSelectedDelimiters = () => {
+        const delimiters = [];
+        if ($("delimiterComma").checked) delimiters.push("comma");
+        if ($("delimiterSemicolon").checked) delimiters.push("semicolon");
+        if ($("delimiterNewline").checked) delimiters.push("newline");
+        if ($("delimiterPipe").checked) delimiters.push("pipe");
+        return delimiters.length ? delimiters : ["comma"];
+      };
+
+      const setSelectedDelimiters = (delimiters = ["comma"]) => {
+        const values = new Set(delimiters);
+        $("delimiterComma").checked = values.has("comma") || values.has(",");
+        $("delimiterSemicolon").checked = values.has("semicolon") || values.has(";");
+        $("delimiterNewline").checked = values.has("newline") || values.has("\\n") || values.has("\n");
+        $("delimiterPipe").checked = values.has("pipe") || values.has("|");
+      };
+
+      const buildConfig = () => {
+        const outputMode = document.querySelector('input[name="outputMode"]:checked')?.value || "all";
+        return {
+          unitStatusFieldCandidates: parseLines($("unitStatusFields").value),
+          unitCodeFieldCandidates: parseLines($("unitCodeFields").value),
+          ctMatch: {
+            type: $("ctRuleType").value,
+            value: $("ctRuleValue").value.trim() || "CT",
+            flags: $("ctRegexFlags").value.trim()
+          },
+          exclusionFields: exclusionFields.map((field) => field.trim()).filter(Boolean),
+          exclusionDelimiters: getSelectedDelimiters(),
+          trimExclusionValues: $("trimValues").checked,
+          caseSensitive: $("caseSensitive").checked,
+          questionLiveField: $("questionLiveField").value.trim() || "Question Live",
+          studentRule: {
+            field: $("studentField").value.trim() || $("questionLiveField").value.trim() || "Question Live",
+            operator: $("studentOperator").value,
+            value: $("studentValue").value
+          },
+          assessorRule: {
+            field: $("assessorField").value.trim() || $("questionLiveField").value.trim() || "Question Live",
+            operator: $("assessorOperator").value,
+            value: $("assessorValue").value
+          },
+          output: {
+            mode: outputMode,
+            fields: parseLines($("outputFields").value)
+          },
+          diagnostics: {
+            includeExcludedQuestions: $("diagExcludedQuestions").checked,
+            includeExcludedByUnitCodes: $("diagExcludedBy").checked,
+            includeCounts: $("diagCounts").checked,
+            includeWarnings: $("diagWarnings").checked
+          }
+        };
+      };
+
+      const applyConfigToUi = (config) => {
+        const next = { ...defaultConfig, ...(config || {}) };
+        next.ctMatch = { ...defaultConfig.ctMatch, ...(config?.ctMatch || {}) };
+        next.studentRule = { ...defaultConfig.studentRule, ...(config?.studentRule || {}) };
+        next.assessorRule = { ...defaultConfig.assessorRule, ...(config?.assessorRule || {}) };
+        next.output = { ...defaultConfig.output, ...(config?.output || {}) };
+        next.diagnostics = { ...defaultConfig.diagnostics, ...(config?.diagnostics || {}) };
+        $("unitStatusFields").value = toLines(next.unitStatusFieldCandidates);
+        $("unitCodeFields").value = toLines(next.unitCodeFieldCandidates);
+        $("ctRuleType").value = next.ctMatch.type;
+        $("ctRuleValue").value = next.ctMatch.value;
+        $("ctRegexFlags").value = next.ctMatch.flags || "";
+        exclusionFields = [...(next.exclusionFields?.length ? next.exclusionFields : defaultConfig.exclusionFields)];
+        renderExclusionFields();
+        setSelectedDelimiters(next.exclusionDelimiters);
+        $("trimValues").checked = next.trimExclusionValues !== false;
+        $("caseSensitive").checked = next.caseSensitive === true;
+        $("questionLiveField").value = next.questionLiveField || "Question Live";
+        $("studentField").value = next.studentRule.field || next.questionLiveField || "Question Live";
+        $("studentOperator").value = next.studentRule.operator || "equals";
+        $("studentValue").value = next.studentRule.value ?? "Yes";
+        $("assessorField").value = next.assessorRule.field || next.questionLiveField || "Question Live";
+        $("assessorOperator").value = next.assessorRule.operator || "notEquals";
+        $("assessorValue").value = next.assessorRule.value ?? "Yes";
+        document.querySelector(`input[name="outputMode"][value="${next.output.mode || "all"}"]`).checked = true;
+        $("outputFields").value = toLines(next.output.fields);
+        $("diagExcludedQuestions").checked = next.diagnostics.includeExcludedQuestions !== false;
+        $("diagExcludedBy").checked = next.diagnostics.includeExcludedByUnitCodes !== false;
+        $("diagCounts").checked = next.diagnostics.includeCounts !== false;
+        $("diagWarnings").checked = next.diagnostics.includeWarnings !== false;
+      };
+
+      const sampleRequest = () => ({
+        units: [
+          { STATUS: "CT - Credit Transfer", CODE: "BSBABC123" },
+          { Status: "Competent", "Unit Code": "BSBDEF456" }
+        ],
+        questions: [
+          { Title: "Student question", "Question Live": "Yes", "CT Do Not Ask 1": "" },
+          { Title: "Excluded question", "Question Live": "Yes", "CT Do Not Ask 1": "BSBABC123, BSBZZZ999" },
+          { Title: "Assessor question", "Question Live": "No", "CT Do Not Ask 1": null }
+        ],
+        config: buildConfig()
+      });
+
+      const downloadJson = (name, data) => {
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = name;
+        link.click();
+        URL.revokeObjectURL(url);
+      };
+
+      $("addExclusionFieldBtn").addEventListener("click", () => {
+        exclusionFields.push("");
+        renderExclusionFields();
+      });
+
+      $("saveLocalBtn").addEventListener("click", () => {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(buildConfig(), null, 2));
+        setStatus("Config saved to localStorage.", "success");
+      });
+
+      $("loadLocalBtn").addEventListener("click", () => {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) {
+          setStatus("No local config saved yet.", "error");
+          return;
+        }
+        applyConfigToUi(JSON.parse(raw));
+        setStatus("Local config loaded.", "success");
+      });
+
+      $("exportConfigBtn").addEventListener("click", () => downloadJson("rpl-filter-config.json", buildConfig()));
+      $("importConfigBtn").addEventListener("click", () => $("importFile").click());
+      $("importFile").addEventListener("change", async (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        try {
+          applyConfigToUi(JSON.parse(await file.text()));
+          setStatus("Config imported.", "success");
+        } catch (error) {
+          setStatus(error?.message || "Unable to import config.", "error");
+        } finally {
+          event.target.value = "";
+        }
+      });
+
+      $("loadSampleBtn").addEventListener("click", () => {
+        $("requestJson").value = JSON.stringify(sampleRequest(), null, 2);
+        setStatus("Sample request loaded.", "success");
+      });
+
+      $("applyConfigBtn").addEventListener("click", () => {
+        try {
+          const body = $("requestJson").value.trim() ? JSON.parse($("requestJson").value) : { units: [], questions: [] };
+          body.config = buildConfig();
+          $("requestJson").value = JSON.stringify(body, null, 2);
+          setStatus("Config applied to request body.", "success");
+        } catch (error) {
+          setStatus(error?.message || "Request JSON is invalid.", "error");
+        }
+      });
+
+      $("testApiBtn").addEventListener("click", async () => {
+        try {
+          const body = JSON.parse($("requestJson").value || "{}");
+          body.config = buildConfig();
+          const headers = { "Content-Type": "application/json" };
+          const authValue = $("authValue").value.trim();
+          if (authValue && $("authType").value === "apiKey") headers["x-api-key"] = authValue;
+          if (authValue && $("authType").value === "bearer") headers.Authorization = `Bearer ${authValue}`;
+          setStatus("Calling endpoint...");
+          const response = await fetch($("endpointUrl").value.trim() || "/api/rpl/filter", {
+            method: "POST",
+            headers,
+            body: JSON.stringify(body)
+          });
+          const text = await response.text();
+          try {
+            $("responseJson").value = JSON.stringify(JSON.parse(text), null, 2);
+          } catch {
+            $("responseJson").value = text;
+          }
+          setStatus(`${response.status} ${response.statusText}`, response.ok ? "success" : "error");
+        } catch (error) {
+          setStatus(error?.message || "Unable to call endpoint.", "error");
+        }
+      });
+
+      populateOperators();
+      applyConfigToUi(defaultConfig);
+      $("requestJson").value = JSON.stringify(sampleRequest(), null, 2);
+    </script>
+  </body>
+</html>
