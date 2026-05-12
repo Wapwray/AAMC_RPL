@@ -329,7 +329,6 @@ export function filterRplQuestions(input: RplFilterInput, configOverride?: RplFi
   };
 }
 
-function resolveConfig(inputConfig?: RplFilterConfig, overrideConfig?: RplFilterConfig): ResolvedFilterConfig {
 function resolveConfig(inputConfig?: RplFilterConfig, overrideConfig?: RplFilterConfig, managedStaff?: boolean | "Yes" | "No"): ResolvedFilterConfig {
   const merged = mergeFilterConfig(inputConfig, overrideConfig);
   const questionLiveField = cleanString(merged.questionLiveField) || DEFAULT_QUESTION_LIVE_FIELD;
