@@ -66,41 +66,33 @@
           ''
         );
 
+
         patched = patched.replace(
-          '<button id="showHintBtn" class="hintBtn secondary">Show Hint</button>',
+          'id="welcomeDebugSection"',
+          'id="welcomeDebugSection" style="display:none;"'
+        );
+
+        patched = patched.replace(
           [
-            '<button id="showHintBtn" class="hintBtn secondary">Show Hint</button>',
-            '<div id="questionJumpControls" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">',
-            '  <select id="questionJumpSelect" style="width:auto; min-width:160px;">',
-            '    <option value="">Jump to question</option>',
-            '    <option value="1">1</option>',
-            '    <option value="2">2</option>',
-            '    <option value="3">3</option>',
-            '    <option value="4">4</option>',
-            '    <option value="5">5</option>',
-            '    <option value="6">6</option>',
-            '    <option value="7">7</option>',
-            '    <option value="8">8</option>',
-            '    <option value="9">9</option>',
-            '    <option value="10">10</option>',
-            '    <option value="11">11</option>',
-            '    <option value="12">12</option>',
-            '  </select>',
-            '  <button id="questionJumpSubmitBtn" class="secondary" type="button" onclick="window.__rplJumpToSelectedQuestion && window.__rplJumpToSelectedQuestion()">Submit</button>',
-            '  <button id="questionClearBtn" class="secondary" type="button" onclick="window.__rplClearCurrentQuestion && window.__rplClearCurrentQuestion()">Question Clear</button>',
-            '  <button id="questionDownloadBtn" class="secondary" type="button" onclick="window.__rplDownloadCurrentQuestion && window.__rplDownloadCurrentQuestion()">DOWNLOAD</button>',
-            '</div>',
+            '          if (welcomeContinueBtn) {',
+            '            welcomeContinueBtn.classList.remove("hidden");',
+            '            welcomeContinueBtn.textContent = "RESUME";',
+            '          }',
+          ].join("\n"),
+          [
+            '          if (welcomeContinueBtn) {',
+            '            welcomeContinueBtn.classList.remove("hidden");',
+            '            welcomeContinueBtn.textContent = "RESUME";',
+            '            window.setTimeout(function() { if (welcomeContinueBtn && !welcomeContinueBtn.disabled) welcomeContinueBtn.click(); }, 300);',
+            '          }',
           ].join("\n")
         );
+
 
         patched = patched.replace(
           '      const showHintBtn = document.getElementById("showHintBtn");',
           [
             '      const showHintBtn = document.getElementById("showHintBtn");',
-            '      const questionJumpSelectEl = document.getElementById("questionJumpSelect");',
-            '      const questionJumpSubmitBtn = document.getElementById("questionJumpSubmitBtn");',
-            '      const questionClearBtn = document.getElementById("questionClearBtn");',
-            '      const questionDownloadBtn = document.getElementById("questionDownloadBtn");',
           ].join("\n")
         );
 
@@ -424,13 +416,6 @@
             '          closeHint();',
             '        }',
             '      });',
-            '',
-            '      questionJumpSubmitBtn?.addEventListener("click", () => {',
-            '        jumpToSelectedQuestion();',
-            '      });',
-            '      questionClearBtn?.addEventListener("click", () => {',
-            '        clearCurrentQuestion();',
-            '      });',
           ].join("\n")
         );
 
@@ -653,12 +638,8 @@
             '(function () {',
             '  const installQuestionJumpPatch = () => {',
             '    const headerTitleEl = document.getElementById("headerTitle");',
-            '    const questionJumpSelectEl = document.getElementById("questionJumpSelect");',
-            '    const questionJumpSubmitBtn = document.getElementById("questionJumpSubmitBtn");',
-            '    const questionClearBtn = document.getElementById("questionClearBtn");',
-            '    const questionDownloadBtn = document.getElementById("questionDownloadBtn");',
             '    const tableBtn = document.getElementById("tableBtn");',
-            '    if (!headerTitleEl || !questionJumpSelectEl || !questionJumpSubmitBtn || !questionClearBtn || !questionDownloadBtn) {',
+            '    if (!headerTitleEl) {',
             '      window.setTimeout(installQuestionJumpPatch, 200);',
             '      return;',
             '    }',
@@ -678,6 +659,7 @@
             '    };',
             '',
             '    const syncQuestionJumpControl = () => {',
+            '      if (typeof questionJumpSelectEl === "undefined" || !questionJumpSelectEl) return;',
             '      const meta = getHeaderMeta();',
             '      questionJumpSelectEl.innerHTML = "";',
             '      const placeholder = document.createElement("option");',
@@ -691,7 +673,7 @@
             '        questionJumpSelectEl.appendChild(option);',
             '      }',
             '      questionJumpSelectEl.value = String(meta.current);',
-            '      questionDownloadBtn.disabled = meta.total < 1;',
+            '      if (typeof questionDownloadBtn !== "undefined" && questionDownloadBtn) questionDownloadBtn.disabled = meta.total < 1;',
             '    };',
             '',
             '    const buildFileStamp = (value) => {',
@@ -959,12 +941,6 @@
             '      syncQuestionJumpControl();',
             '    };',
             '',
-            '    window.__rplJumpToSelectedQuestion = jumpToSelectedQuestion;',
-            '    window.__rplClearCurrentQuestion = clearCurrentQuestion;',
-            '    window.__rplDownloadCurrentQuestion = downloadCurrentQuestion;',
-            '    questionJumpSubmitBtn.onclick = jumpToSelectedQuestion;',
-            '    questionClearBtn.onclick = clearCurrentQuestion;',
-            '    questionDownloadBtn.onclick = downloadCurrentQuestion;',
             '    if (tableBtn && !tableBtn.dataset.v2TablePatched) {',
             '      tableBtn.dataset.v2TablePatched = "true";',
             '      tableBtn.addEventListener("click", (event) => {',
@@ -973,14 +949,6 @@
             '        openQuestionsTable();',
             '      }, true);',
             '    }',
-            '    if (!window.__rplQuestionJumpHeaderObserver) {',
-            '      window.__rplQuestionJumpHeaderObserver = new MutationObserver(() => {',
-            '        syncQuestionJumpControl();',
-            '      });',
-            '      window.__rplQuestionJumpHeaderObserver.observe(headerTitleEl, { childList: true, characterData: true, subtree: true });',
-            '    }',
-            '',
-            '    syncQuestionJumpControl();',
             '  };',
             '',
             '  if (document.readyState === "loading") {',
