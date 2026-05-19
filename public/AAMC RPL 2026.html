@@ -1125,6 +1125,15 @@
         return normalized === "no transcript" || normalized === "no transcription";
       };
 
+      const formatMicrophoneLabel = (label, index) => {
+        const fallback = `Microphone ${index + 1}`;
+        const raw = String(label || "").trim();
+        if (!raw) return fallback;
+        // Remove trailing USB-style device IDs like "(046d:0ab7)" while keeping friendly names.
+        const withoutDeviceId = raw.replace(/\s*\([0-9a-f]{4}:[0-9a-f]{4}\)\s*$/i, "").trim();
+        return withoutDeviceId || fallback;
+      };
+
       const populateMicrophones = async () => {
         if (!micSelectEl) return;
         if (!navigator?.mediaDevices?.enumerateDevices) {
@@ -1158,7 +1167,7 @@
           mics.forEach((mic, index) => {
             const option = document.createElement("option");
             option.value = mic.deviceId;
-            option.textContent = mic.label || `Microphone ${index + 1}`;
+            option.textContent = formatMicrophoneLabel(mic.label, index);
             micSelectEl.appendChild(option);
           });
 
