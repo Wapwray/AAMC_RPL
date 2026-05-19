@@ -1,0 +1,95 @@
+{
+  "success": true,
+  "unitCodes": ["BSBABC123"],
+  "studentQuestions": [
+    {
+      "Title": "Student question",
+      "Question Live": "Yes",
+      "CT Do Not Ask 1": ""
+    }
+  ],
+  "assessorQuestions": [
+    {
+      "Title": "Assessor question",
+      "Question Live": "No",
+      "CT Do Not Ask 1": null
+    }
+  ],
+  "includedQuestions": [
+    {
+      "Title": "Student question",
+      "Question Live": "Yes",
+      "CT Do Not Ask 1": ""
+    },
+    {
+      "Title": "Assessor question",
+      "Question Live": "No",
+      "CT Do Not Ask 1": null
+    }
+  ],
+  "excludedQuestions": [
+    {
+      "Title": "Excluded question",
+      "Question Live": "Yes",
+      "CT Do Not Ask 1": "BSBABC123, BSBZZZ999"
+    }
+  ],
+  "counts": {
+    "unitsReceived": 2,
+    "ctUnitsFound": 1,
+    "unitCodes": 1,
+    "questionsReceived": 3,
+    "questionsIncluded": 2,
+    "questionsExcluded": 1,
+    "studentQuestions": 1,
+    "assessorQuestions": 1
+  },
+  "warnings": [],
+  "diagnostics": {
+    "excludedBy": [
+      {
+        "questionIndex": 1,
+        "fields": ["CT Do Not Ask 1"],
+        "unitCodes": ["BSBABC123"]
+      }
+    ],
+    "excludedQuestionIndexes": [1],
+    "missingFields": {
+      "unitStatus": 0,
+      "unitCode": 0,
+      "questionExclusionFields": {},
+      "questionRuleFields": {},
+      "outputFields": {}
+    },
+    "unclassifiedQuestionIndexes": [],
+    "dualMatchedQuestionIndexes": [],
+    "counts": {
+      "unitsReceived": 2,
+      "ctUnitsFound": 1,
+      "unitCodes": 1,
+      "questionsReceived": 3,
+      "questionsIncluded": 2,
+      "questionsExcluded": 1,
+      "studentQuestions": 1,
+      "assessorQuestions": 1
+    },
+    "warnings": [],
+    "resolvedConfig": {
+      "unitStatusFieldCandidates": ["STATUS", "Status", "status", "Unit Status", "unitStatus"],
+      "unitCodeFieldCandidates": ["CODE", "Code", "Unit Code", "unitCode"],
+      "ctMatch": {
+        "type": "startsWith",
+        "value": "CT",
+        "flags": ""
+      },
+      "exclusionFields": ["CT Do Not Ask 1"],
+      "exclusionDelimiters": [","],
+      "caseSensitive": false,
+      "questionLiveField": "Question Live",
+      "output": {
+        "mode": "all",
+        "fields": []
+      }
+    }
+  }
+}

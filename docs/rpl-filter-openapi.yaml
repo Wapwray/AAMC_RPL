@@ -1,0 +1,123 @@
+openapi: 3.0.3
+info:
+  title: AAMC RPL Filter API
+  version: 1.0.0
+paths:
+  /api/rpl/filter:
+    post:
+      summary: Filter RPL questions by CT unit-code exclusions
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RplFilterRequest'
+      responses:
+        '200':
+          description: Filtered RPL question lists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RplFilterResponse'
+        '400':
+          description: Invalid request body
+        '401':
+          description: Missing or invalid API credentials
+        '413':
+          description: Request body too large
+        '503':
+          description: API authentication environment variables are not configured
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
+    BearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    RplRecord:
+      type: object
+      additionalProperties: true
+    RplFilterRequest:
+      type: object
+      required: [units, questions]
+      properties:
+        units:
+          type: array
+          items:
+            $ref: '#/components/schemas/RplRecord'
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/RplRecord'
+        config:
+          type: object
+          additionalProperties: true
+    RplFilterResponse:
+      type: object
+      required:
+        - success
+        - unitCodes
+        - studentQuestions
+        - assessorQuestions
+        - includedQuestions
+        - excludedQuestions
+        - counts
+        - warnings
+        - diagnostics
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        unitCodes:
+          type: array
+          items:
+            type: string
+        studentQuestions:
+          type: array
+          items:
+            $ref: '#/components/schemas/RplRecord'
+        assessorQuestions:
+          type: array
+          items:
+            $ref: '#/components/schemas/RplRecord'
+        includedQuestions:
+          type: array
+          items:
+            $ref: '#/components/schemas/RplRecord'
+        excludedQuestions:
+          type: array
+          items:
+            $ref: '#/components/schemas/RplRecord'
+        counts:
+          type: object
+          required:
+            - unitsReceived
+            - ctUnitsFound
+            - unitCodes
+            - questionsReceived
+            - questionsIncluded
+            - questionsExcluded
+            - studentQuestions
+            - assessorQuestions
+          properties:
+            unitsReceived: { type: integer }
+            ctUnitsFound: { type: integer }
+            unitCodes: { type: integer }
+            questionsReceived: { type: integer }
+            questionsIncluded: { type: integer }
+            questionsExcluded: { type: integer }
+            studentQuestions: { type: integer }
+            assessorQuestions: { type: integer }
+        warnings:
+          type: array
+          items:
+            type: string
+        diagnostics:
+          type: object
+          additionalProperties: true

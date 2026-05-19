@@ -1,0 +1,62 @@
+{
+  "units": [
+    {
+      "STATUS": "CT - Credit Transfer",
+      "CODE": "BSBABC123"
+    },
+    {
+      "Status": "Competent",
+      "Unit Code": "BSBDEF456"
+    }
+  ],
+  "questions": [
+    {
+      "Title": "Student question",
+      "Question Live": "Yes",
+      "CT Do Not Ask 1": ""
+    },
+    {
+      "Title": "Excluded question",
+      "Question Live": "Yes",
+      "CT Do Not Ask 1": "BSBABC123, BSBZZZ999"
+    },
+    {
+      "Title": "Assessor question",
+      "Question Live": "No",
+      "CT Do Not Ask 1": null
+    }
+  ],
+  "config": {
+    "unitStatusFieldCandidates": ["STATUS", "Status", "status", "Unit Status", "unitStatus"],
+    "unitCodeFieldCandidates": ["CODE", "Code", "Unit Code", "unitCode"],
+    "ctMatch": {
+      "type": "startsWith",
+      "value": "CT"
+    },
+    "exclusionFields": ["CT Do Not Ask 1"],
+    "exclusionDelimiters": ["comma"],
+    "trimExclusionValues": true,
+    "caseSensitive": false,
+    "questionLiveField": "Question Live",
+    "studentRule": {
+      "field": "Question Live",
+      "operator": "equals",
+      "value": "Yes"
+    },
+    "assessorRule": {
+      "field": "Question Live",
+      "operator": "notEquals",
+      "value": "Yes"
+    },
+    "output": {
+      "mode": "all",
+      "fields": []
+    },
+    "diagnostics": {
+      "includeExcludedQuestions": true,
+      "includeExcludedByUnitCodes": true,
+      "includeCounts": true,
+      "includeWarnings": true
+    }
+  }
+}

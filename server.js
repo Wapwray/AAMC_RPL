@@ -1,4 +1,5 @@
 const express = require("express");
+const crypto = require("crypto");
 const path = require("path");
 
 const INDUSTRY_API_URL =
@@ -24,9 +25,56 @@ const INDUSTRY_FALLBACK_ITEMS = [
 
 const app = express();
 const port = process.env.PORT || 3000;
+const jsonBodyLimit = process.env.RPL_FILTER_MAX_BODY_SIZE || process.env.RPL_JSON_BODY_LIMIT || "2mb";
 
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: jsonBodyLimit }));
 app.use(express.static(path.join(__dirname, "public")));
+
+const getRplFilter = () => {
+  try {
+    return require("./dist/rpl-filter/rplFilter").filterRplQuestions;
+  } catch (error) {
+    const nextError = new Error("RPL filter module is not built. Run npm run build before starting the server.");
+    nextError.cause = error;
+    throw nextError;
+  }
+};
+
+const getHeader = (req, name) => {
+  const value = req.headers[name.toLowerCase()];
+  return Array.isArray(value) ? value[0] : value || "";
+};
+
+const safeEquals = (provided, expected) => {
+  if (!provided || !expected) return false;
+  const providedBuffer = Buffer.from(provided);
+  const expectedBuffer = Buffer.from(expected);
+  return providedBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(providedBuffer, expectedBuffer);
+};
+
+const requireRplFilterAuth = (req, res, next) => {
+  const apiKey = process.env.RPL_FILTER_API_KEY || process.env.RPL_API_KEY || "";
+  const bearerToken = process.env.RPL_FILTER_BEARER_TOKEN || process.env.RPL_FILTER_TOKEN || "";
+
+  if (!apiKey && !bearerToken) {
+    res.status(503).json({
+      success: false,
+      error: "RPL filter API authentication is not configured. Set RPL_FILTER_API_KEY or RPL_FILTER_BEARER_TOKEN.",
+    });
+    return;
+  }
+
+  const providedApiKey = getHeader(req, "x-api-key") || getHeader(req, "api-key");
+  const authHeader = getHeader(req, "authorization");
+  const providedBearer = authHeader.toLowerCase().startsWith("bearer ") ? authHeader.slice(7).trim() : "";
+
+  if ((apiKey && safeEquals(providedApiKey, apiKey)) || (bearerToken && safeEquals(providedBearer, bearerToken))) {
+    next();
+    return;
+  }
+
+  res.status(401).json({ success: false, error: "Missing or invalid RPL filter API credentials." });
+};
 
 app.get("/api/teams-auth-config", (req, res) => {
   const forwardedHost = req.headers["x-forwarded-host"];
@@ -108,6 +156,44 @@ app.post("/api/live-assessment/questions", async (_req, res) => {
     res.send(text || "");
   } catch (error) {
     res.status(500).json({ error: error?.message || String(error) });
+  }
+});
+
+app.post("/api/rpl/filter", requireRplFilterAuth, (req, res) => {
+  const body = req.body || {};
+  const errors = [];
+
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    errors.push("Request body must be a JSON object.");
+  }
+  if (!Array.isArray(body.units)) {
+    errors.push("Request body must include a units array.");
+  }
+  if (!Array.isArray(body.questions)) {
+    errors.push("Request body must include a questions array.");
+  }
+  if (body.config !== undefined && (!body.config || typeof body.config !== "object" || Array.isArray(body.config))) {
+    errors.push("config must be a JSON object when provided.");
+  }
+
+  if (errors.length) {
+    res.status(400).json({ success: false, error: "Invalid RPL filter request.", details: errors });
+    return;
+  }
+
+  try {
+    const filterRplQuestions = getRplFilter();
+    const result = filterRplQuestions({
+      units: body.units,
+      questions: body.questions,
+      config: body.config || {},
+    });
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error?.message || String(error),
+    });
   }
 });
 
@@ -256,6 +342,23 @@ app.post("/api/analysis/chat", async (req, res) => {
 
 app.get("/health", (_req, res) => {
   res.status(200).send("ok");
+});
+
+app.use((error, _req, res, next) => {
+  if (error?.type === "entity.too.large") {
+    res.status(413).json({
+      success: false,
+      error: `Request body is too large. Maximum JSON body size is ${jsonBodyLimit}.`,
+    });
+    return;
+  }
+
+  if (error instanceof SyntaxError && "body" in error) {
+    res.status(400).json({ success: false, error: "Invalid JSON request body." });
+    return;
+  }
+
+  next(error);
 });
 
 app.get("*", (_req, res) => {
