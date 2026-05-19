@@ -88,6 +88,32 @@
           ].join("\n")
         );
 
+        patched = patched.replace(
+          '        if (!json || typeof json.listitems !== "string") {',
+          [
+            '        const questionListItemsRaw = json?.listitems ?? json?.body?.listitems;',
+            '        if (typeof questionListItemsRaw !== "string") {',
+          ].join("\n")
+        );
+
+        patched = patched.replace(
+          '          const listItems = JSON.parse(json.listitems);',
+          '          const listItems = JSON.parse(questionListItemsRaw);'
+        );
+
+        patched = patched.replace(
+          [
+            '          if (resumeTranscriptText) {',
+            '            applyTranscriptResume(resumeTranscriptText);',
+            '          }',
+            '          if (resumeCurrentQuestionNumber && Number.isFinite(resumeCurrentQuestionNumber)) {',
+          ].join("\n"),
+          [
+            '          const resumedFromTranscript = resumeTranscriptText ? applyTranscriptResume(resumeTranscriptText) : false;',
+            '          if (!resumedFromTranscript && resumeCurrentQuestionNumber && Number.isFinite(resumeCurrentQuestionNumber)) {',
+          ].join("\n")
+        );
+
 
         patched = patched.replace(
           '      const showHintBtn = document.getElementById("showHintBtn");',
@@ -274,7 +300,7 @@
           [
             '          const runtimeFilterFn = window.__rplFilterQuestionList;',
             '          const runtimeFiltered = typeof runtimeFilterFn === "function" ? runtimeFilterFn(items) : items;',
-            '          questions = Array.isArray(runtimeFiltered) ? runtimeFiltered : items;',
+            '          questions = Array.isArray(runtimeFiltered) && runtimeFiltered.length ? runtimeFiltered : items;',
           ].join("\n")
         );
 
@@ -283,7 +309,7 @@
           [
             '          const runtimeFilterFn = window.__rplFilterQuestionList;',
             '          const runtimeFiltered = typeof runtimeFilterFn === "function" ? runtimeFilterFn(items) : items;',
-            '          questions = Array.isArray(runtimeFiltered) ? runtimeFiltered : items;',
+            '          questions = Array.isArray(runtimeFiltered) && runtimeFiltered.length ? runtimeFiltered : items;',
           ].join("\n")
         );
 
@@ -318,7 +344,7 @@
             '      };',
             '',
             '      const syncQuestionJumpControl = () => {',
-            '        if (!questionJumpSelectEl) return;',
+            '        if (typeof questionJumpSelectEl === "undefined" || !questionJumpSelectEl) return;',
             '        const headerMeta = getHeaderQuestionMeta();',
             '        const total = getTotalQuestionCount();',
             '        const currentValue = String(headerMeta.current > 0 ? headerMeta.current : (currentIndex || 0) + 1);',
@@ -343,7 +369,7 @@
             '      };',
             '',
             '      const jumpToSelectedQuestion = () => {',
-            '        if (!questionJumpSelectEl) return;',
+            '        if (typeof questionJumpSelectEl === "undefined" || !questionJumpSelectEl) return;',
             '        const selected = Number.parseInt(questionJumpSelectEl.value || "", 10);',
             '        if (!Number.isFinite(selected)) return;',
             '        const targetIndex = selected - 1;',
