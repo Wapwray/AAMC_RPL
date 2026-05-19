@@ -20,6 +20,7 @@
         --camera-height: 198px;
         --camera-select-height: 42px;
         --camera-gap: 10px;
+        --assessment-window-min-height: 150px;
       }
       * { box-sizing: border-box; }
       html, body {
@@ -59,7 +60,7 @@
       label { font-size: 13px; color: var(--muted); }
       input, select, textarea { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font: inherit; background: #ffffff; }
       textarea { resize: vertical; min-height: 120px; overflow: auto; }
-      .questionBox { border: 1px solid var(--border); border-radius: 12px; padding: 12px; min-height: 90px; max-height: 160px; overflow: auto; background: #ffffff; }
+      .questionBox { border: 1px solid var(--border); border-radius: 12px; padding: 12px; min-height: var(--assessment-window-min-height); max-height: 220px; overflow: auto; background: #ffffff; }
       .chatHistory { border: 1px solid var(--border); border-radius: 12px; padding: 12px; min-height: 220px; height: 100%; overflow: auto; background: #ffffff; }
       .chatEntry { padding: 10px 12px; border-radius: 10px; margin-bottom: 10px; font-size: 14px; line-height: 1.45; }
       .chatEntry:last-child { margin-bottom: 0; }
@@ -98,10 +99,10 @@
         grid-row: 1;
       }
       .questionBox { grid-column: 1; grid-row: 2; }
-      .answerWrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: end; }
+      .answerWrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: stretch; min-height: 0; }
       .answerWrap { grid-column: 1; grid-row: 3; }
-      .answerStack { display: grid; gap: 6px; grid-template-rows: auto 1fr; min-height: 0; }
-      .answerStack textarea { height: 100%; max-height: 240px; }
+      .answerStack { display: grid; gap: 6px; grid-template-rows: auto 1fr; min-height: 0; height: 100%; }
+      .answerStack textarea { height: 100%; min-height: var(--assessment-window-min-height); max-height: none; }
       .answerWrap.is-locked textarea { background: #e2e8f0; color: #64748b; }
       .evaluateSide {
         align-self: end;
