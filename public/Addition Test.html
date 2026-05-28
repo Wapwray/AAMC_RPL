@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Addition Test</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: #f3f7fb;
+        color: #0f172a;
+      }
+
+      body {
+        display: grid;
+        place-items: start center;
+        padding: 24px;
+        gap: 24px;
+      }
+
+      .card {
+        width: min(960px, 100%);
+        background: #ffffff;
+        border: 1px solid #d8e3ee;
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: 24px;
+        font-weight: 700;
+      }
+
+      h2 {
+        margin: 0 0 12px;
+        font-size: 18px;
+        font-weight: 700;
+        color: #0f172a;
+      }
+
+      .subtitle {
+        margin: 0 0 20px;
+        color: #475569;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      .section {
+        margin-top: 28px;
+      }
+
+      .section:first-of-type {
+        margin-top: 0;
+      }
+
+      .section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+      }
+
+      .badge {
+        font-size: 12px;
+        font-weight: 600;
+        padding: 3px 10px;
+        border-radius: 20px;
+        background: #eef4fb;
+        border: 1px solid #d8e3ee;
+        color: #1e40af;
+      }
+
+      .status {
+        font-size: 13px;
+        color: #475569;
+        margin-bottom: 10px;
+        min-height: 18px;
+      }
+
+      .status.error {
+        color: #b91c1c;
+      }
+
+      .status.success {
+        color: #166534;
+      }
+
+      .table-wrapper {
+        overflow-x: auto;
+        border: 1px solid #d8e3ee;
+        border-radius: 12px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+
+      thead {
+        background: #eef4fb;
+      }
+
+      thead th {
+        padding: 10px 14px;
+        text-align: left;
+        font-weight: 700;
+        color: #1e293b;
+        border-bottom: 1px solid #d8e3ee;
+        white-space: nowrap;
+      }
+
+      tbody tr {
+        border-bottom: 1px solid #e9f0f8;
+      }
+
+      tbody tr:last-child {
+        border-bottom: none;
+      }
+
+      tbody tr:hover {
+        background: #f8fbff;
+      }
+
+      tbody td {
+        padding: 10px 14px;
+        color: #334155;
+        word-break: break-word;
+      }
+
+      .empty-row td {
+        color: #94a3b8;
+        font-style: italic;
+        text-align: center;
+        padding: 20px;
+      }
+
+      .spinner {
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        border: 2px solid #d8e3ee;
+        border-top-color: #2563eb;
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+        vertical-align: middle;
+        margin-right: 6px;
+      }
+
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+
+      button {
+        border: 1px solid transparent;
+        border-radius: 10px;
+        padding: 8px 14px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .primary {
+        background: #2563eb;
+        color: #ffffff;
+      }
+
+      .primary:hover {
+        background: #1d4ed8;
+      }
+
+      .secondary {
+        background: #ffffff;
+        border-color: #c8d6e3;
+        color: #0f172a;
+      }
+
+      .secondary:hover {
+        background: #f0f6ff;
+      }
+
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <h1>Addition Test</h1>
+      <p class="subtitle">Displays data fetched from the Qualifications and Email Templates webhooks on load.</p>
+
+      <!-- Qualifications -->
+      <div class="section">
+        <div class="section-header">
+          <h2>Qualifications</h2>
+          <button class="secondary" id="reloadQualBtn" type="button">Reload</button>
+        </div>
+        <div id="qualStatus" class="status"></div>
+        <div class="table-wrapper">
+          <table id="qualTable">
+            <thead id="qualThead"><tr><th>Loading…</th></tr></thead>
+            <tbody id="qualTbody">
+              <tr class="empty-row"><td>Fetching data…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Email Templates -->
+      <div class="section">
+        <div class="section-header">
+          <h2>Email Templates</h2>
+          <button class="secondary" id="reloadTplBtn" type="button">Reload</button>
+        </div>
+        <div id="tplStatus" class="status"></div>
+        <div class="table-wrapper">
+          <table id="tplTable">
+            <thead id="tplThead"><tr><th>Loading…</th></tr></thead>
+            <tbody id="tplTbody">
+              <tr class="empty-row"><td>Fetching data…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      const QUALIFICATIONS_URL =
+        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/a61b9bade4034a2289f85f64d4c82f97/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=JPj39E9PXnhppfpFdo1QZeWuADa7dfgKna3C-x2v7kg";
+
+      const EMAIL_TEMPLATES_URL =
+        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/1a57326e40994b8d9bad3cab1276c92f/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=gFQWaYM_SDJM2e2aNNfJzcRgEgjv2Z2PuLzWngUaGeg";
+
+      const escapeHtml = (value) => {
+        if (value === null || value === undefined) return "-";
+        return String(value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      };
+
+      const setStatus = (el, message, kind) => {
+        el.innerHTML = message;
+        el.className = "status";
+        if (kind) el.classList.add(kind);
+      };
+
+      const renderTable = (theadEl, tbodyEl, rows) => {
+        if (!Array.isArray(rows) || rows.length === 0) {
+          theadEl.innerHTML = "<tr><th>No data</th></tr>";
+          tbodyEl.innerHTML = '<tr class="empty-row"><td>No records returned.</td></tr>';
+          return;
+        }
+
+        // Derive columns from the union of all keys across all rows
+        const keys = Array.from(new Set(rows.flatMap((r) => Object.keys(r))));
+
+        theadEl.innerHTML =
+          "<tr>" + keys.map((k) => `<th>${escapeHtml(k)}</th>`).join("") + "</tr>";
+
+        tbodyEl.innerHTML = rows
+          .map(
+            (row) =>
+              "<tr>" +
+              keys
+                .map((k) => `<td>${escapeHtml(row[k])}</td>`)
+                .join("") +
+              "</tr>"
+          )
+          .join("");
+      };
+
+      const fetchAndRender = async (url, theadEl, tbodyEl, statusEl, reloadBtn) => {
+        reloadBtn.disabled = true;
+        setStatus(statusEl, '<span class="spinner"></span>Loading…', "");
+        theadEl.innerHTML = "<tr><th>Loading…</th></tr>";
+        tbodyEl.innerHTML = '<tr class="empty-row"><td>Fetching data…</td></tr>';
+
+        try {
+          const res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+          });
+
+          if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+
+          const data = await res.json();
+          const rows = Array.isArray(data) ? data : [data];
+
+          renderTable(theadEl, tbodyEl, rows);
+          setStatus(statusEl, `${rows.length} record${rows.length !== 1 ? "s" : ""} loaded.`, "success");
+        } catch (err) {
+          theadEl.innerHTML = "<tr><th>Error</th></tr>";
+          tbodyEl.innerHTML = `<tr class="empty-row"><td>${escapeHtml(err.message)}</td></tr>`;
+          setStatus(statusEl, `Failed to load data: ${escapeHtml(err.message)}`, "error");
+          console.error(err);
+        } finally {
+          reloadBtn.disabled = false;
+        }
+      };
+
+      const qualThead = document.getElementById("qualThead");
+      const qualTbody = document.getElementById("qualTbody");
+      const qualStatus = document.getElementById("qualStatus");
+      const reloadQualBtn = document.getElementById("reloadQualBtn");
+
+      const tplThead = document.getElementById("tplThead");
+      const tplTbody = document.getElementById("tplTbody");
+      const tplStatus = document.getElementById("tplStatus");
+      const reloadTplBtn = document.getElementById("reloadTplBtn");
+
+      const loadQualifications = () =>
+        fetchAndRender(QUALIFICATIONS_URL, qualThead, qualTbody, qualStatus, reloadQualBtn);
+
+      const loadEmailTemplates = () =>
+        fetchAndRender(EMAIL_TEMPLATES_URL, tplThead, tplTbody, tplStatus, reloadTplBtn);
+
+      reloadQualBtn.addEventListener("click", loadQualifications);
+      reloadTplBtn.addEventListener("click", loadEmailTemplates);
+
+      // Load both on page load
+      loadQualifications();
+      loadEmailTemplates();
+    </script>
+  </body>
+</html>
