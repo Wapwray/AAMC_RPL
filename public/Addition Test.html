@@ -314,6 +314,12 @@
         text-decoration: underline;
       }
 
+      .row-action-cell {
+        white-space: nowrap;
+        text-align: right;
+        vertical-align: top;
+      }
+
       .empty-row td {
         color: #94a3b8;
         font-style: italic;
@@ -463,6 +469,9 @@
       const EMAIL_TEMPLATES_URL =
         "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/1a57326e40994b8d9bad3cab1276c92f/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=gFQWaYM_SDJM2e2aNNfJzcRgEgjv2Z2PuLzWngUaGeg";
 
+      const SAVE_EMAIL_WEBHOOK_URL =
+        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/3126d763cabe4d93a26ee7813c23d5ad/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=gRs8gPQNP_IOQR3KH3ojWCsgZKMfwZbYX_Od6JlVgvw";
+
       const escapeHtml = (value) => {
         if (value === null || value === undefined) return "-";
         return String(value)
@@ -554,7 +563,7 @@
         ).trim();
       };
 
-      const renderTable = (theadEl, tbodyEl, rows, { radioSelect = false, mapRow, onRadioChange } = {}) => {
+      const renderTable = (theadEl, tbodyEl, rows, { radioSelect = false, mapRow, onRadioChange, rowActions } = {}) => {
         if (!Array.isArray(rows) || rows.length === 0) {
           theadEl.innerHTML = "<tr><th>No data</th></tr>";
           tbodyEl.innerHTML = '<tr class="empty-row"><td>No records returned.</td></tr>';
@@ -567,8 +576,9 @@
         const keys = Array.from(new Set(renderedRows.flatMap((r) => Object.keys(r))));
 
         const radioHeader = radioSelect ? '<th class="radio-cell"></th>' : "";
+        const actionHeader = rowActions?.label ? `<th>${escapeHtml(rowActions.label)}</th>` : "";
         theadEl.innerHTML =
-          "<tr>" + radioHeader + keys.map((k) => `<th>${escapeHtml(k)}</th>`).join("") + "</tr>";
+          "<tr>" + radioHeader + keys.map((k) => `<th>${escapeHtml(k)}</th>`).join("") + actionHeader + "</tr>";
 
         tbodyEl.innerHTML = renderedRows
           .map((row, i) => {
@@ -586,7 +596,12 @@
                 return `<td>${escapeHtml(row[k])}</td>`;
               })
               .join("");
-            return `<tr>${radioCell}${cells}</tr>`;
+            const actionCell = rowActions
+              ? `<td class="row-action-cell"><button type="button" class="secondary save-email-btn" data-row-index="${i}">${escapeHtml(
+                  rowActions.buttonText || "Action"
+                )}</button></td>`
+              : "";
+            return `<tr>${radioCell}${cells}${actionCell}</tr>`;
           })
           .join("");
 
@@ -599,6 +614,15 @@
               if (typeof onRadioChange === "function") {
                 onRadioChange(selectedIndex, renderedRows[selectedIndex]);
               }
+            });
+          });
+        }
+
+        if (rowActions && typeof rowActions.onClick === "function") {
+          tbodyEl.querySelectorAll(".save-email-btn").forEach((buttonEl) => {
+            buttonEl.addEventListener("click", () => {
+              const rowIndex = Number(buttonEl.getAttribute("data-row-index"));
+              rowActions.onClick(renderedRows[rowIndex], rowIndex, buttonEl);
             });
           });
         }
@@ -714,6 +738,45 @@
               copy["Email Contents"] = applyTemplatePlaceholders(copy["Email Contents"]);
             }
             return copy;
+          },
+          rowActions: {
+            label: "Actions",
+            buttonText: "Save Email",
+            onClick: async (row, _rowIndex, buttonEl) => {
+              if (!row || typeof row !== "object") {
+                setStatus(studentStatusEl, "Unable to save this email row.", "error");
+                return;
+              }
+
+              const payload = {
+                ...row,
+                UpdatedEmailHtml: String(row["Email Contents"] ?? ""),
+              };
+
+              buttonEl.disabled = true;
+              setStatus(studentStatusEl, "Saving selected email...", "");
+
+              try {
+                const response = await fetch(SAVE_EMAIL_WEBHOOK_URL, {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify(payload),
+                });
+
+                if (!response.ok) {
+                  throw new Error(`HTTP ${response.status} ${response.statusText}`);
+                }
+
+                setStatus(studentStatusEl, "Email row saved successfully.", "success");
+              } catch (error) {
+                console.error("Save email webhook error:", error);
+                setStatus(studentStatusEl, `Unable to save email row: ${escapeHtml(error.message)}`, "error");
+              } finally {
+                buttonEl.disabled = false;
+              }
+            },
           },
         });
 
