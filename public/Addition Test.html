@@ -485,8 +485,10 @@
       const ASSESSOR_PLACEHOLDER_REGEX = /\[Assessor\]/g;
       const DATE_PLACEHOLDER_REGEX = /\[Date\]/g;
       const TIME_PLACEHOLDER_REGEX = /\[Time\]/g;
+      const STUDENT_ID_PLACEHOLDER_REGEX = /\[Student ID\]/g;
 
       let currentStudentName = "";
+      let currentStudentContactId = "";
       let currentQualificationTitle = "";
       let currentAssessorName = "";
       let assessorsData = [];
@@ -533,7 +535,8 @@
 
         return withAssessor
           .replace(DATE_PLACEHOLDER_REGEX, escapeHtml(formattedDate))
-          .replace(TIME_PLACEHOLDER_REGEX, escapeHtml(formattedTime));
+          .replace(TIME_PLACEHOLDER_REGEX, escapeHtml(formattedTime))
+          .replace(STUDENT_ID_PLACEHOLDER_REGEX, escapeHtml(currentStudentContactId || "[Student ID]"));
       };
 
       const getQualificationTitleFromRow = (row) => {
@@ -756,6 +759,7 @@
         try {
           const studentPayload = await fetchStudentData(contactId);
           currentStudentName = getStudentNameFromPayload(studentPayload);
+          currentStudentContactId = contactId;
 
           if (currentStudentName) {
             setStatus(studentStatusEl, `Student loaded: ${escapeHtml(currentStudentName)}`, "success");
