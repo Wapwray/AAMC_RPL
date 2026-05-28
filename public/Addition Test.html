@@ -212,12 +212,77 @@
         opacity: 0.6;
         cursor: not-allowed;
       }
+
+      .formRow {
+        display: grid;
+        gap: 10px;
+      }
+
+      label {
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      input[type="text"] {
+        width: 100%;
+        border: 1px solid #c8d6e3;
+        border-radius: 10px;
+        font-size: 16px;
+        padding: 12px;
+        box-sizing: border-box;
+      }
+
+      input[type="text"]:focus {
+        outline: 3px solid rgba(37, 99, 235, 0.2);
+        border-color: #2563eb;
+      }
+
+      .form-actions {
+        margin-top: 8px;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .student-banner {
+        margin-top: 12px;
+        padding: 10px 14px;
+        border-radius: 10px;
+        background: #eef4fb;
+        border: 1px solid #d8e3ee;
+        font-size: 14px;
+        font-weight: 600;
+        color: #1e293b;
+        display: none;
+      }
+
+      .section-divider {
+        border: none;
+        border-top: 1px solid #e9f0f8;
+        margin: 24px 0 4px;
+      }
     </style>
   </head>
   <body>
     <main class="card">
       <h1>Addition Test</h1>
-      <p class="subtitle">Displays data fetched from the Qualifications and Email Templates webhooks on load.</p>
+      <p class="subtitle">Enter a Student Contact ID to populate name fields in email templates. Qualification and template data loads automatically.</p>
+
+      <!-- Student Lookup -->
+      <div class="section" style="margin-top: 0;">
+        <h2>Student Lookup</h2>
+        <form id="studentForm" class="formRow">
+          <label for="contactIdInput">Student Contact ID (Axcelerate)</label>
+          <input id="contactIdInput" name="contactId" type="text" required autocomplete="off" />
+          <div class="form-actions">
+            <button id="submitBtn" class="primary" type="submit">Submit</button>
+          </div>
+        </form>
+        <div id="studentStatus" class="status" aria-live="polite"></div>
+        <div id="studentBanner" class="student-banner"></div>
+      </div>
+
+      <hr class="section-divider" />
 
       <!-- Qualifications -->
       <div class="section">
@@ -255,6 +320,9 @@
     </main>
 
     <script>
+      const STUDENT_URL =
+        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/6550b2c761904160b0bae9baf9d59d7b/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=tDGXeZGMjeoZqZ3n6UsWXmAph7KPxQhCO29menDswtw";
+
       const QUALIFICATIONS_URL =
         "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/a61b9bade4034a2289f85f64d4c82f97/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=JPj39E9PXnhppfpFdo1QZeWuADa7dfgKna3C-x2v7kg";
 
@@ -278,8 +346,12 @@
       };
 
       const HTML_COLUMNS = new Set(["Email Contents"]);
+  let emailTemplatesData = [];
+  let studentName = "";
 
-      const renderTable = (theadEl, tbodyEl, rows, { radioSelect = false } = {}) => {
+  const HTML_COLUMNS = new Set(["Email Contents"]);
+
+      const renderTable = (theadEl, tbodyEl, rows, { radioSelect = false, nameSubstitute = "" } = {}) => {
         if (!Array.isArray(rows) || rows.length === 0) {
           theadEl.innerHTML = "<tr><th>No data</th></tr>";
           tbodyEl.innerHTML = '<tr class="empty-row"><td>No records returned.</td></tr>';
@@ -301,7 +373,11 @@
             const cells = keys
               .map((k) => {
                 if (HTML_COLUMNS.has(k)) {
-                  return `<td class="html-cell">${row[k] ?? ""}</td>`;
+                  let cellHtml = row[k] ?? "";
+                  if (nameSubstitute) {
+                    cellHtml = cellHtml.replace(/\[Name\]/g, escapeHtml(nameSubstitute));
+                  }
+                  return `<td class="html-cell">${cellHtml}</td>`;
                 }
                 return `<td>${escapeHtml(row[k])}</td>`;
               })
@@ -363,11 +439,86 @@
       const loadQualifications = () =>
         fetchAndRender(QUALIFICATIONS_URL, qualThead, qualTbody, qualStatus, reloadQualBtn, { radioSelect: true });
 
-      const loadEmailTemplates = () =>
-        fetchAndRender(EMAIL_TEMPLATES_URL, tplThead, tplTbody, tplStatus, reloadTplBtn);
+      const renderEmailTemplates = () => {
+        renderTable(tplThead, tplTbody, emailTemplatesData, { nameSubstitute: studentName });
+        const count = emailTemplatesData.length;
+        const suffix = studentName ? ` — [Name] replaced with "${escapeHtml(studentName)}"` : "";
+        setStatus(tplStatus, `${count} record${count !== 1 ? "s" : ""} loaded${suffix}.`, "success");
+      };
+
+      const loadEmailTemplates = async () => {
+        reloadTplBtn.disabled = true;
+        setStatus(tplStatus, '<span class="spinner"></span>Loading…', "");
+        tplThead.innerHTML = "<tr><th>Loading…</th></tr>";
+        tplTbody.innerHTML = '<tr class="empty-row"><td>Fetching data…</td></tr>';
+        try {
+          const res = await fetch(EMAIL_TEMPLATES_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+          const data = await res.json();
+          emailTemplatesData = Array.isArray(data) ? data : [data];
+          renderEmailTemplates();
+        } catch (err) {
+          tplThead.innerHTML = "<tr><th>Error</th></tr>";
+          tplTbody.innerHTML = `<tr class="empty-row"><td>${escapeHtml(err.message)}</td></tr>`;
+          setStatus(tplStatus, `Failed to load data: ${escapeHtml(err.message)}`, "error");
+          console.error(err);
+        } finally {
+          reloadTplBtn.disabled = false;
+        }
+      };
 
       reloadQualBtn.addEventListener("click", loadQualifications);
       reloadTplBtn.addEventListener("click", loadEmailTemplates);
+
+      document.getElementById("studentForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const contactId = document.getElementById("contactIdInput").value.trim();
+        if (!contactId) return;
+
+        const submitBtn = document.getElementById("submitBtn");
+        const studentStatusEl = document.getElementById("studentStatus");
+        const studentBanner = document.getElementById("studentBanner");
+
+        submitBtn.disabled = true;
+        setStatus(studentStatusEl, '<span class="spinner"></span>Looking up student…', "");
+        studentBanner.style.display = "none";
+
+        try {
+          const res = await fetch(STUDENT_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contact_id: contactId }),
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+          const data = await res.json();
+          const src = data && typeof data === "object" ? data : {};
+          const given = String(src.student_given_name || "").trim();
+          const surname = String(src.student_surname || "").trim();
+          studentName = `${given} ${surname}`.trim();
+
+          if (studentName) {
+            studentBanner.textContent = `Student: ${studentName}`;
+            studentBanner.style.display = "block";
+            setStatus(studentStatusEl, "Student found.", "success");
+          } else {
+            studentBanner.style.display = "none";
+            setStatus(studentStatusEl, "No student name returned.", "error");
+          }
+
+          if (emailTemplatesData.length > 0) {
+            renderEmailTemplates();
+          }
+        } catch (err) {
+          setStatus(studentStatusEl, `Failed to look up student: ${escapeHtml(err.message)}`, "error");
+          console.error(err);
+        } finally {
+          submitBtn.disabled = false;
+        }
+      });
 
       // Load both on page load
       loadQualifications();
