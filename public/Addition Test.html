@@ -307,6 +307,13 @@
         line-height: 1.5;
       }
 
+      .email-type-cell {
+        text-align: left;
+        vertical-align: top;
+        font-weight: 700;
+        text-decoration: underline;
+      }
+
       .empty-row td {
         color: #94a3b8;
         font-style: italic;
@@ -477,6 +484,7 @@
       const QUALIFICATION_PLACEHOLDER_REGEX = /\[Qualification\]/g;
       const ASSESSOR_PLACEHOLDER_REGEX = /\[Assessor\]/g;
       const DATE_PLACEHOLDER_REGEX = /\[Date\]/g;
+      const TIME_PLACEHOLDER_REGEX = /\[Time\]/g;
 
       let currentStudentName = "";
       let currentQualificationTitle = "";
@@ -520,11 +528,12 @@
               month: "2-digit",
               year: "numeric",
             })
-          : "";
-        const formattedTime = selectedTime || "";
-        const dateTimeText = [formattedDate, formattedTime].filter(Boolean).join(" ").trim() || "[Date]";
+          : "[Date]";
+        const formattedTime = selectedTime || "[Time]";
 
-        return withAssessor.replace(DATE_PLACEHOLDER_REGEX, escapeHtml(dateTimeText));
+        return withAssessor
+          .replace(DATE_PLACEHOLDER_REGEX, escapeHtml(formattedDate))
+          .replace(TIME_PLACEHOLDER_REGEX, escapeHtml(formattedTime));
       };
 
       const getQualificationTitleFromRow = (row) => {
@@ -567,6 +576,9 @@
               .map((k) => {
                 if (HTML_COLUMNS.has(k)) {
                   return `<td class="html-cell">${row[k] ?? ""}</td>`;
+                }
+                if (k === "Email Type") {
+                  return `<td class="email-type-cell">${escapeHtml(row[k])}</td>`;
                 }
                 return `<td>${escapeHtml(row[k])}</td>`;
               })
