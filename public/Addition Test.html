@@ -133,6 +133,30 @@
         word-break: break-word;
       }
 
+      .radio-cell {
+        width: 36px;
+        text-align: center;
+        padding: 10px 8px;
+      }
+
+      .radio-cell input[type="radio"] {
+        width: 16px;
+        height: 16px;
+        accent-color: #2563eb;
+        cursor: pointer;
+        margin: 0;
+      }
+
+      tbody tr.selected-row {
+        background: #eef4fb;
+      }
+
+      .html-cell {
+        max-width: 480px;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
       .empty-row td {
         color: #94a3b8;
         font-style: italic;
@@ -253,7 +277,9 @@
         if (kind) el.classList.add(kind);
       };
 
-      const renderTable = (theadEl, tbodyEl, rows) => {
+      const HTML_COLUMNS = new Set(["Email Contents"]);
+
+      const renderTable = (theadEl, tbodyEl, rows, { radioSelect = false } = {}) => {
         if (!Array.isArray(rows) || rows.length === 0) {
           theadEl.innerHTML = "<tr><th>No data</th></tr>";
           tbodyEl.innerHTML = '<tr class="empty-row"><td>No records returned.</td></tr>';
@@ -263,22 +289,38 @@
         // Derive columns from the union of all keys across all rows
         const keys = Array.from(new Set(rows.flatMap((r) => Object.keys(r))));
 
+        const radioHeader = radioSelect ? '<th class="radio-cell"></th>' : "";
         theadEl.innerHTML =
-          "<tr>" + keys.map((k) => `<th>${escapeHtml(k)}</th>`).join("") + "</tr>";
+          "<tr>" + radioHeader + keys.map((k) => `<th>${escapeHtml(k)}</th>`).join("") + "</tr>";
 
         tbodyEl.innerHTML = rows
-          .map(
-            (row) =>
-              "<tr>" +
-              keys
-                .map((k) => `<td>${escapeHtml(row[k])}</td>`)
-                .join("") +
-              "</tr>"
-          )
+          .map((row, i) => {
+            const radioCell = radioSelect
+              ? `<td class="radio-cell"><input type="radio" name="qual_select" value="${i}" aria-label="Select row ${i + 1}" /></td>`
+              : "";
+            const cells = keys
+              .map((k) => {
+                if (HTML_COLUMNS.has(k)) {
+                  return `<td class="html-cell">${row[k] ?? ""}</td>`;
+                }
+                return `<td>${escapeHtml(row[k])}</td>`;
+              })
+              .join("");
+            return `<tr>${radioCell}${cells}</tr>`;
+          })
           .join("");
+
+        if (radioSelect) {
+          tbodyEl.querySelectorAll('input[type="radio"]').forEach((radio) => {
+            radio.addEventListener("change", () => {
+              tbodyEl.querySelectorAll("tr").forEach((tr) => tr.classList.remove("selected-row"));
+              radio.closest("tr").classList.add("selected-row");
+            });
+          });
+        }
       };
 
-      const fetchAndRender = async (url, theadEl, tbodyEl, statusEl, reloadBtn) => {
+      const fetchAndRender = async (url, theadEl, tbodyEl, statusEl, reloadBtn, options = {}) => {
         reloadBtn.disabled = true;
         setStatus(statusEl, '<span class="spinner"></span>Loading…', "");
         theadEl.innerHTML = "<tr><th>Loading…</th></tr>";
@@ -296,7 +338,7 @@
           const data = await res.json();
           const rows = Array.isArray(data) ? data : [data];
 
-          renderTable(theadEl, tbodyEl, rows);
+          renderTable(theadEl, tbodyEl, rows, options);
           setStatus(statusEl, `${rows.length} record${rows.length !== 1 ? "s" : ""} loaded.`, "success");
         } catch (err) {
           theadEl.innerHTML = "<tr><th>Error</th></tr>";
@@ -319,7 +361,7 @@
       const reloadTplBtn = document.getElementById("reloadTplBtn");
 
       const loadQualifications = () =>
-        fetchAndRender(QUALIFICATIONS_URL, qualThead, qualTbody, qualStatus, reloadQualBtn);
+        fetchAndRender(QUALIFICATIONS_URL, qualThead, qualTbody, qualStatus, reloadQualBtn, { radioSelect: true });
 
       const loadEmailTemplates = () =>
         fetchAndRender(EMAIL_TEMPLATES_URL, tplThead, tplTbody, tplStatus, reloadTplBtn);
