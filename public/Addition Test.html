@@ -85,6 +85,119 @@
         margin-top: 28px;
       }
 
+      .assessorPanel {
+        margin-top: 18px;
+        border: 1px solid #d8e3ee;
+        border-radius: 12px;
+        background: #f8fbff;
+        padding: 14px;
+      }
+
+      .assessorPanel p {
+        margin: 0 0 10px;
+        font-size: 14px;
+        font-weight: 600;
+        color: #0f172a;
+      }
+
+      .radioGroup {
+        display: flex;
+        gap: 20px;
+      }
+
+      .radioGroup label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 14px;
+        font-weight: 400;
+        cursor: pointer;
+      }
+
+      .radioGroup input[type="radio"] {
+        width: auto;
+        margin: 0;
+        cursor: pointer;
+      }
+
+      .spacedBottom {
+        margin-bottom: 12px;
+      }
+
+      select {
+        width: 100%;
+        border: 1px solid #c8d6e3;
+        border-radius: 10px;
+        font-size: 15px;
+        padding: 10px 12px;
+        background: #ffffff;
+        color: #0f172a;
+        box-sizing: border-box;
+        appearance: auto;
+      }
+
+      select:focus {
+        outline: 3px solid rgba(37, 99, 235, 0.2);
+        border-color: #2563eb;
+      }
+
+      .assessorConfirm {
+        margin-top: 12px;
+      }
+
+      .assessorDetail {
+        margin-top: 12px;
+        padding: 12px;
+        border-radius: 10px;
+        background: #eef4fb;
+        border: 1px solid #d8e3ee;
+        font-size: 14px;
+        line-height: 1.5;
+        display: none;
+      }
+
+      .studentRow {
+        display: grid;
+        grid-template-columns: 130px 1fr;
+        gap: 8px;
+        padding: 4px 0;
+      }
+
+      .studentLabel {
+        font-weight: 700;
+        color: #1e293b;
+      }
+
+      .studentValue {
+        color: #0f172a;
+        word-break: break-word;
+      }
+
+      .dateTimeGrid {
+        margin-top: 12px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+
+      input[type="date"],
+      input[type="time"] {
+        width: 100%;
+        border: 1px solid #c8d6e3;
+        border-radius: 10px;
+        font-size: 15px;
+        padding: 10px 12px;
+        background: #ffffff;
+        color: #0f172a;
+        box-sizing: border-box;
+      }
+
+      input[type="date"]:focus,
+      input[type="time"]:focus {
+        outline: 3px solid rgba(37, 99, 235, 0.2);
+        border-color: #2563eb;
+      }
+
       .section:first-of-type {
         margin-top: 0;
       }
@@ -267,6 +380,31 @@
 
       <div id="studentStatus" class="status" aria-live="polite"></div>
 
+      <section id="assessorPanel" class="assessorPanel">
+        <p>Select the assigned assessor</p>
+        <div class="radioGroup spacedBottom">
+          <label><input type="radio" name="assessorAssignment" value="assigned" checked /> Assessor Assigned</label>
+          <label><input type="radio" name="assessorAssignment" value="none" /> No Assessor Assigned</label>
+        </div>
+        <select id="assessorSelect" aria-label="Select assessor">
+          <option value="">Loading assessors...</option>
+        </select>
+        <div id="assessorDetail" class="assessorDetail"></div>
+        <div class="assessorConfirm">
+          <button id="assessorConfirmBtn" class="primary" type="button">Confirm</button>
+        </div>
+        <div class="dateTimeGrid">
+          <div>
+            <label for="assessmentDate">Assessment Date</label>
+            <input id="assessmentDate" type="date" />
+          </div>
+          <div>
+            <label for="assessmentTime">Assessment Time</label>
+            <input id="assessmentTime" type="time" />
+          </div>
+        </div>
+      </section>
+
       <!-- Qualifications -->
       <div class="section">
         <div class="section-header">
@@ -312,6 +450,9 @@
       const QUALIFICATIONS_URL =
         "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/a61b9bade4034a2289f85f64d4c82f97/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=JPj39E9PXnhppfpFdo1QZeWuADa7dfgKna3C-x2v7kg";
 
+      const ASSESSORS_WEBHOOK_URL =
+        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/bcc8d653415344048d5659c08b47bf2c/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=xky-PnLtXZuZ9xc-smRCubKOixhyMaxljXPbT6SXXWQ";
+
       const EMAIL_TEMPLATES_URL =
         "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/1a57326e40994b8d9bad3cab1276c92f/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=gFQWaYM_SDJM2e2aNNfJzcRgEgjv2Z2PuLzWngUaGeg";
 
@@ -334,9 +475,13 @@
       const HTML_COLUMNS = new Set(["Email Contents"]);
       const NAME_PLACEHOLDER_REGEX = /\[Name\]/g;
       const QUALIFICATION_PLACEHOLDER_REGEX = /\[Qualification\]/g;
+      const ASSESSOR_PLACEHOLDER_REGEX = /\[Assessor\]/g;
+      const DATE_PLACEHOLDER_REGEX = /\[Date\]/g;
 
       let currentStudentName = "";
       let currentQualificationTitle = "";
+      let currentAssessorName = "";
+      let assessorsData = [];
 
       const getStudentNameFromPayload = (source) => {
         if (!source || typeof source !== "object") {
@@ -361,7 +506,25 @@
       const applyTemplatePlaceholders = (value) => {
         const withName = applyStudentNamePlaceholders(value);
         const replacementQualification = escapeHtml(currentQualificationTitle || "[Qualification]");
-        return withName.replace(QUALIFICATION_PLACEHOLDER_REGEX, replacementQualification);
+        const withQualification = withName.replace(QUALIFICATION_PLACEHOLDER_REGEX, replacementQualification);
+        const withAssessor = withQualification.replace(
+          ASSESSOR_PLACEHOLDER_REGEX,
+          escapeHtml(currentAssessorName || "[Assessor]")
+        );
+
+        const selectedDate = assessmentDateEl.value;
+        const selectedTime = assessmentTimeEl.value;
+        const formattedDate = selectedDate
+          ? new Date(`${selectedDate}T00:00:00`).toLocaleDateString("en-AU", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+            })
+          : "";
+        const formattedTime = selectedTime || "";
+        const dateTimeText = [formattedDate, formattedTime].filter(Boolean).join(" ").trim() || "[Date]";
+
+        return withAssessor.replace(DATE_PLACEHOLDER_REGEX, escapeHtml(dateTimeText));
       };
 
       const getQualificationTitleFromRow = (row) => {
@@ -466,6 +629,14 @@
       const submitBtnEl = document.getElementById("submitBtn");
       const studentStatusEl = document.getElementById("studentStatus");
       const updateEmailBtnEl = document.getElementById("updateEmailBtn");
+      const assessorSelectEl = document.getElementById("assessorSelect");
+      const assessorDetailEl = document.getElementById("assessorDetail");
+      const assessorConfirmBtnEl = document.getElementById("assessorConfirmBtn");
+      const assessorPanelEl = document.getElementById("assessorPanel");
+      const assessorAssignmentAssignedEl = document.querySelector("input[name='assessorAssignment'][value='assigned']");
+      const assessorAssignmentNoneEl = document.querySelector("input[name='assessorAssignment'][value='none']");
+      const assessmentDateEl = document.getElementById("assessmentDate");
+      const assessmentTimeEl = document.getElementById("assessmentTime");
 
       const tplThead = document.getElementById("tplThead");
       const tplTbody = document.getElementById("tplTbody");
@@ -473,8 +644,39 @@
       const reloadTplBtn = document.getElementById("reloadTplBtn");
 
       const updateUpdateEmailButtonState = () => {
-        updateEmailBtnEl.disabled = !(currentStudentName && currentQualificationTitle);
+        const hasDateTime = Boolean(assessmentDateEl.value && assessmentTimeEl.value);
+        updateEmailBtnEl.disabled = !(currentStudentName && currentQualificationTitle && currentAssessorName && hasDateTime);
       };
+
+      const loadAssessors = async () => {
+        try {
+          const res = await fetch(ASSESSORS_WEBHOOK_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+          });
+
+          if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+          }
+
+          const data = await res.json();
+          assessorsData = Array.isArray(data) ? data : [];
+          assessorSelectEl.innerHTML = '<option value="">-- Select an assessor --</option>';
+          assessorsData.forEach((assessor) => {
+            const opt = document.createElement("option");
+            opt.value = String(assessor.ID || "");
+            opt.textContent = `${assessor["First Name"] || ""} ${assessor["Last Name"] || ""}`.trim() || "Unnamed Assessor";
+            assessorSelectEl.appendChild(opt);
+          });
+        } catch (error) {
+          assessorSelectEl.innerHTML = '<option value="">Failed to load assessors</option>';
+          console.error("Assessor load error:", error);
+        }
+      };
+
+      const getAssessorAssignmentMode = () =>
+        document.querySelector("input[name='assessorAssignment']:checked")?.value || "assigned";
 
       const loadQualifications = () =>
         fetchAndRender(QUALIFICATIONS_URL, qualThead, qualTbody, qualStatus, reloadQualBtn, {
@@ -579,7 +781,68 @@
       reloadQualBtn.addEventListener("click", loadQualifications);
       reloadTplBtn.addEventListener("click", loadEmailTemplates);
 
+      assessorPanelEl.addEventListener("change", (event) => {
+        if (event.target.name !== "assessorAssignment") {
+          return;
+        }
+
+        const noAssessorAssigned = getAssessorAssignmentMode() === "none";
+        assessorSelectEl.disabled = noAssessorAssigned;
+        if (noAssessorAssigned) {
+          assessorSelectEl.value = "";
+          assessorDetailEl.style.display = "none";
+          assessorDetailEl.innerHTML = "";
+          currentAssessorName = "No Assessor Assigned";
+        } else {
+          currentAssessorName = "";
+        }
+
+        updateUpdateEmailButtonState();
+      });
+
+      assessorSelectEl.addEventListener("change", () => {
+        const selected = assessorsData.find((assessor) => String(assessor.ID) === assessorSelectEl.value);
+        if (!selected) {
+          assessorDetailEl.style.display = "none";
+          assessorDetailEl.innerHTML = "";
+          return;
+        }
+
+        assessorDetailEl.innerHTML = [
+          `<div class="studentRow"><div class="studentLabel">ID</div><div class="studentValue">${escapeHtml(String(selected.ID || "-"))}</div></div>`,
+          `<div class="studentRow"><div class="studentLabel">First Name</div><div class="studentValue">${escapeHtml(selected["First Name"] || "-")}</div></div>`,
+          `<div class="studentRow"><div class="studentLabel">Last Name</div><div class="studentValue">${escapeHtml(selected["Last Name"] || "-")}</div></div>`,
+          `<div class="studentRow"><div class="studentLabel">Email</div><div class="studentValue">${escapeHtml(selected.Email || "-")}</div></div>`,
+          `<div class="studentRow"><div class="studentLabel">Phone</div><div class="studentValue">${escapeHtml(selected.Phone || "-")}</div></div>`,
+        ].join("");
+        assessorDetailEl.style.display = "block";
+      });
+
+      assessorConfirmBtnEl.addEventListener("click", () => {
+        const noAssessorAssigned = getAssessorAssignmentMode() === "none";
+        if (!noAssessorAssigned && !assessorSelectEl.value) {
+          setStatus(studentStatusEl, "Please select an assessor, or choose No Assessor Assigned.", "error");
+          return;
+        }
+
+        if (noAssessorAssigned) {
+          currentAssessorName = "No Assessor Assigned";
+        } else {
+          const selected = assessorsData.find((assessor) => String(assessor.ID) === assessorSelectEl.value);
+          const firstName = selected?.["First Name"] || "";
+          const lastName = selected?.["Last Name"] || "";
+          currentAssessorName = `${firstName} ${lastName}`.trim();
+        }
+
+        updateUpdateEmailButtonState();
+        setStatus(studentStatusEl, `Assessor confirmed: ${escapeHtml(currentAssessorName)}`, "success");
+      });
+
+      assessmentDateEl.addEventListener("change", updateUpdateEmailButtonState);
+      assessmentTimeEl.addEventListener("change", updateUpdateEmailButtonState);
+
       // Load both on page load
+      loadAssessors();
       loadQualifications();
       loadEmailTemplates();
     </script>
