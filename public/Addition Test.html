@@ -748,8 +748,25 @@
                 return;
               }
 
+              const selectedDate = assessmentDateEl.value;
+              const selectedTime = assessmentTimeEl.value;
+              const formattedDate = selectedDate
+                ? new Date(`${selectedDate}T00:00:00`).toLocaleDateString("en-AU", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                  })
+                : "";
+              const formattedTime = selectedTime || "";
+
               const payload = {
                 ...row,
+                Name: currentStudentName || "",
+                Assessor: currentAssessorName || "",
+                Qualification: currentQualificationTitle || "",
+                Date: formattedDate,
+                Time: formattedTime,
+                "Student ID": currentStudentContactId || "",
                 UpdatedEmailHtml: String(row["Email Contents"] ?? ""),
               };
 
