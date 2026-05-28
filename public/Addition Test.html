@@ -127,6 +127,12 @@
         border-radius: 12px;
       }
 
+      .section-actions {
+        margin-top: 12px;
+        display: flex;
+        justify-content: flex-end;
+      }
+
       table {
         width: 100%;
         border-collapse: collapse;
@@ -276,6 +282,9 @@
             </tbody>
           </table>
         </div>
+        <div class="section-actions">
+          <button class="primary" id="updateEmailBtn" type="button" disabled>Update Email</button>
+        </div>
       </div>
 
       <!-- Email Templates -->
@@ -324,8 +333,10 @@
 
       const HTML_COLUMNS = new Set(["Email Contents"]);
       const NAME_PLACEHOLDER_REGEX = /\[Name\]/g;
+      const QUALIFICATION_PLACEHOLDER_REGEX = /\[Qualification\]/g;
 
       let currentStudentName = "";
+      let currentQualificationTitle = "";
 
       const getStudentNameFromPayload = (source) => {
         if (!source || typeof source !== "object") {
@@ -347,7 +358,28 @@
         return String(value ?? "").replace(NAME_PLACEHOLDER_REGEX, replacementName);
       };
 
-      const renderTable = (theadEl, tbodyEl, rows, { radioSelect = false, mapRow } = {}) => {
+      const applyTemplatePlaceholders = (value) => {
+        const withName = applyStudentNamePlaceholders(value);
+        const replacementQualification = escapeHtml(currentQualificationTitle || "[Qualification]");
+        return withName.replace(QUALIFICATION_PLACEHOLDER_REGEX, replacementQualification);
+      };
+
+      const getQualificationTitleFromRow = (row) => {
+        if (!row || typeof row !== "object") {
+          return "";
+        }
+
+        return String(
+          row["Qualification Title"] ||
+            row.qualification_title ||
+            row.QualificationTitle ||
+            row.qualificationTitle ||
+            row.title ||
+            ""
+        ).trim();
+      };
+
+      const renderTable = (theadEl, tbodyEl, rows, { radioSelect = false, mapRow, onRadioChange } = {}) => {
         if (!Array.isArray(rows) || rows.length === 0) {
           theadEl.innerHTML = "<tr><th>No data</th></tr>";
           tbodyEl.innerHTML = '<tr class="empty-row"><td>No records returned.</td></tr>';
@@ -385,6 +417,10 @@
             radio.addEventListener("change", () => {
               tbodyEl.querySelectorAll("tr").forEach((tr) => tr.classList.remove("selected-row"));
               radio.closest("tr").classList.add("selected-row");
+              const selectedIndex = Number(radio.value);
+              if (typeof onRadioChange === "function") {
+                onRadioChange(selectedIndex, renderedRows[selectedIndex]);
+              }
             });
           });
         }
@@ -429,14 +465,25 @@
       const contactIdInputEl = document.getElementById("contactIdInput");
       const submitBtnEl = document.getElementById("submitBtn");
       const studentStatusEl = document.getElementById("studentStatus");
+      const updateEmailBtnEl = document.getElementById("updateEmailBtn");
 
       const tplThead = document.getElementById("tplThead");
       const tplTbody = document.getElementById("tplTbody");
       const tplStatus = document.getElementById("tplStatus");
       const reloadTplBtn = document.getElementById("reloadTplBtn");
 
+      const updateUpdateEmailButtonState = () => {
+        updateEmailBtnEl.disabled = !(currentStudentName && currentQualificationTitle);
+      };
+
       const loadQualifications = () =>
-        fetchAndRender(QUALIFICATIONS_URL, qualThead, qualTbody, qualStatus, reloadQualBtn, { radioSelect: true });
+        fetchAndRender(QUALIFICATIONS_URL, qualThead, qualTbody, qualStatus, reloadQualBtn, {
+          radioSelect: true,
+          onRadioChange: (_index, row) => {
+            currentQualificationTitle = getQualificationTitleFromRow(row);
+            updateUpdateEmailButtonState();
+          },
+        });
 
       const loadEmailTemplates = () =>
         fetchAndRender(EMAIL_TEMPLATES_URL, tplThead, tplTbody, tplStatus, reloadTplBtn, {
@@ -447,7 +494,7 @@
 
             const copy = { ...row };
             if (Object.prototype.hasOwnProperty.call(copy, "Email Contents")) {
-              copy["Email Contents"] = applyStudentNamePlaceholders(copy["Email Contents"]);
+              copy["Email Contents"] = applyTemplatePlaceholders(copy["Email Contents"]);
             }
             return copy;
           },
@@ -501,14 +548,32 @@
           } else {
             setStatus(studentStatusEl, "Student loaded but no name fields were found. Using [Name] placeholder.", "error");
           }
-
-          await loadEmailTemplates();
+          updateUpdateEmailButtonState();
         } catch (error) {
           console.error("Student webhook error:", error);
           setStatus(studentStatusEl, `Unable to load student details: ${escapeHtml(error.message)}`, "error");
         } finally {
           submitBtnEl.disabled = false;
         }
+      });
+
+      updateEmailBtnEl.addEventListener("click", async () => {
+        if (!currentStudentName) {
+          setStatus(studentStatusEl, "Load student details first.", "error");
+          return;
+        }
+
+        if (!currentQualificationTitle) {
+          setStatus(studentStatusEl, "Select a qualification first.", "error");
+          return;
+        }
+
+        await loadEmailTemplates();
+        setStatus(
+          studentStatusEl,
+          `Email templates updated for ${escapeHtml(currentStudentName)} and ${escapeHtml(currentQualificationTitle)}.`,
+          "success"
+        );
       });
 
       reloadQualBtn.addEventListener("click", loadQualifications);
