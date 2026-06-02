@@ -519,7 +519,7 @@
             <p>Initialising…</p>
           </div>
           <button id="welcomeContinueBtn" disabled>Continue</button>
-          <div id="welcomeDebugSection" class="assessmentDebug welcomeDebugPanel">
+          <div id="welcomeDebugSection" class="assessmentDebug welcomeDebugPanel hidden">
             <div class="assessmentDebugHeader">
               <div class="assessmentDebugTitle">Welcome Debug</div>
               <button id="welcomeResetBtn" class="secondary" type="button">RESET</button>
@@ -877,12 +877,21 @@
         }
       };
 
-      const isAdminDebugEnabled = () => window.location?.hash === "#admin";
+      const isAdminDebugEnabled = () => {
+        const search = window.location?.search || "";
+        const pathname = window.location?.pathname || "";
+        if (typeof window.URLSearchParams === "function") {
+          const params = new URLSearchParams(search);
+          if (params.has("Admin") || params.has("admin")) return true;
+        }
+        return /(?:^|\/)Admin(?:\/|$)/.test(pathname);
+      };
 
       const updateDebugVisibility = () => {
-        if (debugSectionEl) debugSectionEl.classList.remove("hidden");
-        if (initDebugSectionEl) initDebugSectionEl.classList.remove("hidden");
-        if (welcomeDebugSectionEl) welcomeDebugSectionEl.classList.remove("hidden");
+        const adminMode = isAdminDebugEnabled();
+        if (debugSectionEl) debugSectionEl.classList.toggle("hidden", !adminMode);
+        if (initDebugSectionEl) initDebugSectionEl.classList.toggle("hidden", !adminMode);
+        if (welcomeDebugSectionEl) welcomeDebugSectionEl.classList.toggle("hidden", !adminMode);
       };
 
       const limitDebugText = (value, maxLength = 1600) => {
