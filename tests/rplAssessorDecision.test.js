@@ -95,7 +95,8 @@ test("additional evidence guidance formats multiple evidence points readably", (
   assert.match(feedback.displayText, /You have addressed:\n- would recommend the more appropriate loan/);
   assert.match(feedback.displayText, /\n- would document recommendations and rationale/);
   assert.match(feedback.displayText, /\n- would keep file notes, CRM records/);
-  assert.match(feedback.displayText, /The only area that still needs more detail is who would be consulted if unsure about the appropriate course of action\./);
+  assert.match(feedback.displayText, /The only area that still needs more detail is who you would consult or ask for help if you were unsure\./);
+  assert.doesNotMatch(feedback.displayText, /appropriate course of action/);
   assert.doesNotMatch(feedback.displayText, /Richard, Your/);
   assert.doesNotMatch(feedback.displayText, /Objective/i);
 });

@@ -1735,7 +1735,18 @@
         if (!Array.isArray(questionList) || !questionList.length) return [];
         return questionList.map((question, index) => {
           const questionNumber = getQuestionSpecNumber(question, index);
-          const section = getQuestionFieldSource(question, ["Section", "Topic", "Category", "Capability", "field_5"]);
+          const section = getQuestionFieldSource(question, [
+            "section",
+            "Section",
+            "category",
+            "Category",
+            "reportSection",
+            "ReportSection",
+            "assessmentArea",
+            "AssessmentArea",
+            "Topic",
+            "Capability",
+          ]);
           const unitCode = getQuestionFieldSource(question, ["Unit Code", "UnitCode", "CODE", "Code", "Unit"]);
           const unitTitle = getQuestionFieldSource(question, ["Unit Title", "UnitTitle", "Unit Name", "UnitName"]);
           const assessmentCriteria = splitReportListField(getQuestionFieldSource(question, ["Assessment Criteria", "AssessmentCriteria", "Criteria"]));
@@ -1772,7 +1783,7 @@
 
       const getReportOptions = () => ({
         outputMode: "html",
-        includeTranscriptWarnings: true,
+        includeTranscriptWarnings: false,
         qualificationDefault: "FNS40821 - Certificate IV in Finance and Mortgage Broking",
         reportDate: formatDate(new Date()),
         maxBatchChars: 16000,

@@ -94,6 +94,18 @@ test("parses transcript metadata, question blocks over 24, attempts, AI messages
   assert.equal(questions[1].assessorBotMessages.length, 2);
 });
 
+test("preserves transcript question block order instead of sorting by number", () => {
+  const transcript = `Question 3: Third question
+Candidate (Attempt 1):
+Answer three.
+
+Question 1: First question
+Candidate (Attempt 1):
+Answer one.`;
+  const questions = review.parseTranscriptQuestions(transcript);
+  assert.deepEqual(questions.map((question) => question.questionNumber), [3, 1]);
+});
+
 test("builds report list from official question bank plus unmapped transcript questions", () => {
   const officialQuestionBank = Array.from({ length: 24 }, (_, index) => ({
     questionNumber: index + 1,
@@ -139,9 +151,38 @@ test("builds report list from official question bank plus unmapped transcript qu
   assert.equal(model.questions[23].questionNumber, 24);
   assert.equal(model.questions[23].shortStatus, "Additional evidence may be needed");
   assert.equal(model.questions[24].questionNumber, 25);
-  assert.equal(model.questions[24].section, "Unmapped transcript questions");
+  assert.equal(model.questions[24].section, "Additional transcript question");
   assert.equal(model.questions[1].shortStatus, "Not available in transcript");
   assert.ok(model.warnings.some((warning) => warning.includes("active question bank contains 24")));
+});
+
+test("reconciles duplicate transcript questions by text and avoids CT rule sections", () => {
+  const transcript = `Question 21: Explain how you handle complaints.
+
+Objective: Confirm complaint handling and escalation obligations are understood.
+
+Overall assessment: ADDITIONAL EVIDENCE MAY BE NEEDED.
+
+-----------------------------
+QUESTION TRANSCRIPT
+Alex (Attempt 1):
+I listen and keep notes.`;
+  const officialQuestionBank = [
+    {
+      questionNumber: 20,
+      section: "If CT for FNSCRD401 then do not ask",
+      questionText: "Explain how you handle complaints.",
+      objective: "Confirm complaint handling and escalation obligations are understood.",
+    },
+  ];
+
+  const model = review.buildReportModel({ fullTranscript: transcript, officialQuestionBank });
+
+  assert.equal(model.questions.length, 1);
+  assert.equal(model.questions[0].questionNumber, 20);
+  assert.equal(model.questions[0].attempts.length, 1);
+  assert.notEqual(model.questions[0].section, "If CT for FNSCRD401 then do not ask");
+  assert.equal(model.questions[0].section, "Compliance");
 });
 
 test("does not infer missing intermediate questions without an official question bank", () => {
@@ -187,6 +228,12 @@ test("renders approved report labels, escaped verbatim responses, and one row/ar
   const validation = review.validateReportHtmlCoverage(model, html);
 
   assert.equal(validation.valid, true);
+  assert.equal(html.includes("@page { size: A4; margin: 12mm 12mm 14mm 12mm; }"), true);
+  assert.equal(html.includes(".report { width: 186mm; max-width: 186mm;"), true);
+  assert.equal(html.includes("Question Count and Transcript Coverage"), false);
+  assert.equal(html.includes("Transcript Coverage Warnings"), false);
+  assert.equal(html.includes("Transcript question count"), false);
+  assert.equal(html.includes("Question bank count"), false);
   assert.equal(html.includes("LIKELY SUFFICIENT"), false);
   assert.equal(html.includes("ADDITIONAL EVIDENCE MAY BE NEEDED"), false);
   assert.equal(html.includes("NEEDS MORE INFO"), false);

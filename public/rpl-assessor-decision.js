@@ -36,6 +36,12 @@
   const formatEvidenceFragment = (value) => {
     const text = normalizeWhitespace(value).replace(/[.!?]+$/g, "");
     if (!text) return "";
+    if (/^who would be consulted if unsure(?: about .*)?$/i.test(text)) {
+      return "who you would consult or ask for help if you were unsure";
+    }
+    if (/^who you would(?:\/did)? consult if you were unsure(?: about .*)?$/i.test(text)) {
+      return "who you would consult or ask for help if you were unsure";
+    }
     if (/^[A-Z][a-z]/.test(text)) {
       return `${text.charAt(0).toLowerCase()}${text.slice(1)}`;
     }

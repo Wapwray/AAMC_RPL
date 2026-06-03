@@ -18,6 +18,7 @@
   const REPORT_TYPE = "AI-generated preliminary review (not a final assessment)";
   const DEFAULT_QUALIFICATION = "FNS40821 - Certificate IV in Finance and Mortgage Broking";
   const MISSING_VALUE = "Not stated in transcript";
+  const ACTIVE_DATA_MISSING = "Not available in active question data";
   const DISCLAIMER_TEXT = "IMPORTANT — PRELIMINARY AI REVIEW ONLY\nThis report was prepared by an AI-based assistant as a preliminary analysis of the candidate's responses during an RPL interview. It does NOT constitute an assessment decision. All findings are preliminary and subject to validation by a qualified human RPL assessor. Final determination of competency for the qualification and its units of competency rests solely with the qualified assessor, consistent with the Standards for RTOs 2025 and ASQA's guidance on AI-assisted assessment.";
   const SUMMARY_FINAL_SENTENCE = "The summary above reflects the AI's preliminary observations only. All findings remain subject to confirmation by a qualified human RPL assessor.";
   const LIMITATIONS_TEXT = "This report is an automated preliminary analysis and may not capture all nuances of the candidate's competence. It does not account for non-verbal cues, workplace context, third-party evidence, or any documentation provided outside the recorded interview transcript. The AI cannot confirm authenticity or currency of evidence; those Rules of Evidence must be verified through human assessor processes.";
@@ -59,9 +60,88 @@
 
   const normalizeQuestionTextForMatch = (value) => normalizeWhitespace(value)
     .toLowerCase()
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[–—]/g, "-")
+    .replace(/&nbsp;|&#160;/g, " ")
+    .replace(/&amp;/g, "and")
     .replace(/[^a-z0-9\s]/g, "")
     .replace(/\s+/g, " ")
     .trim();
+
+  const looksLikeCtRule = (value) => {
+    const text = normalizeWhitespace(value).toLowerCase();
+    if (!text) return false;
+    return [
+      "if ct",
+      "exempt if",
+      "do not ask",
+      "always asked",
+      "no ct",
+      "credit transfer",
+      "unit-mapping",
+      "skip rule",
+    ].some((signal) => text.includes(signal));
+  };
+
+  const pickField = (object, keys) => {
+    if (!object || typeof object !== "object") return "";
+    for (const key of keys) {
+      const value = object[key];
+      if (typeof value === "string" && value.trim()) return value.trim();
+    }
+    return "";
+  };
+
+  const inferSectionFromQuestion = (question = {}) => {
+    const source = normalizeWhitespace([
+      question.questionText,
+      question.QuestionText,
+      question.title,
+      question.Title,
+      question.objective,
+      question.Objective,
+    ].filter(Boolean).join(" ")).toLowerCase();
+    if (!source) return "";
+    if (/complian|regulat|rg\s*209|best interest|bid|disclos|privacy|complaint|afca|asic|responsible lending/.test(source)) return "Compliance";
+    if (/ethic|conflict|client'?s? best interest|commission|integrity|professional conduct/.test(source)) return "Ethics";
+    if (/customer|client service|communication|stakeholder|complain|dispute|relationship/.test(source)) return "Customer Service";
+    if (/complex|trust|company|self[-\s]?employed|construction|bridging|smsf|commercial/.test(source)) return "Complex Lending";
+    if (/risk|fraud|red flag|mitigat|vulnerab|hardship/.test(source)) return "Risk";
+    if (/referr|third party|aggregator|business partner/.test(source)) return "Referral Relationships";
+    if (/professional development|cpd|training|competenc|currency|industry update/.test(source)) return "Professional Development";
+    return "";
+  };
+
+  const getDisplaySection = (question = {}) => {
+    const value = pickField(question, [
+      "section",
+      "Section",
+      "category",
+      "Category",
+      "reportSection",
+      "ReportSection",
+      "assessmentArea",
+      "AssessmentArea",
+    ]);
+    if (value && !looksLikeCtRule(value)) return value;
+    return inferSectionFromQuestion(question) || "General";
+  };
+
+  const getDisplayOrder = (question = {}, fallbackIndex = 0) => {
+    const candidates = [
+      question.displayOrder,
+      question.DisplayOrder,
+      question.sortOrder,
+      question.SortOrder,
+      question.order,
+      question.Order,
+      question.sequence,
+      question.Sequence,
+    ];
+    const numeric = candidates.map(Number).find((value) => Number.isFinite(value));
+    return Number.isFinite(numeric) ? numeric : fallbackIndex + 1;
+  };
 
   const tokenise = (value) => normalizeQuestionTextForMatch(value)
     .split(" ")
@@ -286,12 +366,7 @@
       };
     });
 
-    return parsed.sort((left, right) => {
-      const leftNumber = typeof left.questionNumber === "number" ? left.questionNumber : Number.POSITIVE_INFINITY;
-      const rightNumber = typeof right.questionNumber === "number" ? right.questionNumber : Number.POSITIVE_INFINITY;
-      if (leftNumber !== rightNumber) return leftNumber - rightNumber;
-      return left._sourceOrder - right._sourceOrder;
-    }).map((block) => {
+    return parsed.map((block) => {
       const { _sourceOrder, ...publicBlock } = block;
       return publicBlock;
     });
@@ -310,20 +385,58 @@
   };
 
   const buildQuestionManifest = (officialQuestionBank, parsedQuestionBlocks) => {
-    const officialQuestions = Array.isArray(officialQuestionBank) ? officialQuestionBank : [];
+    const officialQuestions = (Array.isArray(officialQuestionBank) ? officialQuestionBank : [])
+      .map((question, index) => ({
+        ...question,
+        _bankIndex: index,
+        _displayOrder: getDisplayOrder(question, index),
+      }))
+      .sort((left, right) => {
+        if (left._displayOrder !== right._displayOrder) return left._displayOrder - right._displayOrder;
+        return left._bankIndex - right._bankIndex;
+      });
     const parsedBlocks = Array.isArray(parsedQuestionBlocks) ? parsedQuestionBlocks : [];
     const usedTranscriptIndexes = new Set();
     const manifest = [];
+    const transcriptByText = new Map();
+    const transcriptNumberCounts = new Map();
+
+    parsedBlocks.forEach((block, index) => {
+      const textKey = normalizeQuestionTextForMatch(block.transcriptQuestionText || "");
+      if (textKey && !transcriptByText.has(textKey)) transcriptByText.set(textKey, index);
+      const numberKey = normalizeQuestionNumberForKey(block.questionNumber);
+      if (numberKey) transcriptNumberCounts.set(numberKey, (transcriptNumberCounts.get(numberKey) || 0) + 1);
+    });
+
+    const findUnusedTranscript = (predicate) => {
+      for (let index = 0; index < parsedBlocks.length; index += 1) {
+        if (usedTranscriptIndexes.has(index)) continue;
+        if (predicate(parsedBlocks[index], index)) return index;
+      }
+      return -1;
+    };
 
     officialQuestions.forEach((spec, index) => {
       const specNumber = spec && spec.questionNumber !== undefined && spec.questionNumber !== null && spec.questionNumber !== ""
         ? spec.questionNumber
         : index + 1;
       const specKey = normalizeQuestionNumberForKey(specNumber);
-      let matchedIndex = parsedBlocks.findIndex((block, blockIndex) => {
-        if (usedTranscriptIndexes.has(blockIndex)) return false;
-        return specKey && normalizeQuestionNumberForKey(block.questionNumber) === specKey;
-      });
+      const specText = spec?.questionText || "";
+      const specTextKey = normalizeQuestionTextForMatch(specText);
+      let matchedIndex = -1;
+
+      if (specTextKey && transcriptByText.has(specTextKey) && !usedTranscriptIndexes.has(transcriptByText.get(specTextKey))) {
+        matchedIndex = transcriptByText.get(specTextKey);
+      }
+
+      if (matchedIndex < 0 && specKey && transcriptNumberCounts.get(specKey) === 1) {
+        const numberMatch = findUnusedTranscript((block) => normalizeQuestionNumberForKey(block.questionNumber) === specKey);
+        if (numberMatch >= 0) {
+          const blockText = parsedBlocks[numberMatch]?.transcriptQuestionText || "";
+          const score = textSimilarity(specText, blockText);
+          if (!specText || !blockText || score >= 0.5 || officialQuestions.length === parsedBlocks.length) matchedIndex = numberMatch;
+        }
+      }
 
       if (matchedIndex < 0) {
         let bestMatchIndex = -1;
@@ -339,13 +452,23 @@
         if (bestScore >= 0.72) matchedIndex = bestMatchIndex;
       }
 
+      if (matchedIndex < 0 && officialQuestions.length === parsedBlocks.length) {
+        const candidate = parsedBlocks[index];
+        if (candidate && !usedTranscriptIndexes.has(index)) {
+          const score = textSimilarity(specText, candidate.transcriptQuestionText || "");
+          if (!specText || score >= 0.45) matchedIndex = index;
+        }
+      }
+
       if (matchedIndex >= 0) usedTranscriptIndexes.add(matchedIndex);
       const parsedBlock = matchedIndex >= 0 ? parsedBlocks[matchedIndex] : null;
       manifest.push({
+        canonicalKey: spec?.id || spec?.questionId || spec?.QuestionID || specTextKey || specKey || `bank:${index}`,
         questionNumber: specNumber,
-        officialQuestionSpec: { ...spec, questionNumber: specNumber },
+        displayOrder: spec._displayOrder,
+        officialQuestionSpec: { ...spec, questionNumber: specNumber, section: getDisplaySection(spec) },
         parsedQuestionBlock: parsedBlock,
-        section: spec?.section || "Not supplied in question bank",
+        section: getDisplaySection(spec),
         isUnmappedTranscriptQuestion: false,
         source: parsedBlock ? "questionBankAndTranscript" : "questionBankOnly",
       });
@@ -353,17 +476,27 @@
 
     parsedBlocks.forEach((block, index) => {
       if (usedTranscriptIndexes.has(index)) return;
+      const blockTextKey = normalizeQuestionTextForMatch(block.transcriptQuestionText || "");
+      const duplicateOfficial = manifest.some((item) => normalizeQuestionTextForMatch(item.officialQuestionSpec?.questionText || "") === blockTextKey);
+      if (blockTextKey && duplicateOfficial) return;
       manifest.push({
+        canonicalKey: blockTextKey || `transcript:${index}`,
         questionNumber: block.questionNumber,
+        displayOrder: officialQuestions.length + index + 1,
         officialQuestionSpec: null,
         parsedQuestionBlock: block,
-        section: officialQuestions.length ? "Unmapped transcript questions" : "Not supplied in question bank",
+        section: officialQuestions.length ? "Additional transcript question" : inferSectionFromQuestion({ questionText: block.transcriptQuestionText, objective: block.transcriptObjective }) || "General",
         isUnmappedTranscriptQuestion: Boolean(officialQuestions.length),
         source: "transcriptOnly",
       });
     });
 
-    return manifest;
+    return manifest.sort((left, right) => {
+      const leftOrder = Number.isFinite(Number(left.displayOrder)) ? Number(left.displayOrder) : Number.POSITIVE_INFINITY;
+      const rightOrder = Number.isFinite(Number(right.displayOrder)) ? Number(right.displayOrder) : Number.POSITIVE_INFINITY;
+      if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+      return 0;
+    });
   };
 
   const estimateQuestionPayloadLength = (item) => JSON.stringify({
@@ -469,8 +602,71 @@ Rules:
     .replace(/\bmove to the next question\.?/gi, "")
     .replace(/\bgo to the next question\.?/gi, "")
     .replace(/\bcontinue to the next question\.?/gi, "")
+    .replace(/\bthank you for your responses?,?\s*[^.]*\.?/gi, "")
     .replace(/\s{2,}/g, " ")
     .trim();
+
+  const isGenericAnalysisText = (value) => {
+    const text = normalizeWhitespace(value).toLowerCase();
+    if (!text) return true;
+    return [
+      "the transcript source material indicates",
+      "classified from transcript source signals only",
+      "could not be analysed by the model",
+      "model failed",
+      "not classified by ai review",
+      "source signals only",
+      "ai analysis warning",
+    ].some((signal) => text.includes(signal));
+  };
+
+  const sanitiseAssessorFacingText = (value) => removeLearnerDirections(value)
+    .replace(/\bSATISFACTORY\b/gi, "likely sufficient")
+    .replace(/\bNEEDS MORE INFO\b/gi, "additional evidence may be needed")
+    .replace(/\bLIKELY SUFFICIENT\b/g, "likely sufficient")
+    .replace(/\bADDITIONAL EVIDENCE MAY BE NEEDED\b/g, "additional evidence may be needed")
+    .replace(/\bnot classified by AI review\b/gi, "not available in transcript")
+    .replace(/\bmodel failed\b/gi, "")
+    .replace(/\bsource signals only\b/gi, "")
+    .replace(/\bcompetent\b|\bnot competent\b|\bpass\b|\bfail\b/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  const rewriteAssessorSummaryForReport = (summary) => {
+    const cleaned = sanitiseAssessorFacingText(summary)
+      .replace(/^\s*[^,]{1,80},\s*/i, "")
+      .replace(/\byou\b/gi, "the candidate")
+      .replace(/\byour\b/gi, "the candidate's")
+      .replace(/\bprovided evidence covering\b/gi, "provided evidence covering")
+      .trim();
+    if (!cleaned) return "";
+    const sentence = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+    return /^The candidate\b/i.test(sentence) ? sentence : `The candidate ${sentence.charAt(0).toLowerCase()}${sentence.slice(1)}`;
+  };
+
+  const summariseCandidateEvidence = (block) => {
+    const attempts = Array.isArray(block?.attempts) ? block.attempts : [];
+    const text = normalizeWhitespace(attempts.map((attempt) => attempt.responseText).filter(Boolean).join(" "));
+    if (!text) return "";
+    const preview = text.length > 180 ? `${text.slice(0, 177)}...` : text;
+    return preview;
+  };
+
+  const isRealFollowUpRequest = (value) => {
+    const text = normalizeWhitespace(value).toLowerCase();
+    if (!text) return false;
+    return [
+      "please add",
+      "please provide",
+      "more detail",
+      "however, you have not",
+      "you have not yet",
+      "missing",
+      "not fully addressed",
+      "if you cannot add any more",
+      "additional evidence",
+    ].some((signal) => text.includes(signal));
+  };
 
   const buildFallbackFollowUpExchange = (item) => {
     const block = item.parsedQuestionBlock;
@@ -478,9 +674,17 @@ Rules:
     const meaningfulMessages = block.assessorBotMessages
       .map((message) => removeLearnerDirections(message.messageText))
       .filter(Boolean)
+      .filter(isRealFollowUpRequest)
       .filter((message) => normalizeQuestionTextForMatch(message) !== normalizeQuestionTextForMatch(block.transcriptQuestionText));
     if (!meaningfulMessages.length) return "";
-    return "The AI follow-up requested additional evidence or clarification relevant to this question.";
+    const firstRequest = meaningfulMessages[0];
+    const laterAttempt = Array.isArray(block.attempts)
+      ? block.attempts.find((attempt) => Number(attempt.attemptNumber) > Number(block.assessorBotMessages[0]?.followsAttemptNumber || 0))
+      : null;
+    const laterText = laterAttempt?.responseText
+      ? " A later candidate attempt was recorded and should be reviewed against that request."
+      : " No later candidate attempt was located after this follow-up request.";
+    return `The AI requested further information: ${firstRequest}${laterText}`;
   };
 
   const sourceStatusSuggestsGap = (block) => block?.normalisedOverallAssessment === SOURCE_ADDITIONAL_EVIDENCE;
@@ -519,13 +723,25 @@ Rules:
 
   const buildFallbackObservation = (item, shortStatus) => {
     const questionNumber = item.questionNumber;
+    const block = item.parsedQuestionBlock;
+    const objective = cleanMetadataValue(item.officialQuestionSpec?.objective || block?.transcriptObjective);
+    const summary = rewriteAssessorSummaryForReport(block?.assessorSummary || "");
+    if (summary) return summary;
     if (shortStatus === SHORT_NOT_AVAILABLE) {
       return `No candidate response for Question ${questionNumber} was located in the transcript. Assessor review is required before any assessment judgement can be made.`;
     }
+    const evidence = summariseCandidateEvidence(block);
     if (shortStatus === SHORT_LIKELY_SUFFICIENT) {
-      return `The transcript source material indicates that the candidate's evidence for Question ${questionNumber} is likely sufficient, pending assessor verification against the official requirements.`;
+      return objective
+        ? `The candidate provided evidence relevant to the objective: ${objective}. The assessor should verify sufficiency against the active assessment requirements.`
+        : "The candidate provided evidence that appears relevant to the question. The assessor should verify sufficiency against the active assessment requirements.";
     }
-    return `The transcript source material indicates that additional assessor review may be needed for Question ${questionNumber} because the available evidence may not fully address the question requirements.`;
+    if (evidence) {
+      return objective
+        ? `The candidate provided some evidence, but the response should be checked against the objective: ${objective}. Available evidence begins: ${evidence}`
+        : `The candidate provided some evidence, but assessor review is needed to confirm whether it addresses all question requirements. Available evidence begins: ${evidence}`;
+    }
+    return `The candidate response for Question ${questionNumber} was not located. Assessor review is required before any preliminary finding can be confirmed.`;
   };
 
   const buildDefaultAssessorAction = (item, shortStatus) => {
@@ -557,21 +773,28 @@ Rules:
     if (!hasCandidateEvidence) shortStatus = SHORT_NOT_AVAILABLE;
     if (hasCandidateEvidence && shortStatus === SHORT_NOT_AVAILABLE) shortStatus = SHORT_ADDITIONAL_EVIDENCE;
 
-    const section = cleanMetadataValue(spec.section || analysis?.section || item.section) || "Not supplied in question bank";
+    const section = getDisplaySection({ ...spec, section: spec.section || analysis?.section || item.section });
     const questionNumber = item.questionNumber !== undefined && item.questionNumber !== null && item.questionNumber !== ""
       ? item.questionNumber
       : index + 1;
     const questionAsked = cleanMetadataValue(spec.questionText || analysis?.questionAsked || block?.transcriptQuestionText) || MISSING_VALUE;
-    const hintsProvided = cleanMetadataValue(spec.hints || analysis?.hintsProvided || block?.transcriptHint) || MISSING_VALUE;
-    const assessmentObjective = cleanMetadataValue(spec.objective || analysis?.assessmentObjective || block?.transcriptObjective) || MISSING_VALUE;
-    const aiFollowUpExchange = cleanMetadataValue(analysis?.aiFollowUpExchange) || buildFallbackFollowUpExchange(item);
-    const aiPreliminaryObservation = cleanMetadataValue(analysis?.aiPreliminaryObservation) || buildFallbackObservation(item, shortStatus);
+    const hintsProvided = cleanMetadataValue(spec.hints || spec.hint || analysis?.hintsProvided) || ACTIVE_DATA_MISSING;
+    const assessmentObjective = cleanMetadataValue(spec.objective || analysis?.assessmentObjective) || ACTIVE_DATA_MISSING;
+    const analysisFollowUp = cleanMetadataValue(analysis?.aiFollowUpExchange);
+    const aiFollowUpExchange = isRealFollowUpRequest(analysisFollowUp) ? analysisFollowUp : buildFallbackFollowUpExchange(item);
+    const analysisObservation = cleanMetadataValue(analysis?.aiPreliminaryObservation);
+    const aiPreliminaryObservation = !isGenericAnalysisText(analysisObservation)
+      ? rewriteAssessorSummaryForReport(analysisObservation)
+      : buildFallbackObservation(item, shortStatus);
+    const actionText = sanitiseAssessorFacingText(analysis?.assessorActionSuggested);
     const assessorActionSuggested = shortStatus === SHORT_LIKELY_SUFFICIENT
       ? ""
-      : cleanMetadataValue(analysis?.assessorActionSuggested) || buildDefaultAssessorAction(item, shortStatus);
+      : cleanMetadataValue(actionText) || buildDefaultAssessorAction(item, shortStatus);
 
     return {
       questionNumber,
+      canonicalKey: item.canonicalKey || normalizeQuestionTextForMatch(questionAsked) || `question:${questionNumber}`,
+      displayOrder: item.displayOrder || index + 1,
       section,
       unitCode: cleanMetadataValue(spec.unitCode || analysis?.unitCode),
       unitTitle: cleanMetadataValue(spec.unitTitle || analysis?.unitTitle),
@@ -621,9 +844,14 @@ Rules:
 
     if (gaps.length) {
       const gapText = gaps
-        .map((question) => `Question ${question.questionNumber}: ${question.assessorActionSuggested || question.aiPreliminaryObservation}`)
-        .join(" ");
-      sentences.push(`Additional evidence may be needed for ${gaps.map((question) => `Question ${question.questionNumber}`).join(", ")}. ${gapText}`);
+        .slice(0, 8)
+        .map((question) => `Question ${question.questionNumber}`)
+        .join(", ");
+      const themes = Array.from(new Set(gaps.map((question) => {
+        const text = normalizeWhitespace(question.assessorActionSuggested || question.aiPreliminaryObservation || question.assessmentObjective);
+        return text ? truncateForTable(text, 80) : "missing or incomplete evidence";
+      }))).slice(0, 3);
+      sentences.push(`Additional evidence may be needed for ${gapText}${gaps.length > 8 ? ` and ${gaps.length - 8} other question(s)` : ""}${themes.length ? `, primarily because ${themes.join("; ").toLowerCase()}` : ""}.`);
     }
     if (missing.length) {
       sentences.push(`No transcript evidence was available for ${missing.map((question) => `Question ${question.questionNumber}`).join(", ")}.`);
@@ -699,11 +927,9 @@ Rules:
       ["Interview date", metadata.interviewDate],
       ["Industry", metadata.industry],
       ["Job title", metadata.jobTitle],
-      ["Question count reviewed", metadata.questionCountReviewed],
-      ["Transcript question count", metadata.transcriptQuestionCount],
+      ["Report type", metadata.reportType],
+      ["Questions reviewed", metadata.questionCountReviewed],
     ];
-    if (metadata.questionBankCount !== undefined) rows.push(["Question bank count", metadata.questionBankCount]);
-    rows.push(["Report type", metadata.reportType]);
     return rows
       .map(([label, value]) => `<tr><th scope="row">${escapeHtml(label)}</th><td>${escapeHtml(valueOrMissing(value))}</td></tr>`)
       .join("\n");
@@ -772,14 +998,6 @@ Rules:
           <!-- END QUESTION_REVIEW q="${escapeAttribute(question.questionNumber)}" -->`;
   }).join("\n");
 
-  const renderWarnings = (warnings) => {
-    if (!Array.isArray(warnings) || !warnings.length) return "";
-    return `<section class="coverage-warning" aria-labelledby="coverageWarningsTitle">
-          <h2 id="coverageWarningsTitle">Transcript Coverage Warnings</h2>
-          <ul>${warnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join("")}</ul>
-        </section>`;
-  };
-
   const renderReportHtml = (reportModel) => {
     const questions = Array.isArray(reportModel?.questions) ? reportModel.questions : [];
     const metadata = reportModel?.metadata || {};
@@ -797,32 +1015,36 @@ Rules:
     <style>
       :root { color-scheme: light; }
       body { margin: 0; background: #f4f6f8; color: #18212f; font-family: Arial, Helvetica, sans-serif; line-height: 1.5; }
-      .report { width: min(1100px, calc(100% - 32px)); margin: 0 auto; padding: 32px 0 48px; }
+      @page { size: A4; margin: 12mm 12mm 14mm 12mm; }
+      .report { width: 186mm; max-width: 186mm; margin: 0 auto; padding: 10mm 0 14mm; box-sizing: border-box; }
       h1, h2, h3, h4 { color: #0f172a; line-height: 1.25; }
       h1 { margin: 0; font-size: 30px; }
       h2 { margin-top: 32px; border-bottom: 2px solid #d8dee9; padding-bottom: 8px; font-size: 20px; }
       h3 { margin-top: 0; font-size: 18px; }
       h4 { margin: 18px 0 8px; font-size: 14px; text-transform: uppercase; letter-spacing: .02em; color: #334155; }
       .subtitle, .muted { color: #64748b; }
-      .metadata-table, .status-table, .signoff-table { width: 100%; border-collapse: collapse; background: #fff; }
+      table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+      th, td { overflow-wrap: anywhere; word-break: normal; }
+      .metadata-table, .status-table, .signoff-table { background: #fff; }
       .metadata-table th, .metadata-table td, .status-table th, .status-table td, .signoff-table th, .signoff-table td { border: 1px solid #cbd5e1; padding: 10px 12px; vertical-align: top; text-align: left; }
       .metadata-table th { width: 30%; background: #eef2f7; }
+      .status-table { font-size: 9pt; line-height: 1.25; }
       .status-table th { background: #e8eef6; }
       .warning-box, .coverage-warning, .summary, .question-card, .limitations, .confirmation, .signoff { background: #fff; border: 1px solid #d8dee9; border-radius: 8px; padding: 18px; margin-top: 18px; }
       .warning-box { border-left: 6px solid #9a3412; background: #fff7ed; }
       .coverage-warning { border-left: 6px solid #b45309; background: #fffbeb; }
-      .status-badge { display: inline-block; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 700; }
+      .status-badge { display: inline-block; max-width: 100%; border-radius: 999px; padding: 3px 8px; font-size: 8.5pt; line-height: 1.2; font-weight: 700; white-space: normal; overflow-wrap: anywhere; box-sizing: border-box; }
       .status-likely { background: #dcfce7; color: #166534; }
       .status-gap { background: #fef3c7; color: #92400e; }
       .status-missing { background: #fee2e2; color: #991b1b; }
       .question-card { page-break-inside: avoid; }
       .question-card section { margin-top: 12px; }
       .candidate-attempt { border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin: 10px 0; background: #f8fafc; }
-      .verbatim { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; font: 13px/1.45 Consolas, "Courier New", monospace; }
+      .verbatim { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; margin: 0; padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; font: 9pt/1.45 Consolas, "Courier New", monospace; box-sizing: border-box; }
       .assessor-action { border-left: 4px solid #b45309; padding-left: 12px; background: #fffbeb; }
       @media print {
         body { background: #fff; }
-        .report { width: 100%; padding: 0; }
+        .report { width: 186mm; max-width: 186mm; padding: 0; }
         .question-card, .summary, .warning-box, .coverage-warning, .limitations, .confirmation, .signoff { border-color: #999; }
       }
     </style>
@@ -843,13 +1065,6 @@ Rules:
         </table>
       </section>
 
-      <section aria-labelledby="coverageDetailsTitle">
-        <h2 id="coverageDetailsTitle">Question Count and Transcript Coverage</h2>
-        <p>Question count reviewed: <strong>${escapeHtml(metadata.questionCountReviewed || 0)}</strong>. Transcript question count: <strong>${escapeHtml(metadata.transcriptQuestionCount || 0)}</strong>${metadata.questionBankCount !== undefined ? `. Question bank count: <strong>${escapeHtml(metadata.questionBankCount)}</strong>` : ""}.</p>
-      </section>
-
-      ${renderWarnings(reportModel?.warnings || [])}
-
       <section class="warning-box" aria-labelledby="preliminaryDisclaimerTitle">
         <h2 id="preliminaryDisclaimerTitle">IMPORTANT — PRELIMINARY AI REVIEW ONLY</h2>
         <p>This report was prepared by an AI-based assistant as a preliminary analysis of the candidate's responses during an RPL interview. It does NOT constitute an assessment decision. All findings are preliminary and subject to validation by a qualified human RPL assessor. Final determination of competency for the qualification and its units of competency rests solely with the qualified assessor, consistent with the Standards for RTOs 2025 and ASQA's guidance on AI-assisted assessment.</p>
@@ -863,6 +1078,12 @@ Rules:
       <section aria-labelledby="statusTableTitle">
         <h2 id="statusTableTitle">Preliminary Status by Question</h2>
         <table class="status-table">
+          <colgroup>
+            <col style="width: 10mm;">
+            <col style="width: 28mm;">
+            <col>
+            <col style="width: 38mm;">
+          </colgroup>
           <thead>
             <tr>
               <th scope="col">Q#</th>
