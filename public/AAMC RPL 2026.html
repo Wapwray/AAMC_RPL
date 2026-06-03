@@ -1801,7 +1801,7 @@
           givenName: ctx.givenName,
           contactId: String(ctx.contactId || ""),
           assessmentName: "RPL",
-          qualification: "FNS40821 - Certificate IV in Finance and Mortgage Broking",
+          qualification: "FNS50322 Diploma of Finance and Mortgage Broking Management",
           interviewDate: assessmentStartAt ? formatDate(assessmentStartAt) : formatDate(new Date()),
           industry: industryValue,
           jobTitle: jobTitleValue,
@@ -1811,7 +1811,7 @@
       const getReportOptions = () => ({
         outputMode: "html",
         includeTranscriptWarnings: false,
-        qualificationDefault: "FNS40821 - Certificate IV in Finance and Mortgage Broking",
+        qualificationDefault: "FNS50322 Diploma of Finance and Mortgage Broking Management",
         reportDate: formatDate(new Date()),
         maxBatchChars: 16000,
       });

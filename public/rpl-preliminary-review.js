@@ -16,7 +16,7 @@
   const FULL_ADDITIONAL_EVIDENCE = SOURCE_ADDITIONAL_EVIDENCE;
   const FULL_NOT_AVAILABLE = "Not available in transcript";
   const REPORT_TYPE = "AI-generated preliminary interview review (not a final competency decision)";
-  const DEFAULT_QUALIFICATION = "FNS40821 - Certificate IV in Finance and Mortgage Broking";
+  const DEFAULT_QUALIFICATION = "FNS50322 Diploma of Finance and Mortgage Broking Management";
   const MISSING_VALUE = "Not stated in transcript";
   const ACTIVE_DATA_MISSING = "Not available in active question data";
   const DISCLAIMER_INTRO = "This report was prepared by an AI-based assistant as a preliminary analysis of the candidate's responses during an RPL interview.";
@@ -28,7 +28,7 @@
   const DISCLAIMER_TEXT = `IMPORTANT — PRELIMINARY AI REVIEW ONLY\n${DISCLAIMER_INTRO}\n${DISCLAIMER_BULLETS.map((item) => `- ${item}`).join("\n")}`;
   const SUMMARY_FINAL_SENTENCE = "The summary above reflects the AI's preliminary observations only. All findings remain subject to confirmation by a qualified human RPL assessor.";
   const LIMITATIONS_TEXT = "This report is an automated preliminary analysis and may not capture all nuances of the candidate's competence. It does not account for non-verbal cues, workplace context, third-party evidence, or any documentation provided outside the recorded interview transcript. The AI cannot confirm authenticity or currency of evidence; those Rules of Evidence must be verified through human assessor processes.";
-  const ASSESSOR_CONFIRMATION_TEXT = "A qualified RPL assessor must review the full transcript and any additional evidence, and make the final judgement on each unit's competency. The assessor should confirm that all critical evidence meets the requirements of FNS40821 - Certificate IV in Finance and Mortgage Broking and its constituent units, applying the Principles of Assessment (fair, flexible, valid, reliable) and the Rules of Evidence (valid, sufficient, authentic, current). No outcome described in this preliminary report should be treated as final until signed off by the qualified assessor.";
+  const ASSESSOR_CONFIRMATION_TEXT = "A qualified RPL assessor must review the full transcript and any additional evidence, and make the final judgement on each unit's competency. The assessor should confirm that all critical evidence meets the requirements of FNS50322 Diploma of Finance and Mortgage Broking Management and its constituent units, applying the Principles of Assessment (fair, flexible, valid, reliable) and the Rules of Evidence (valid, sufficient, authentic, current). No outcome described in this preliminary report should be treated as final until signed off by the qualified assessor.";
   const TRANSCRIPT_SUMMARY_LABELS = ["AI Interviewer Summary", "AI Interview Summary", "Assessor summary", "Summary"];
   const TRANSCRIPT_FIELD_LABELS = ["Objective", "Hint", ...TRANSCRIPT_SUMMARY_LABELS, "Preliminary Status", "Overall assessment"];
 
