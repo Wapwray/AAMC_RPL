@@ -357,9 +357,11 @@ app.post("/api/analysis/chat", async (req, res) => {
 
   const body = {
     messages,
-    temperature,
     model: modelName || deployment,
   };
+  if (!useOpenAiV1) {
+    body.temperature = temperature;
+  }
   if (useOpenAiV1) {
     body.max_completion_tokens = resolvedMaxTokens;
   } else {
