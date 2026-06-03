@@ -1406,8 +1406,8 @@
       const getAssessorSummaryToneInstruction = () => {
         const ctx = getStudentContext();
         const givenName = firstName || ctx.givenName || ctx.fullName;
-        return `Assessor summary and Guidance instruction:
-      Learner-facing text shown in the Guidance window must be addressed directly to ${givenName}. This includes requests for more information and the required continue sentence. When asking for more information, include concise learner-facing feedback before the request: briefly state what ${givenName}'s response has covered, then state the specific missing information needed to answer the question requirements. Use "you" and "your". Do not use the term "Objective" in learner-facing Guidance text. If the Hint text would help ${givenName}, do not quote, paraphrase, list, or reveal the Hint content; instead suggest that ${givenName} press the Show Hint button for additional help. Do not include a third-person assessor summary or sentences such as "${givenName} identified", "${givenName} described", or "${givenName} has not" in Guidance-window text. When writing Assessor summary or final transcript feedback that is kept for the transcript, write about ${givenName} in the third person, not to ${givenName}. Do not use "you", "your", or "you have" in the Assessor summary or final transcript feedback portion. This restriction does not apply to learner-facing Guidance text or the required continue sentence. Start the Assessor summary with "${givenName}," followed by a third-person verb phrase. For example, write "${givenName}, identified RG209 as a recent regulatory change" rather than "${givenName}, you have identified RG209 as a recent regulatory change".`;
+        return `AI Interviewer Summary and Guidance instruction:
+      Learner-facing text shown in the Guidance window must be addressed directly to ${givenName}. This includes requests for more information and the required continue sentence. When asking for more information, include concise learner-facing feedback before the request: briefly state what ${givenName}'s response has covered, then state the specific missing information needed to answer the question requirements. Use "you" and "your". Do not use the term "Objective" in learner-facing Guidance text. If the Hint text would help ${givenName}, do not quote, paraphrase, list, or reveal the Hint content; instead suggest that ${givenName} press the Show Hint button for additional help. Do not include a third-person AI interviewer summary or sentences such as "${givenName} identified", "${givenName} described", or "${givenName} has not" in Guidance-window text. When writing the AI Interviewer Summary or final transcript feedback that is kept for the transcript, write about ${givenName} in the third person, not to ${givenName}. Do not use "you", "your", or "you have" in the AI Interviewer Summary or final transcript feedback portion. This restriction does not apply to learner-facing Guidance text or the required continue sentence. Start the AI Interviewer Summary with "${givenName}," followed by a third-person verb phrase. For example, write "${givenName}, identified RG209 as a recent regulatory change" rather than "${givenName}, you have identified RG209 as a recent regulatory change".`;
       };
 
       const updateStudentContextBanner = () => {
@@ -1516,11 +1516,11 @@
         while ((match = questionRegex.exec(transcriptText))) {
           const index = Math.max(0, parseInt(match[1], 10) - 1);
           const section = match[2] || "";
-          const questionMatch = section.match(/^([\s\S]*?)(?=\nObjective:|\nHint:|\nAssessor summary:|\nSummary:|\nOverall assessment:|\n-----------------------------|$)/i);
+          const questionMatch = section.match(/^([\s\S]*?)(?=\nObjective:|\nHint:|\nAI Interviewer Summary:|\nAI Interview Summary:|\nAssessor summary:|\nSummary:|\nOverall assessment:|\n-----------------------------|$)/i);
           const questionLine = questionMatch ? questionMatch[1].trim() : "";
-          const objectiveMatch = section.match(/\nObjective:\s*([\s\S]*?)(?=\nHint:|\nAssessor summary:|\nSummary:|\nOverall assessment:|\n-----------------------------|$)/i);
-          const hintMatch = section.match(/\nHint:\s*([\s\S]*?)(?=\nAssessor summary:|\nSummary:|\nOverall assessment:|\n-----------------------------|$)/i);
-          const summaryMatch = section.match(/Summary:\s*([\s\S]*?)(?=\nOverall assessment:|\n-----------------------------)/i);
+          const objectiveMatch = section.match(/\nObjective:\s*([\s\S]*?)(?=\nHint:|\nAI Interviewer Summary:|\nAI Interview Summary:|\nAssessor summary:|\nSummary:|\nOverall assessment:|\n-----------------------------|$)/i);
+          const hintMatch = section.match(/\nHint:\s*([\s\S]*?)(?=\nAI Interviewer Summary:|\nAI Interview Summary:|\nAssessor summary:|\nSummary:|\nOverall assessment:|\n-----------------------------|$)/i);
+          const summaryMatch = section.match(/(?:AI Interviewer Summary|AI Interview Summary|Assessor summary|Summary):\s*([\s\S]*?)(?=\nOverall assessment:|\n-----------------------------)/i);
           const summary = summaryMatch ? summaryMatch[1].trim() : "";
           const overallAssessmentMatch = section.match(/Overall assessment:\s*(LIKELY SUFFICIENT|ADDITIONAL EVIDENCE MAY BE NEEDED|Satisfactory|Unsatisfactory|NEEDS MORE INFO)/i);
           const attempts = [];
@@ -2033,7 +2033,7 @@ Job Title: ${jobTitleValue || "N/A"}
           output += `Objective: ${objectiveText}\n\n`;
           output += `Hint: ${hintText}\n\n`;
           if (summaryOutputText) {
-            output += `Assessor summary: ${summaryOutputText}\n\n`;
+            output += `AI Interviewer Summary: ${summaryOutputText}\n\n`;
           }
           if (overallAssessment) {
             output += `Overall assessment: ${overallAssessment}.\n\n`;

@@ -20,7 +20,7 @@ Objective: Confirm disclosure obligations are understood.
 
 Hint: Consider timing, documents, and client understanding.
 
-Assessor summary: Alex described providing disclosure documents and checking client understanding.
+AI Interviewer Summary: Alex described providing disclosure documents and checking client understanding.
 
 Overall assessment: SATISFACTORY.
 
@@ -42,7 +42,7 @@ Objective: Confirm complaint handling and escalation obligations are understood.
 
 Hint: Include internal process, timeframes, and external dispute resolution.
 
-Assessor summary: Alex only mentioned listening to the client.
+AI Interviewer Summary: Alex only mentioned listening to the client.
 
 Overall assessment: ADDITIONAL EVIDENCE MAY BE NEEDED.
 
@@ -90,6 +90,7 @@ test("parses transcript metadata, question blocks over 24, attempts, AI messages
   assert.equal(questions[0].normalisedOverallAssessment, "LIKELY SUFFICIENT");
   assert.equal(questions[1].normalisedOverallAssessment, "ADDITIONAL EVIDENCE MAY BE NEEDED");
   assert.equal(questions[2].normalisedOverallAssessment, "ADDITIONAL EVIDENCE MAY BE NEEDED");
+  assert.equal(questions[0].aiInterviewSummary, "Alex described providing disclosure documents and checking client understanding.");
   assert.equal(questions[1].attempts[0].responseText.includes("<script>"), true);
   assert.equal(questions[1].assessorBotMessages.length, 2);
 });
@@ -208,7 +209,7 @@ Objective: Student identifies one recent regulatory change and its impact on the
 Hint: Think of BID, DDO, AML/CTF. What did your compliance team, or licensing body change to meet these requirements?
 Compare before vs. after - what you do differently now?
 
-Assessor summary: The candidate identified a regulatory change and described changed work practices.
+AI Interviewer Summary: The candidate identified a regulatory change and described changed work practices.
 
 Overall assessment: LIKELY SUFFICIENT.
 
@@ -286,7 +287,10 @@ test("renders approved report labels, escaped verbatim responses, and one row/ar
   assert.equal(html.includes("Transcript question count"), false);
   assert.equal(html.includes("Question bank count"), false);
   assert.equal(html.includes("Assessment objective"), false);
-  assert.equal(html.includes("Question objective"), true);
+  assert.equal(html.includes("Question objective"), false);
+  assert.equal(html.includes("<h4>Objective</h4>"), true);
+  assert.equal(html.includes("<h4>AI Interview Summary</h4>"), true);
+  assert.equal(html.includes("AI preliminary observation"), false);
   assert.equal(html.includes("Assessor action suggested"), false);
   assert.equal(html.includes("AI follow-up exchange"), false);
   assert.equal(html.includes("AI INTERVIEW RESPONSE"), true);
@@ -303,14 +307,20 @@ test("renders approved report labels, escaped verbatim responses, and one row/ar
   assert.equal(html.includes("Likely sufficient (pending assessor verification)"), true);
   assert.equal(html.includes("Additional evidence may be needed (assessor follow-up suggested)"), true);
   assert.equal(html.includes("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; keep notes."), true);
-  const attemptIndex = html.indexOf("Alex response attempt 1");
-  const responseIndex = html.indexOf("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; keep notes.");
+  const question24Index = html.indexOf('data-question-number="24"');
+  const objectiveIndex = html.indexOf("<h4>Objective</h4>", question24Index);
+  const summaryIndex = html.indexOf("<h4>AI Interview Summary</h4>", objectiveIndex);
+  const candidateResponsesIndex = html.indexOf("<h4>Candidate response(s)</h4>", summaryIndex);
+  const attemptIndex = html.indexOf("Alex response attempt 1", candidateResponsesIndex);
+  const responseIndex = html.indexOf("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; keep notes.", attemptIndex);
   const aiResponseIndex = html.indexOf("AI INTERVIEW RESPONSE", responseIndex);
   const aiResponseTextIndex = html.indexOf("Please provide more detail about the complaint process", aiResponseIndex);
-  const observationIndex = html.indexOf("AI preliminary observation", aiResponseIndex);
+  assert.ok(question24Index >= 0);
+  assert.ok(objectiveIndex > question24Index);
+  assert.ok(summaryIndex > objectiveIndex);
+  assert.ok(candidateResponsesIndex > summaryIndex);
   assert.ok(attemptIndex >= 0);
   assert.ok(responseIndex > attemptIndex);
   assert.ok(aiResponseIndex > responseIndex);
   assert.ok(aiResponseTextIndex > aiResponseIndex);
-  assert.ok(observationIndex > aiResponseTextIndex);
 });

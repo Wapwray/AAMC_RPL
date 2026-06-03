@@ -29,6 +29,8 @@
   const SUMMARY_FINAL_SENTENCE = "The summary above reflects the AI's preliminary observations only. All findings remain subject to confirmation by a qualified human RPL assessor.";
   const LIMITATIONS_TEXT = "This report is an automated preliminary analysis and may not capture all nuances of the candidate's competence. It does not account for non-verbal cues, workplace context, third-party evidence, or any documentation provided outside the recorded interview transcript. The AI cannot confirm authenticity or currency of evidence; those Rules of Evidence must be verified through human assessor processes.";
   const ASSESSOR_CONFIRMATION_TEXT = "A qualified RPL assessor must review the full transcript and any additional evidence, and make the final competency judgement for each unit. The assessor should confirm that all critical evidence meets the requirements of the relevant qualification and its constituent units, applying the Rules of Evidence (valid, sufficient, authentic, current). No outcome described in this preliminary report should be treated as final until signed off by the qualified assessor.";
+  const TRANSCRIPT_SUMMARY_LABELS = ["AI Interviewer Summary", "AI Interview Summary", "Assessor summary", "Summary"];
+  const TRANSCRIPT_FIELD_LABELS = ["Objective", "Hint", ...TRANSCRIPT_SUMMARY_LABELS, "Overall assessment"];
 
   const escapeHtml = (value) => String(value === undefined || value === null ? "" : value)
     .replace(/&/g, "&amp;")
@@ -254,7 +256,7 @@
 
   const getLabelValue = (blockText, labels, stopLabels) => {
     const labelPattern = labels.map(escapeRegExp).join("|");
-    const stopPattern = (stopLabels || ["Objective", "Hint", "Assessor summary", "Summary", "Overall assessment"])
+    const stopPattern = (stopLabels || TRANSCRIPT_FIELD_LABELS)
       .map(escapeRegExp)
       .join("|");
     const regex = new RegExp(
@@ -267,7 +269,8 @@
 
   const getQuestionTextFromBlock = (rawBlockText, headingText, headingTrailingText) => {
     const bodyAfterHeading = rawBlockText.slice(headingText.length);
-    const textBeforeLabelsMatch = bodyAfterHeading.match(/[\s\S]*?(?=^\s*(?:Objective|Hint|Assessor summary|Summary|Overall assessment)\s*:|^\s*-{3,}\s*$|^\s*QUESTION TRANSCRIPT\b|(?![\s\S]))/im);
+    const fieldLabelPattern = TRANSCRIPT_FIELD_LABELS.map(escapeRegExp).join("|");
+    const textBeforeLabelsMatch = bodyAfterHeading.match(new RegExp(`[\\s\\S]*?(?=^\\s*(?:${fieldLabelPattern})\\s*:|^\\s*-{3,}\\s*$|^\\s*QUESTION TRANSCRIPT\\b|(?![\\s\\S]))`, "im"));
     const continuation = textBeforeLabelsMatch ? textBeforeLabelsMatch[0].trim() : "";
     return [headingTrailingText, continuation]
       .map((part) => String(part || "").trim())
@@ -355,14 +358,16 @@
       const attemptsWithPositions = parseAttempts(rawBlockText);
       const assessorBotMessages = parseAssessorBotMessages(rawBlockText, attemptsWithPositions);
       const transcriptQuestionText = getQuestionTextFromBlock(rawBlockText, heading.headingText, heading.trailingText);
+      const aiInterviewSummary = getLabelValue(rawBlockText, TRANSCRIPT_SUMMARY_LABELS, ["Overall assessment"]);
 
       return {
         questionNumber: heading.questionNumber,
         originalQuestionIdentifier: heading.rawIdentifier,
         transcriptQuestionText,
-        transcriptObjective: getLabelValue(rawBlockText, ["Objective"], ["Hint", "Assessor summary", "Summary", "Overall assessment"]),
-        transcriptHint: getLabelValue(rawBlockText, ["Hint"], ["Assessor summary", "Summary", "Overall assessment"]),
-        assessorSummary: getLabelValue(rawBlockText, ["Assessor summary", "Summary"], ["Overall assessment"]),
+        transcriptObjective: getLabelValue(rawBlockText, ["Objective"], ["Hint", ...TRANSCRIPT_SUMMARY_LABELS, "Overall assessment"]),
+        transcriptHint: getLabelValue(rawBlockText, ["Hint"], [...TRANSCRIPT_SUMMARY_LABELS, "Overall assessment"]),
+        aiInterviewSummary,
+        assessorSummary: aiInterviewSummary,
         rawOverallAssessment: rawOverallAssessment.trim(),
         normalisedOverallAssessment: normaliseTranscriptOverallAssessment(rawOverallAssessment),
         attempts: stripInternalPositions(attemptsWithPositions),
@@ -755,6 +760,17 @@ Rules:
     return `The candidate response for Question ${questionNumber} was not located. Assessor review is required before any preliminary finding can be confirmed.`;
   };
 
+  const buildAiInterviewSummaryForReport = (item, analysisObservation, shortStatus) => {
+    const block = item.parsedQuestionBlock;
+    const transcriptSummary = rewriteAssessorSummaryForReport(block?.aiInterviewSummary || block?.assessorSummary || "");
+    if (transcriptSummary) return transcriptSummary;
+    if (!isGenericAnalysisText(analysisObservation)) {
+      const rewrittenObservation = rewriteAssessorSummaryForReport(analysisObservation);
+      if (rewrittenObservation) return rewrittenObservation;
+    }
+    return buildFallbackObservation(item, shortStatus);
+  };
+
   const buildDefaultAssessorAction = (item, shortStatus) => {
     if (shortStatus === SHORT_NOT_AVAILABLE) {
       return "Locate the missing transcript evidence or seek a candidate response for this question before making a final determination.";
@@ -820,9 +836,7 @@ Rules:
     const aiFollowUpExchange = isRealFollowUpRequest(analysisFollowUp) ? analysisFollowUp : buildFallbackFollowUpExchange(item);
     const aiInterviewResponses = buildAiInterviewResponses(item, aiFollowUpExchange, shortStatus);
     const analysisObservation = cleanMetadataValue(analysis?.aiPreliminaryObservation);
-    const aiPreliminaryObservation = !isGenericAnalysisText(analysisObservation)
-      ? rewriteAssessorSummaryForReport(analysisObservation)
-      : buildFallbackObservation(item, shortStatus);
+    const aiInterviewSummary = buildAiInterviewSummaryForReport(item, analysisObservation, shortStatus);
     const actionText = sanitiseAssessorFacingText(analysis?.assessorActionSuggested);
     const assessorActionSuggested = shortStatus === SHORT_LIKELY_SUFFICIENT
       ? ""
@@ -843,7 +857,8 @@ Rules:
       attempts,
       aiFollowUpExchange,
       aiInterviewResponses,
-      aiPreliminaryObservation,
+      aiInterviewSummary,
+      aiPreliminaryObservation: aiInterviewSummary,
       assessorActionSuggested,
     };
   };
@@ -886,7 +901,7 @@ Rules:
         .map((question) => `Question ${question.questionNumber}`)
         .join(", ");
       const themes = Array.from(new Set(gaps.map((question) => {
-        const text = normalizeWhitespace(question.assessorActionSuggested || question.aiPreliminaryObservation || question.assessmentObjective);
+        const text = normalizeWhitespace(question.assessorActionSuggested || question.aiInterviewSummary || question.aiPreliminaryObservation || question.assessmentObjective);
         return text ? truncateForTable(text, 80) : "missing or incomplete evidence";
       }))).slice(0, 3);
       sentences.push(`Additional evidence may be needed for ${gapText}${gaps.length > 8 ? ` and ${gaps.length - 8} other question(s)` : ""}${themes.length ? `, primarily because ${themes.join("; ").toLowerCase()}` : ""}.`);
@@ -1065,16 +1080,16 @@ Rules:
               <p>${escapeHtml(valueOrMissing(question.hintsProvided))}</p>
             </section>
             <section>
-              <h4>Question objective</h4>
+              <h4>Objective</h4>
               <p>${escapeHtml(valueOrMissing(question.assessmentObjective))}</p>
+            </section>
+            <section>
+              <h4>AI Interview Summary</h4>
+              <p>${escapeHtml(valueOrMissing(question.aiInterviewSummary))}</p>
             </section>
             <section>
               <h4>Candidate response(s)</h4>
               ${renderAttempts(question)}
-            </section>
-            <section>
-              <h4>AI preliminary observation</h4>
-              <p>${escapeHtml(valueOrMissing(question.aiPreliminaryObservation))}</p>
             </section>
             ${renderAssessorStaticSection(question)}
           </article>
