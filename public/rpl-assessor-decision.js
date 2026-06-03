@@ -33,6 +33,26 @@
     return `${values.slice(0, -1).join(", ")}, and ${values[values.length - 1]}`;
   };
 
+  const formatEvidenceFragment = (value) => {
+    const text = normalizeWhitespace(value).replace(/[.!?]+$/g, "");
+    if (!text) return "";
+    if (/^[A-Z][a-z]/.test(text)) {
+      return `${text.charAt(0).toLowerCase()}${text.slice(1)}`;
+    }
+    return text;
+  };
+
+  const formatEvidenceBullets = (items) => toArray(items)
+    .map(formatEvidenceFragment)
+    .filter(Boolean)
+    .map((item) => `- ${item}`)
+    .join("\n");
+
+  const formatMissingRequirement = (items) => {
+    const values = toArray(items).map(formatEvidenceFragment).filter(Boolean);
+    return formatList(values, "the remaining question requirements");
+  };
+
   const normaliseAssessmentStatus = (value) => {
     const text = normalizeWhitespace(value).toLowerCase();
     if (!text) return "";
@@ -177,14 +197,15 @@ ${JSON.stringify(payload, null, 2)}`;
 
   const buildLearnerGuidance = (decision, context = {}) => {
     const givenName = normalizeWhitespace(context.givenName) || "there";
-    const covered = decision.covered.length
-      ? `Your response has covered ${formatList(decision.covered)}. `
+    const coveredBullets = formatEvidenceBullets(decision.covered);
+    const covered = coveredBullets
+      ? `\n\nYou have addressed:\n${coveredBullets}`
       : "";
-    const missing = formatList(decision.missing, "the remaining question requirements");
+    const missing = formatMissingRequirement(decision.missing);
     const hintSentence = decision.hintWouldHelp
-      ? " You can press the Show Hint button for additional help."
+      ? "\n\nYou can press the Show Hint button for additional help."
       : "";
-    return `${givenName}, ${covered}Please add more detail about ${missing}.${hintSentence} Please add this information by pressing the 'Start Transcription' button or typing in the 'Your response' box. If you cannot add any more, you can move to the next question.`;
+    return `${givenName}, your response demonstrates a clear understanding of the key obligations in this scenario.${covered}\n\nThe only area that still needs more detail is ${missing}.${hintSentence}\n\nYou can add this by pressing the Start Transcription button or typing in the Your response box. If you cannot add any more, you can move to the next question.`;
   };
 
   const buildFeedback = (decision, context = {}) => {

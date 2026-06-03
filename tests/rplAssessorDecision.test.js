@@ -69,11 +69,35 @@ test("additional evidence guidance is learner-facing and does not leak hint cont
   });
 
   assert.equal(feedback.shouldContinue, false);
-  assert.match(feedback.displayText, /^Bel, Your response has covered the change\./);
+  assert.match(feedback.displayText, /^Bel, your response demonstrates a clear understanding/);
+  assert.match(feedback.displayText, /You have addressed:\n- the change/);
+  assert.match(feedback.displayText, /The only area that still needs more detail is how the work process changed\./);
   assert.match(feedback.displayText, /Show Hint button/);
   assert.doesNotMatch(feedback.displayText, /Objective/i);
   assert.doesNotMatch(feedback.displayText, /RG209|responsible lending obligations/i);
   assert.doesNotMatch(feedback.transcriptAttemptText, /Overall assessment:/);
+});
+
+test("additional evidence guidance formats multiple evidence points readably", () => {
+  const decision = assessor.normaliseDecision({
+    overallAssessment: "ADDITIONAL EVIDENCE MAY BE NEEDED",
+    covered: [
+      "Would recommend the more appropriate loan rather than a higher-commission product",
+      "Would document recommendations and rationale in the statement of credit advice",
+      "Would keep file notes, CRM records, and written confirmation of client discussions",
+    ],
+    missing: ["Who would be consulted if unsure about the appropriate course of action"],
+    assessorRationale: "The learner addressed most requirements but did not identify who they would consult if unsure.",
+  }, { attemptCount: 1, maxAttempts: 3 });
+  const feedback = assessor.buildFeedback(decision, { givenName: "Richard" });
+
+  assert.match(feedback.displayText, /^Richard, your response demonstrates a clear understanding/);
+  assert.match(feedback.displayText, /You have addressed:\n- would recommend the more appropriate loan/);
+  assert.match(feedback.displayText, /\n- would document recommendations and rationale/);
+  assert.match(feedback.displayText, /\n- would keep file notes, CRM records/);
+  assert.match(feedback.displayText, /The only area that still needs more detail is who would be consulted if unsure about the appropriate course of action\./);
+  assert.doesNotMatch(feedback.displayText, /Richard, Your/);
+  assert.doesNotMatch(feedback.displayText, /Objective/i);
 });
 
 test("additional evidence at maximum attempts continues with exact status", () => {
