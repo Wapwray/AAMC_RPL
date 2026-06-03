@@ -1834,6 +1834,10 @@
         return Array.isArray(parsed.questions) ? parsed.questions : [];
       };
 
+      const isMissingFinalAiConfigError = (error) => /Missing required RPL_FINAL_\* environment variables/i.test(error?.message || String(error || ""));
+
+      const getMissingFinalAiConfigWarning = () => "AI analysis warning: final AI model configuration is not available, so this report was generated from transcript source signals only.";
+
       const analysePreliminaryQuestions = async (manifest, candidateMetadata, reportOptions) => {
         const reportModule = getPreliminaryReviewModule();
         const batches = reportModule.buildQuestionAnalysisBatches(manifest, reportOptions);
@@ -1845,6 +1849,11 @@
             analyses.push(...await analysePreliminaryQuestionBatch(batch, candidateMetadata, index + 1, batches.length));
           } catch (batchError) {
             logDebugDetail("Preliminary review batch failed", batchError?.message || String(batchError));
+            if (isMissingFinalAiConfigError(batchError)) {
+              warnings.push(getMissingFinalAiConfigWarning());
+              logAssessmentDebug("Final report AI analysis", "RPL_FINAL_* is not configured; using transcript-source fallback report.");
+              return { analyses, warnings };
+            }
             if (batch.length <= 1) {
               warnings.push(`AI analysis warning: Question ${batch[0]?.questionNumber || index + 1} could not be analysed by the model and was classified from transcript source signals only.`);
               continue;
@@ -1856,6 +1865,11 @@
                 analyses.push(...await analysePreliminaryQuestionBatch([singleQuestion], candidateMetadata, singleIndex + 1, batch.length));
               } catch (singleError) {
                 logDebugDetail("Preliminary review question failed", singleError?.message || String(singleError));
+                if (isMissingFinalAiConfigError(singleError)) {
+                  warnings.push(getMissingFinalAiConfigWarning());
+                  logAssessmentDebug("Final report AI analysis", "RPL_FINAL_* is not configured; using transcript-source fallback report.");
+                  return { analyses, warnings };
+                }
                 warnings.push(`AI analysis warning: Question ${singleQuestion?.questionNumber || singleIndex + 1} could not be analysed by the model and was classified from transcript source signals only.`);
               }
             }
@@ -3443,7 +3457,10 @@ Rules:
 - Do not use legacy report labels such as Satisfactory, Unsatisfactory, Needs more info, Competent, Not competent, Pass, Fail, or Not classified by AI review.
 - Treat transcript Overall assessment values as source metadata only. Expected source values are LIKELY SUFFICIENT and ADDITIONAL EVIDENCE MAY BE NEEDED. Render only these assessor-facing labels: Likely sufficient, Additional evidence may be needed, Not available in transcript.
 - Include one preliminary status table row and one question review article for every detected question.
-- Preserve candidate responses verbatim in <pre class="verbatim"></pre> blocks and escape transcript-derived HTML special characters.
+- Produce static PDF-safe HTML only. Do not include form controls, buttons, scripts, inline event handlers, or JavaScript-dependent content.
+- Use @page { size: A4; margin: 12mm; }, Calibri/Arial/Helvetica body text at 11pt, and a report content max-width of 180mm.
+- Preserve candidate responses verbatim in static <div class="response-box"></div> blocks, escape transcript-derived HTML special characters, and preserve line breaks with CSS white-space: pre-wrap.
+- Use static <div class="field-value"></div> blocks for assessor sign-off fields.
 - Include the required preliminary AI disclaimer, limitations, assessor confirmation, and assessor sign-off sections.
 - Do not write directly to the learner and do not include learner-facing directions.
 

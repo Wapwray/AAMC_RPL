@@ -376,6 +376,10 @@
         return Array.isArray(parsed.questions) ? parsed.questions : [];
       };
 
+      const isMissingFinalAiConfigError = (error) => /Missing required RPL_FINAL_\* environment variables/i.test(error?.message || String(error || ""));
+
+      const getMissingFinalAiConfigWarning = () => "AI analysis warning: final AI model configuration is not available, so this report was generated from transcript source signals only.";
+
       const analysePreliminaryQuestions = async (manifest, candidateMetadata, reportOptions) => {
         const batches = reportModule.buildQuestionAnalysisBatches(manifest, reportOptions);
         const analyses = [];
@@ -386,6 +390,12 @@
             analyses.push(...await analysePreliminaryQuestionBatch(batch, candidateMetadata, index + 1, batches.length));
           } catch (batchError) {
             log(`Batch ${index + 1} failed: ${batchError?.message || String(batchError)}`);
+            if (isMissingFinalAiConfigError(batchError)) {
+              const warning = getMissingFinalAiConfigWarning();
+              warnings.push(warning);
+              log("RPL_FINAL_* is not configured; using transcript-source fallback report and skipping remaining AI analysis calls.");
+              return { analyses, warnings };
+            }
             if (batch.length <= 1) {
               warnings.push(`AI analysis warning: Question ${batch[0]?.questionNumber || index + 1} could not be analysed by the model and was classified from transcript source signals only.`);
               continue;
@@ -397,6 +407,12 @@
                 analyses.push(...await analysePreliminaryQuestionBatch([singleQuestion], candidateMetadata, singleIndex + 1, batch.length));
               } catch (singleError) {
                 log(`Question ${singleQuestion?.questionNumber || singleIndex + 1} failed: ${singleError?.message || String(singleError)}`);
+                if (isMissingFinalAiConfigError(singleError)) {
+                  const warning = getMissingFinalAiConfigWarning();
+                  warnings.push(warning);
+                  log("RPL_FINAL_* is not configured; using transcript-source fallback report and skipping remaining AI analysis calls.");
+                  return { analyses, warnings };
+                }
                 warnings.push(`AI analysis warning: Question ${singleQuestion?.questionNumber || singleIndex + 1} could not be analysed by the model and was classified from transcript source signals only.`);
               }
             }

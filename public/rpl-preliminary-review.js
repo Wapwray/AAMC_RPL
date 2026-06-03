@@ -814,8 +814,8 @@ Rules:
       ? item.questionNumber
       : index + 1;
     const questionAsked = cleanMetadataValue(spec.questionText || analysis?.questionAsked || block?.transcriptQuestionText) || MISSING_VALUE;
-    const hintsProvided = cleanMetadataValue(spec.hints || spec.hint || analysis?.hintsProvided) || ACTIVE_DATA_MISSING;
-    const assessmentObjective = cleanMetadataValue(spec.objective || analysis?.assessmentObjective) || ACTIVE_DATA_MISSING;
+    const hintsProvided = cleanMetadataValue(spec.hints || spec.hint || block?.transcriptHint || analysis?.hintsProvided) || ACTIVE_DATA_MISSING;
+    const assessmentObjective = cleanMetadataValue(spec.objective || block?.transcriptObjective || analysis?.assessmentObjective) || ACTIVE_DATA_MISSING;
     const analysisFollowUp = cleanMetadataValue(analysis?.aiFollowUpExchange);
     const aiFollowUpExchange = isRealFollowUpRequest(analysisFollowUp) ? analysisFollowUp : buildFallbackFollowUpExchange(item);
     const aiInterviewResponses = buildAiInterviewResponses(item, aiFollowUpExchange, shortStatus);
@@ -999,7 +999,7 @@ Rules:
       .filter((response) => Number(response.followsAttemptNumber) === Number(attemptNumber))
       .map((response) => `<section class="ai-interview-response">
                 <h4>AI INTERVIEW RESPONSE</h4>
-                <pre class="verbatim">${escapeHtml(response.messageText || "")}</pre>
+                ${renderResponseBox(response.messageText || "")}
               </section>`)
       .join("\n");
   };
@@ -1015,7 +1015,7 @@ Rules:
         : "";
       return `<section class="candidate-attempt">
                 <h4>${escapeHtml(attempt.speakerLabel || "Candidate")} response attempt ${escapeHtml(attemptNumber)}</h4>
-                <pre class="verbatim">${escapeHtml(attempt.responseText || "")}</pre>
+                ${renderResponseBox(attempt.responseText || "")}
                 ${submittedAt}
               </section>
               ${renderAiInterviewResponsesForAttempt(question, attemptNumber)}`;
@@ -1042,7 +1042,7 @@ Rules:
     return `<div class="response-box${extraClass}">${escapeHtml(value || "")}</div>`;
   };
 
-  const renderAssessorEditableSection = (question) => `
+  const renderAssessorStaticSection = (question) => `
             <section class="assessor-evaluation">
               <h4>Assessor Evaluation - Objective Met / Not Met</h4>
               ${renderResponseBox("", "assessor-evaluation-box")}
@@ -1076,7 +1076,7 @@ Rules:
               <h4>AI preliminary observation</h4>
               <p>${escapeHtml(valueOrMissing(question.aiPreliminaryObservation))}</p>
             </section>
-            ${renderAssessorEditableSection(question)}
+            ${renderAssessorStaticSection(question)}
           </article>
           <!-- END QUESTION_REVIEW q="${escapeAttribute(question.questionNumber)}" -->`;
   }).join("\n");

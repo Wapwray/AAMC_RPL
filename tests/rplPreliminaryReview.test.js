@@ -199,6 +199,44 @@ Answer three.`;
   assert.ok(model.warnings.some((warning) => warning.includes("non-contiguous")));
 });
 
+test("uses transcript objective and hint when active question data is unavailable", () => {
+  const transcript = `Question 1: Describe a recent regulatory change that impacted your role?
+What new procedures were introduced and how did these changes affect the way you manage your day-to-day work?
+
+Objective: Student identifies one recent regulatory change and its impact on their role
+
+Hint: Think of BID, DDO, AML/CTF. What did your compliance team, or licensing body change to meet these requirements?
+Compare before vs. after - what you do differently now?
+
+Assessor summary: The candidate identified a regulatory change and described changed work practices.
+
+Overall assessment: LIKELY SUFFICIENT.
+
+-----------------------------
+QUESTION TRANSCRIPT
+AI Interviewer: Describe a recent regulatory change that impacted your role?
+What new procedures were introduced and how did these changes affect the way you manage your day-to-day work?
+
+Richard (Attempt 1):
+The introduction of best interests duty changed the procedures I follow and the documentation I keep.
+`;
+
+  const model = review.buildReportModel({ fullTranscript: transcript, officialQuestionBank: [] });
+  const question = model.questions[0];
+
+  assert.equal(question.questionAsked.includes("What new procedures were introduced"), true);
+  assert.equal(question.assessmentObjective, "Student identifies one recent regulatory change and its impact on their role");
+  assert.equal(question.hintsProvided.includes("Think of BID, DDO, AML/CTF"), true);
+  assert.equal(question.hintsProvided.includes("Compare before vs. after"), true);
+  assert.notEqual(question.assessmentObjective, "Not available in active question data");
+  assert.notEqual(question.hintsProvided, "Not available in active question data");
+
+  const html = review.renderReportHtml(model);
+  assert.equal(html.includes("Student identifies one recent regulatory change and its impact on their role"), true);
+  assert.equal(html.includes("Think of BID, DDO, AML/CTF"), true);
+  assert.equal(html.includes("Not available in active question data"), false);
+});
+
 test("batches questions by content length unless an explicit question cap is supplied", () => {
   const manifest = Array.from({ length: 6 }, (_, index) => ({
     questionNumber: index + 1,
@@ -228,20 +266,18 @@ test("renders approved report labels, escaped verbatim responses, and one row/ar
   const validation = review.validateReportHtmlCoverage(model, html);
 
   assert.equal(validation.valid, true);
-  assert.equal(html.includes("@page { size: A4; margin: 0; }"), true);
-  assert.equal(html.includes(".report { width: 210mm; max-width: 210mm; min-height: 297mm;"), true);
+  assert.equal(html.includes("@page { size: A4; margin: 12mm; }"), true);
+  assert.equal(html.includes(".report { width: 100%; max-width: 180mm;"), true);
   assert.equal(html.includes(".summary, .question-review-section, .limitations { break-before: page; page-break-before: always; }"), true);
   assert.equal(html.includes("RPL Preliminary Interview Review"), true);
   assert.equal(html.includes("RPL Preliminary Assessment Review"), false);
-  assert.equal(html.includes("<form id=\"rplReportForm\" class=\"pdf-form\" data-pdf-form=\"interactive\" data-acroform=\"true\" autocomplete=\"off\">"), true);
-  assert.equal(html.includes("name=\"question_24_assessor_evaluation\""), true);
-  assert.equal(html.includes("name=\"question_24_assessor_notes\""), true);
-  assert.equal(html.includes("name=\"assessor_name\""), true);
-  assert.equal(html.includes("name=\"interview_outcome\""), true);
-  assert.equal(html.includes("data-pdf-form-field=\"true\""), true);
-  assert.equal(html.includes("data-acroform-field=\"interview_outcome\""), true);
-  assert.equal(html.includes("data-ms-pdf-field=\"interview_outcome\""), true);
-  assert.equal(html.includes("data-pdf-field-multiline=\"true\""), true);
+  assert.doesNotMatch(html, /<(?:textarea|button|select|input)\b/i);
+  assert.doesNotMatch(html, /\son(?:click|change)\s*=/i);
+  assert.equal(html.includes("data-pdf-form-field"), false);
+  assert.equal(html.includes("data-acroform-field"), false);
+  assert.equal(html.includes("data-ms-pdf-field"), false);
+  assert.equal(html.includes("<div class=\"response-box"), true);
+  assert.equal(html.includes("<div class=\"field-value"), true);
   assert.equal(html.includes("<ul class=\"disclaimer-list\">"), true);
   assert.equal(html.includes("It does NOT constitute a competency decision."), true);
   assert.equal(html.includes("<ul class=\"summary-list\">"), true);
@@ -256,7 +292,7 @@ test("renders approved report labels, escaped verbatim responses, and one row/ar
   assert.equal(html.includes("AI INTERVIEW RESPONSE"), true);
   assert.equal(html.includes("Assessor Evaluation - Objective Met / Not Met"), true);
   assert.equal(html.includes("Assessor Notes"), true);
-  assert.equal(html.includes("aria-label=\"Interview Outcome\""), true);
+  assert.equal(html.includes("to be completed by assessor"), true);
   assert.equal(html.includes("Final assessment outcome"), false);
   assert.equal(html.includes("Interview Outcome"), true);
   assert.equal(html.includes("LIKELY SUFFICIENT"), false);
