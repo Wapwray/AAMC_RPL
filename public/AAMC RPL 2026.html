@@ -255,6 +255,24 @@
         line-height: 1.6;
         color: var(--text);
       }
+      .appDisclaimerFooter {
+        position: fixed;
+        left: 24px;
+        right: 24px;
+        bottom: 12px;
+        z-index: 60;
+        text-align: center;
+        font-size: 12px;
+        line-height: 1.4;
+        color: #334155;
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid rgba(226, 232, 240, 0.95);
+        border-radius: 999px;
+        padding: 8px 14px;
+        box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+        -webkit-backdrop-filter: blur(4px);
+        backdrop-filter: blur(4px);
+      }
       .welcomeLogo {
         position: absolute;
         top: 18px;
@@ -501,6 +519,14 @@
           position: static;
           width: 100%;
         }
+        .appDisclaimerFooter {
+          left: 12px;
+          right: 12px;
+          bottom: 10px;
+          border-radius: 14px;
+          font-size: 11px;
+          padding: 8px 10px;
+        }
       }
     </style>
   </head>
@@ -538,7 +564,7 @@
         <div class="completionContent">
           <div class="completionTitle" id="completionTitle">Thank you for completing your assessment</div>
           <div class="completionBody" id="completionBody">
-            An assessor will be in contact. You can now close your browser window.
+            A qualified assessor will review your evidence and contact you if needed. You can now close this window.
           </div>
         </div>
       </div>
@@ -550,7 +576,7 @@
           alt="AAMC Training Group"
         />
         <div class="pageTitleRow">
-          <div class="pageTitle" id="postWelcomeTitle">Collect User Data</div>
+          <div class="pageTitle" id="postWelcomeTitle">Student Information</div>
         </div>
         <div id="initScreen" class="card stackedCard">
           <div class="initTitle">Initialising</div>
@@ -566,8 +592,8 @@
 
         <div id="setupCard" class="card collectCard">
           <div class="collectHeader">
-            <div class="collectGreeting" id="collectGreeting">Hello and welcome to your RPL Assessment</div>
-            <div class="collectSubtitle">AI-Powered RPL Knowledge &amp; Experience Evaluation</div>
+            <div class="collectGreeting" id="collectGreeting">Hello,</div>
+            <div class="collectSubtitle">AI-assisted RPL Interview</div>
           </div>
           <div class="status" id="status">Idle.</div>
           <div class="collectTop">
@@ -634,7 +660,7 @@
                   You can still update your photo, industry and job title, but if you are ready
                   please press the button below.
                 </div>
-                <button id="beginBtn">Begin The Assessment</button>
+                <button id="beginBtn">Begin</button>
               </div>
             </div>
           </div>
@@ -650,18 +676,18 @@
               </div>
               <div class="questionBox" id="questionText"></div>
               <div class="feedbackSection">
-                <strong>Feedback</strong>
+                <strong>Guidance</strong>
                 <div class="chatHistory" id="chatHistory"></div>
               </div>
               <div class="answerWrap">
                 <div class="answerStack">
-                  <strong>Your answer</strong>
+                  <strong>Your response</strong>
                   <textarea id="answerInput" placeholder="Type your answer here..."></textarea>
                 </div>
               </div>
             </div>
             <div class="assessmentSide">
-              <button id="evaluateBtn" class="evaluateSide">Evaluate</button>
+              <button id="evaluateBtn" class="evaluateSide">Check Response</button>
               <div class="assessmentControls">
                 <div class="micSelectRow">
                   <label for="micSelect">Microphone Selector</label>
@@ -692,6 +718,8 @@
       </div>
     </div>
 
+    <div id="appFooterDisclaimer" class="appDisclaimerFooter">AI-assisted evidence collection only. A qualified assessor will review your responses and make the assessment decision.</div>
+
     <div id="hintOverlay" class="hintOverlay hidden" role="dialog" aria-modal="true" aria-labelledby="hintTitle">
       <div class="hintModal">
         <div class="hintHeader">
@@ -705,7 +733,7 @@
     <div id="finalisingOverlay" class="finalisingOverlay hidden" role="alertdialog" aria-modal="true" aria-live="assertive">
       <div class="finalisingModal">
         <div class="finalisingTitle">Please wait.</div>
-        <div class="finalisingBody">We are finalising your results.</div>
+        <div class="finalisingBody">We are saving your responses.</div>
       </div>
     </div>
 
@@ -754,6 +782,7 @@
       const welcomeResetBtn = document.getElementById("welcomeResetBtn");
       const postWelcomePageEl = document.getElementById("postWelcomePage");
       const postWelcomeTitleEl = document.getElementById("postWelcomeTitle");
+      const appFooterDisclaimerEl = document.getElementById("appFooterDisclaimer");
       const initScreenEl = document.getElementById("initScreen");
       const initStatusEl = document.getElementById("initStatus");
       const initDebugSectionEl = document.getElementById("initDebugSection");
@@ -850,6 +879,8 @@
       let questionsRefreshInFlight = false;
       let isUiLocked = false;
       let hintOpen = false;
+      const DEFAULT_FOOTER_TEXT = "AI-assisted evidence collection only. A qualified assessor will review your responses and make the assessment decision.";
+      const FINAL_FOOTER_TEXT = "Submitting your responses does not guarantee RPL. A qualified assessor will review your evidence and determine the outcome.";
       let lockedButtonStates = null;
       let attemptLocked = false;
       let attemptLockStates = null;
@@ -873,7 +904,7 @@
       const updateCollectGreeting = () => {
         const ctx = getStudentContext();
         if (collectGreetingEl) {
-          collectGreetingEl.textContent = `Hello ${ctx.fullName} and welcome to your RPL Assessment`;
+          collectGreetingEl.textContent = `Hello ${ctx.fullName},`;
         }
       };
 
@@ -1524,14 +1555,20 @@
         nextBtn.disabled = true;
       };
 
+      const setFooterDisclaimer = (isFinalScreen = false) => {
+        if (!appFooterDisclaimerEl) return;
+        appFooterDisclaimerEl.textContent = isFinalScreen ? FINAL_FOOTER_TEXT : DEFAULT_FOOTER_TEXT;
+      };
+
       const showCompletionScreen = () => {
         const ctx = getStudentContext();
         const givenName = ctx.givenName || ctx.fullName || "";
+        setFooterDisclaimer(true);
         if (completionTitleEl) {
-          completionTitleEl.textContent = `Thank you ${givenName} for completing the assessment`;
+          completionTitleEl.textContent = `Thank you ${givenName}. Your responses have been submitted.`;
         }
         if (completionBodyEl) {
-          completionBodyEl.textContent = "An assessor will be in contact. You can now close your browser window.";
+          completionBodyEl.textContent = "A qualified assessor will review your evidence and contact you if needed. You can now close this window.";
         }
         if (finalisingOverlayEl) finalisingOverlayEl.classList.add("hidden");
         if (postWelcomePageEl) postWelcomePageEl.classList.add("hidden");
@@ -1798,14 +1835,14 @@ Job Title: ${jobTitleValue || "N/A"}
         if (normalized.includes("new user")) {
           welcomeMode = "new";
           if (welcomeTitleEl) {
-            welcomeTitleEl.textContent = `Hello ${ctx.fullName} and welcome to your RPL Assessment`;
+            welcomeTitleEl.textContent = `Hello ${ctx.fullName}, welcome to your AI-assisted RPL interview.`;
           }
           if (welcomeBodyEl) {
-            welcomeBodyEl.innerHTML = "";
+            welcomeBodyEl.innerHTML = `<p class="welcomeSubtext">This tool will guide you through a series of questions and record your responses for evidence collection only. A qualified assessor will review your responses and make the assessment decision.</p>`;
           }
           if (welcomeContinueBtn) {
             welcomeContinueBtn.classList.remove("hidden");
-            welcomeContinueBtn.textContent = "Start Assessment";
+            welcomeContinueBtn.textContent = "Begin";
           }
           return;
         }
@@ -1813,7 +1850,7 @@ Job Title: ${jobTitleValue || "N/A"}
         if (normalized.includes("user exists")) {
           welcomeMode = "existing";
           if (welcomeTitleEl) {
-            welcomeTitleEl.textContent = `Hello ${ctx.fullName} and welcome back to your RPL Assessment`;
+            welcomeTitleEl.textContent = `Welcome back ${ctx.fullName} to your AI-assisted RPL interview.`;
           }
           if (welcomeBodyEl) {
             welcomeBodyEl.innerHTML = "<p>Initialising…</p>";
@@ -1875,7 +1912,7 @@ Job Title: ${jobTitleValue || "N/A"}
           }
           if (welcomeBodyEl && resumeCurrentQuestionNumber) {
             welcomeBodyEl.innerHTML = `
-              <p>It looks like you had already started this assessment and were on question ${resumeCurrentQuestionNumber}.</p>
+              <p>It looks like you were on Question ${resumeCurrentQuestionNumber}.</p>
               <p>Press the RESUME button to continue.</p>
             `;
           }
@@ -3179,7 +3216,7 @@ END_REVIEW>>>`;
         setStatus("Loading questions...");
         beginBtn.disabled = true;
         if (postWelcomeTitleEl) {
-          postWelcomeTitleEl.textContent = "Assessment Page";
+          postWelcomeTitleEl.textContent = "AI-assisted RPL Interview";
         }
 
         if (!skipCollect) {
@@ -3266,6 +3303,7 @@ END_REVIEW>>>`;
 
       if (initScreenEl) initScreenEl.classList.add("hidden");
       if (appShellEl) appShellEl.classList.add("hidden");
+      setFooterDisclaimer(false);
 
       installWelcomeDebug();
       instrumentWelcomeFetch();
@@ -3285,7 +3323,7 @@ END_REVIEW>>>`;
         if (postWelcomePageEl) postWelcomePageEl.classList.remove("hidden");
         if (postWelcomeTitleEl) {
           postWelcomeTitleEl.textContent =
-            welcomeMode === "existing" ? "Assessment Page" : "Collect User Data";
+            welcomeMode === "existing" ? "AI-assisted RPL Interview" : "Student Information";
         }
         if (initScreenEl) initScreenEl.classList.remove("hidden");
         if (appShellEl) appShellEl.classList.add("hidden");
