@@ -3674,6 +3674,7 @@ END_REVIEW>>>`;
       };
 
       beginBtn.addEventListener("click", async () => {
+        stopCameraStream();
         await beginAssessmentFlow({ skipValidation: false });
       });
 
