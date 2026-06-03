@@ -233,6 +233,15 @@ test("renders approved report labels, escaped verbatim responses, and one row/ar
   assert.equal(html.includes(".summary, .question-review-section, .limitations { break-before: page; page-break-before: always; }"), true);
   assert.equal(html.includes("RPL Preliminary Interview Review"), true);
   assert.equal(html.includes("RPL Preliminary Assessment Review"), false);
+  assert.equal(html.includes("<form id=\"rplReportForm\" class=\"pdf-form\" data-pdf-form=\"interactive\" data-acroform=\"true\" autocomplete=\"off\">"), true);
+  assert.equal(html.includes("name=\"question_24_assessor_evaluation\""), true);
+  assert.equal(html.includes("name=\"question_24_assessor_notes\""), true);
+  assert.equal(html.includes("name=\"assessor_name\""), true);
+  assert.equal(html.includes("name=\"interview_outcome\""), true);
+  assert.equal(html.includes("data-pdf-form-field=\"true\""), true);
+  assert.equal(html.includes("data-acroform-field=\"interview_outcome\""), true);
+  assert.equal(html.includes("data-ms-pdf-field=\"interview_outcome\""), true);
+  assert.equal(html.includes("data-pdf-field-multiline=\"true\""), true);
   assert.equal(html.includes("<ul class=\"disclaimer-list\">"), true);
   assert.equal(html.includes("It does NOT constitute a competency decision."), true);
   assert.equal(html.includes("<ul class=\"summary-list\">"), true);

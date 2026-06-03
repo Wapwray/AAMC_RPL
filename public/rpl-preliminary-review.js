@@ -1031,23 +1031,34 @@ Rules:
         </ul>`;
   };
 
+  const normalisePdfFieldName = (value) => {
+    const text = normalizeWhitespace(value)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+    return text || "editable_field";
+  };
+
   const renderEditableTextField = (label, options = {}) => {
     const tag = options.multiline ? "textarea" : "input";
     const placeholder = options.placeholder ? ` placeholder="${escapeAttribute(options.placeholder)}"` : "";
     const extraClass = options.className ? ` ${escapeAttribute(options.className)}` : "";
     const ariaLabel = escapeAttribute(label);
+    const fieldName = normalisePdfFieldName(options.name || label);
+    const fieldId = escapeAttribute(`rpl_${fieldName}`);
+    const commonAttributes = ` id="${fieldId}" name="${escapeAttribute(fieldName)}" aria-label="${ariaLabel}" title="${ariaLabel}" data-pdf-form-field="true" data-acroform-field="${escapeAttribute(fieldName)}" data-ms-pdf-field="${escapeAttribute(fieldName)}" data-pdf-field-type="text" autocomplete="off" tabindex="0"${placeholder}`;
     if (tag === "textarea") {
-      return `<textarea class="editable-field${extraClass}" aria-label="${ariaLabel}"${placeholder}></textarea>`;
+      return `<textarea class="editable-field${extraClass}"${commonAttributes} data-pdf-field-multiline="true" spellcheck="true"></textarea>`;
     }
-    return `<input class="editable-field${extraClass}" type="text" aria-label="${ariaLabel}"${placeholder}>`;
+    return `<input class="editable-field${extraClass}" type="text"${commonAttributes} value="">`;
   };
 
   const renderAssessorEditableSection = (question) => `
             <section class="assessor-evaluation">
               <h4>Assessor Evaluation - Objective Met / Not Met</h4>
-              ${renderEditableTextField(`Assessor evaluation for Question ${question.questionNumber}`, { placeholder: "Objective Met / Not Met" })}
+              ${renderEditableTextField(`Assessor evaluation for Question ${question.questionNumber}`, { name: `question_${question.questionNumber}_assessor_evaluation`, placeholder: "Objective Met / Not Met" })}
               <h4>Assessor Notes</h4>
-              ${renderEditableTextField(`Assessor notes for Question ${question.questionNumber}`, { multiline: true, className: "assessor-notes", placeholder: "Assessor notes" })}
+              ${renderEditableTextField(`Assessor notes for Question ${question.questionNumber}`, { name: `question_${question.questionNumber}_assessor_notes`, multiline: true, className: "assessor-notes", placeholder: "Assessor notes" })}
             </section>`;
 
   const renderQuestionArticles = (questions) => questions.map((question) => {
@@ -1094,6 +1105,7 @@ Rules:
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="rpl-pdf-form-fields" content="interactive named HTML form controls">
     <title>RPL Preliminary Interview Review</title>
     <style>
       :root { color-scheme: light; }
@@ -1106,6 +1118,7 @@ Rules:
       h3 { margin-top: 0; font-size: 18px; }
       h4 { margin: 18px 0 8px; font-size: 14px; text-transform: uppercase; letter-spacing: .02em; color: #334155; }
       .subtitle, .muted { color: #64748b; }
+      .pdf-form { margin: 0; }
       table { width: 100%; border-collapse: collapse; table-layout: fixed; }
       th, td { overflow-wrap: anywhere; word-break: normal; }
       .metadata-table, .status-table, .signoff-table { background: #fff; }
@@ -1129,7 +1142,7 @@ Rules:
       .ai-interview-response { border: 1px solid #c7d2fe; border-left: 4px solid #4338ca; border-radius: 6px; padding: 12px; margin: 10px 0 14px; background: #eef2ff; }
       .verbatim { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; margin: 0; padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; font: 9pt/1.45 Consolas, "Courier New", monospace; box-sizing: border-box; }
       .assessor-evaluation { border: 1px solid #cbd5e1; border-radius: 6px; padding: 12px; background: #fff; }
-      .editable-field { width: 100%; min-height: 28px; border: 1px solid #94a3b8; border-radius: 4px; padding: 7px 9px; box-sizing: border-box; background: #fff; color: #0f172a; font: 10pt Arial, Helvetica, sans-serif; }
+      .editable-field { width: 100%; min-height: 28px; border: 1px solid #94a3b8; border-radius: 4px; padding: 7px 9px; box-sizing: border-box; background: #fff; color: #0f172a; font: 10pt Arial, Helvetica, sans-serif; -webkit-appearance: auto; appearance: auto; }
       textarea.editable-field { min-height: 70px; resize: vertical; }
       .signoff-table .editable-field { min-height: 32px; }
       @media print {
@@ -1142,6 +1155,7 @@ Rules:
   </head>
   <body>
     <main class="report">
+      <form id="rplReportForm" class="pdf-form" data-pdf-form="interactive" data-acroform="true" autocomplete="off">
       <header>
         <h1>RPL Preliminary Interview Review</h1>
         <p class="subtitle">AI-generated preliminary review for assessor validation.</p>
@@ -1210,13 +1224,14 @@ Rules:
         <h2 id="signoffTitle">Assessor sign-off</h2>
         <table class="signoff-table">
           <tbody>
-            <tr><th scope="row">Assessor name</th><td>${renderEditableTextField("Assessor name")}</td></tr>
-            <tr><th scope="row">Assessor credential / TAE qualification</th><td>${renderEditableTextField("Assessor credential / TAE qualification")}</td></tr>
-            <tr><th scope="row">Interview Outcome</th><td>${renderEditableTextField("Interview Outcome", { placeholder: "to be completed by assessor" })}</td></tr>
-            <tr><th scope="row">Signature &amp; date</th><td>${renderEditableTextField("Signature and date")}</td></tr>
+            <tr><th scope="row">Assessor name</th><td>${renderEditableTextField("Assessor name", { name: "assessor_name" })}</td></tr>
+            <tr><th scope="row">Assessor credential / TAE qualification</th><td>${renderEditableTextField("Assessor credential / TAE qualification", { name: "assessor_credential_tae_qualification" })}</td></tr>
+            <tr><th scope="row">Interview Outcome</th><td>${renderEditableTextField("Interview Outcome", { name: "interview_outcome", placeholder: "to be completed by assessor" })}</td></tr>
+            <tr><th scope="row">Signature &amp; date</th><td>${renderEditableTextField("Signature and date", { name: "signature_and_date" })}</td></tr>
           </tbody>
         </table>
       </section>
+      </form>
     </main>
   </body>
 </html>`;
