@@ -15,14 +15,20 @@
   const FULL_LIKELY_SUFFICIENT = "Likely sufficient (pending assessor verification)";
   const FULL_ADDITIONAL_EVIDENCE = "Additional evidence may be needed (assessor follow-up suggested)";
   const FULL_NOT_AVAILABLE = "Not available in transcript";
-  const REPORT_TYPE = "AI-generated preliminary review (not a final assessment)";
+  const REPORT_TYPE = "AI-generated preliminary interview review (not a final competency decision)";
   const DEFAULT_QUALIFICATION = "FNS40821 - Certificate IV in Finance and Mortgage Broking";
   const MISSING_VALUE = "Not stated in transcript";
   const ACTIVE_DATA_MISSING = "Not available in active question data";
-  const DISCLAIMER_TEXT = "IMPORTANT — PRELIMINARY AI REVIEW ONLY\nThis report was prepared by an AI-based assistant as a preliminary analysis of the candidate's responses during an RPL interview. It does NOT constitute an assessment decision. All findings are preliminary and subject to validation by a qualified human RPL assessor. Final determination of competency for the qualification and its units of competency rests solely with the qualified assessor, consistent with the Standards for RTOs 2025 and ASQA's guidance on AI-assisted assessment.";
+  const DISCLAIMER_INTRO = "This report was prepared by an AI-based assistant as a preliminary analysis of the candidate's responses during an RPL interview.";
+  const DISCLAIMER_BULLETS = [
+    "It does NOT constitute a competency decision.",
+    "All findings are preliminary and subject to validation by a qualified human RPL assessor.",
+    "Final determination of competency for the qualification and its units of competency rests solely with the qualified assessor, consistent with the Standards for RTOs 2025 and ASQA guidance on AI-assisted evidence review.",
+  ];
+  const DISCLAIMER_TEXT = `IMPORTANT — PRELIMINARY AI REVIEW ONLY\n${DISCLAIMER_INTRO}\n${DISCLAIMER_BULLETS.map((item) => `- ${item}`).join("\n")}`;
   const SUMMARY_FINAL_SENTENCE = "The summary above reflects the AI's preliminary observations only. All findings remain subject to confirmation by a qualified human RPL assessor.";
   const LIMITATIONS_TEXT = "This report is an automated preliminary analysis and may not capture all nuances of the candidate's competence. It does not account for non-verbal cues, workplace context, third-party evidence, or any documentation provided outside the recorded interview transcript. The AI cannot confirm authenticity or currency of evidence; those Rules of Evidence must be verified through human assessor processes.";
-  const ASSESSOR_CONFIRMATION_TEXT = "A qualified RPL assessor must review the full transcript and any additional evidence, and make the final judgement on each unit's competency. The assessor should confirm that all critical evidence meets the requirements of the relevant qualification and its constituent units, applying the Principles of Assessment (fair, flexible, valid, reliable) and the Rules of Evidence (valid, sufficient, authentic, current). No outcome described in this preliminary report should be treated as final until signed off by the qualified assessor.";
+  const ASSESSOR_CONFIRMATION_TEXT = "A qualified RPL assessor must review the full transcript and any additional evidence, and make the final competency judgement for each unit. The assessor should confirm that all critical evidence meets the requirements of the relevant qualification and its constituent units, applying the Rules of Evidence (valid, sufficient, authentic, current). No outcome described in this preliminary report should be treated as final until signed off by the qualified assessor.";
 
   const escapeHtml = (value) => String(value === undefined || value === null ? "" : value)
     .replace(/&/g, "&amp;")
@@ -621,6 +627,11 @@ Rules:
   };
 
   const sanitiseAssessorFacingText = (value) => removeLearnerDirections(value)
+    .replace(/\bassessment decision\b/gi, "competency decision")
+    .replace(/\bassessment judgement\b/gi, "competency judgement")
+    .replace(/\bassessment judgment\b/gi, "competency judgement")
+    .replace(/\bassessment requirements\b/gi, "question requirements")
+    .replace(/\bassessment\b/gi, "interview")
     .replace(/\bSATISFACTORY\b/gi, "likely sufficient")
     .replace(/\bNEEDS MORE INFO\b/gi, "additional evidence may be needed")
     .replace(/\bLIKELY SUFFICIENT\b/g, "likely sufficient")
@@ -728,13 +739,13 @@ Rules:
     const summary = rewriteAssessorSummaryForReport(block?.assessorSummary || "");
     if (summary) return summary;
     if (shortStatus === SHORT_NOT_AVAILABLE) {
-      return `No candidate response for Question ${questionNumber} was located in the transcript. Assessor review is required before any assessment judgement can be made.`;
+      return `No candidate response for Question ${questionNumber} was located in the transcript. Assessor review is required before any competency judgement can be made.`;
     }
     const evidence = summariseCandidateEvidence(block);
     if (shortStatus === SHORT_LIKELY_SUFFICIENT) {
       return objective
-        ? `The candidate provided evidence relevant to the objective: ${objective}. The assessor should verify sufficiency against the active assessment requirements.`
-        : "The candidate provided evidence that appears relevant to the question. The assessor should verify sufficiency against the active assessment requirements.";
+        ? `The candidate provided evidence relevant to the objective: ${objective}. The assessor should verify sufficiency against the active question requirements.`
+        : "The candidate provided evidence that appears relevant to the question. The assessor should verify sufficiency against the active question requirements.";
     }
     if (evidence) {
       return objective
@@ -752,6 +763,31 @@ Rules:
       return "Review this question against the Rules of Evidence (valid, sufficient, authentic, current) and seek additional evidence about the relevant question requirements if required before making a final determination.";
     }
     return "";
+  };
+
+  const buildAiInterviewResponses = (item, analysisFollowUp, shortStatus) => {
+    if (shortStatus !== SHORT_ADDITIONAL_EVIDENCE) return [];
+    const block = item.parsedQuestionBlock;
+    const attempts = Array.isArray(block?.attempts) ? block.attempts : [];
+    const lastAttemptNumber = attempts.length ? attempts[attempts.length - 1].attemptNumber : undefined;
+    const messages = Array.isArray(block?.assessorBotMessages)
+      ? block.assessorBotMessages
+        .filter((message) => Number.isFinite(Number(message.followsAttemptNumber)))
+        .filter((message) => isRealFollowUpRequest(message.messageText))
+        .filter((message) => normalizeQuestionTextForMatch(message.messageText) !== normalizeQuestionTextForMatch(block.transcriptQuestionText))
+        .map((message) => ({
+          messageText: message.messageText,
+          followsAttemptNumber: Number(message.followsAttemptNumber),
+        }))
+      : [];
+    if (messages.length) return messages;
+    if (isRealFollowUpRequest(analysisFollowUp)) {
+      return [{
+        messageText: analysisFollowUp,
+        followsAttemptNumber: Number(lastAttemptNumber) || 1,
+      }];
+    }
+    return [];
   };
 
   const mapAnalysisByQuestion = (analyses) => {
@@ -782,6 +818,7 @@ Rules:
     const assessmentObjective = cleanMetadataValue(spec.objective || analysis?.assessmentObjective) || ACTIVE_DATA_MISSING;
     const analysisFollowUp = cleanMetadataValue(analysis?.aiFollowUpExchange);
     const aiFollowUpExchange = isRealFollowUpRequest(analysisFollowUp) ? analysisFollowUp : buildFallbackFollowUpExchange(item);
+    const aiInterviewResponses = buildAiInterviewResponses(item, aiFollowUpExchange, shortStatus);
     const analysisObservation = cleanMetadataValue(analysis?.aiPreliminaryObservation);
     const aiPreliminaryObservation = !isGenericAnalysisText(analysisObservation)
       ? rewriteAssessorSummaryForReport(analysisObservation)
@@ -805,6 +842,7 @@ Rules:
       shortStatus,
       attempts,
       aiFollowUpExchange,
+      aiInterviewResponses,
       aiPreliminaryObservation,
       assessorActionSuggested,
     };
@@ -832,7 +870,7 @@ Rules:
     return warnings;
   };
 
-  const buildExecutiveSummary = (questions) => {
+  const buildExecutiveSummaryItems = (questions) => {
     const questionList = Array.isArray(questions) ? questions : [];
     const sections = Array.from(new Set(questionList.map((question) => cleanMetadataValue(question.section)).filter(Boolean)));
     const gaps = questionList.filter((question) => question.shortStatus === SHORT_ADDITIONAL_EVIDENCE);
@@ -860,7 +898,18 @@ Rules:
       sentences.push("All included questions were identified as likely sufficient, pending verification by a qualified assessor.");
     }
     sentences.push(SUMMARY_FINAL_SENTENCE);
-    return sentences.join(" ");
+    return sentences;
+  };
+
+  const buildExecutiveSummary = (questions) => buildExecutiveSummaryItems(questions).join(" ");
+
+  const splitExecutiveSummary = (summary) => {
+    const text = normalizeWhitespace(summary);
+    if (!text) return [SUMMARY_FINAL_SENTENCE];
+    return text
+      .split(/(?<=[.!?])\s+(?=[A-Z])/)
+      .map((item) => normalizeWhitespace(item))
+      .filter(Boolean);
   };
 
   const buildReportModel = ({
@@ -907,6 +956,7 @@ Rules:
       metadata,
       warnings,
       executiveSummary: buildExecutiveSummary(questions),
+      executiveSummaryItems: buildExecutiveSummaryItems(questions),
       questions,
       parsedQuestionBlocks,
       questionManifest: manifest,
@@ -943,6 +993,17 @@ Rules:
                 <td><span class="status-badge ${statusClassName(question.shortStatus)}">${escapeHtml(question.shortStatus)}</span></td>
               </tr>`).join("");
 
+  const renderAiInterviewResponsesForAttempt = (question, attemptNumber) => {
+    const responses = Array.isArray(question.aiInterviewResponses) ? question.aiInterviewResponses : [];
+    return responses
+      .filter((response) => Number(response.followsAttemptNumber) === Number(attemptNumber))
+      .map((response) => `<section class="ai-interview-response">
+                <h4>AI INTERVIEW RESPONSE</h4>
+                <pre class="verbatim">${escapeHtml(response.messageText || "")}</pre>
+              </section>`)
+      .join("\n");
+  };
+
   const renderAttempts = (question) => {
     if (!Array.isArray(question.attempts) || !question.attempts.length) {
       return "<p>No candidate response located in transcript.</p>";
@@ -956,17 +1017,40 @@ Rules:
                 <h4>${escapeHtml(attempt.speakerLabel || "Candidate")} response attempt ${escapeHtml(attemptNumber)}</h4>
                 <pre class="verbatim">${escapeHtml(attempt.responseText || "")}</pre>
                 ${submittedAt}
-              </section>`;
+              </section>
+              ${renderAiInterviewResponsesForAttempt(question, attemptNumber)}`;
     }).join("\n");
   };
 
+  const renderExecutiveSummary = (reportModel) => {
+    const items = Array.isArray(reportModel?.executiveSummaryItems) && reportModel.executiveSummaryItems.length
+      ? reportModel.executiveSummaryItems
+      : splitExecutiveSummary(reportModel?.executiveSummary || SUMMARY_FINAL_SENTENCE);
+    return `<ul class="summary-list">
+          ${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("\n          ")}
+        </ul>`;
+  };
+
+  const renderEditableTextField = (label, options = {}) => {
+    const tag = options.multiline ? "textarea" : "input";
+    const placeholder = options.placeholder ? ` placeholder="${escapeAttribute(options.placeholder)}"` : "";
+    const extraClass = options.className ? ` ${escapeAttribute(options.className)}` : "";
+    const ariaLabel = escapeAttribute(label);
+    if (tag === "textarea") {
+      return `<textarea class="editable-field${extraClass}" aria-label="${ariaLabel}"${placeholder}></textarea>`;
+    }
+    return `<input class="editable-field${extraClass}" type="text" aria-label="${ariaLabel}"${placeholder}>`;
+  };
+
+  const renderAssessorEditableSection = (question) => `
+            <section class="assessor-evaluation">
+              <h4>Assessor Evaluation - Objective Met / Not Met</h4>
+              ${renderEditableTextField(`Assessor evaluation for Question ${question.questionNumber}`, { placeholder: "Objective Met / Not Met" })}
+              <h4>Assessor Notes</h4>
+              ${renderEditableTextField(`Assessor notes for Question ${question.questionNumber}`, { multiline: true, className: "assessor-notes", placeholder: "Assessor notes" })}
+            </section>`;
+
   const renderQuestionArticles = (questions) => questions.map((question) => {
-    const action = question.shortStatus === SHORT_LIKELY_SUFFICIENT || !question.assessorActionSuggested
-      ? ""
-      : `<section class="assessor-action"><h4>Assessor action suggested</h4><p>${escapeHtml(question.assessorActionSuggested)}</p></section>`;
-    const followUp = cleanMetadataValue(question.aiFollowUpExchange)
-      ? `<section><h4>AI follow-up exchange</h4><p>${escapeHtml(question.aiFollowUpExchange)}</p></section>`
-      : "";
     return `
           <!-- BEGIN QUESTION_REVIEW q="${escapeAttribute(question.questionNumber)}" -->
           <article class="question-card" data-question-number="${escapeAttribute(question.questionNumber)}">
@@ -981,19 +1065,18 @@ Rules:
               <p>${escapeHtml(valueOrMissing(question.hintsProvided))}</p>
             </section>
             <section>
-              <h4>Assessment objective</h4>
+              <h4>Question objective</h4>
               <p>${escapeHtml(valueOrMissing(question.assessmentObjective))}</p>
             </section>
             <section>
               <h4>Candidate response(s)</h4>
               ${renderAttempts(question)}
             </section>
-            ${followUp}
             <section>
               <h4>AI preliminary observation</h4>
               <p>${escapeHtml(valueOrMissing(question.aiPreliminaryObservation))}</p>
             </section>
-            ${action}
+            ${renderAssessorEditableSection(question)}
           </article>
           <!-- END QUESTION_REVIEW q="${escapeAttribute(question.questionNumber)}" -->`;
   }).join("\n");
@@ -1011,12 +1094,12 @@ Rules:
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>RPL Preliminary Assessment Review</title>
+    <title>RPL Preliminary Interview Review</title>
     <style>
       :root { color-scheme: light; }
       body { margin: 0; background: #f4f6f8; color: #18212f; font-family: Arial, Helvetica, sans-serif; line-height: 1.5; }
-      @page { size: A4; margin: 12mm 12mm 14mm 12mm; }
-      .report { width: 186mm; max-width: 186mm; margin: 0 auto; padding: 10mm 0 14mm; box-sizing: border-box; }
+      @page { size: A4; margin: 0; }
+      .report { width: 210mm; max-width: 210mm; min-height: 297mm; margin: 0 auto; padding: 12mm; box-sizing: border-box; }
       h1, h2, h3, h4 { color: #0f172a; line-height: 1.25; }
       h1 { margin: 0; font-size: 30px; }
       h2 { margin-top: 32px; border-bottom: 2px solid #d8dee9; padding-bottom: 8px; font-size: 20px; }
@@ -1033,26 +1116,34 @@ Rules:
       .warning-box, .coverage-warning, .summary, .question-card, .limitations, .confirmation, .signoff { background: #fff; border: 1px solid #d8dee9; border-radius: 8px; padding: 18px; margin-top: 18px; }
       .warning-box { border-left: 6px solid #9a3412; background: #fff7ed; }
       .coverage-warning { border-left: 6px solid #b45309; background: #fffbeb; }
+      .disclaimer-list, .summary-list { margin: 10px 0 0 20px; padding: 0; }
+      .disclaimer-list li, .summary-list li { margin: 6px 0; }
       .status-badge { display: inline-block; max-width: 100%; border-radius: 999px; padding: 3px 8px; font-size: 8.5pt; line-height: 1.2; font-weight: 700; white-space: normal; overflow-wrap: anywhere; box-sizing: border-box; }
       .status-likely { background: #dcfce7; color: #166534; }
       .status-gap { background: #fef3c7; color: #92400e; }
       .status-missing { background: #fee2e2; color: #991b1b; }
-      .question-card { page-break-inside: avoid; }
+      .summary, .question-review-section, .limitations { break-before: page; page-break-before: always; }
+      .question-card { page-break-inside: avoid; break-inside: avoid; }
       .question-card section { margin-top: 12px; }
       .candidate-attempt { border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin: 10px 0; background: #f8fafc; }
+      .ai-interview-response { border: 1px solid #c7d2fe; border-left: 4px solid #4338ca; border-radius: 6px; padding: 12px; margin: 10px 0 14px; background: #eef2ff; }
       .verbatim { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; margin: 0; padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; font: 9pt/1.45 Consolas, "Courier New", monospace; box-sizing: border-box; }
-      .assessor-action { border-left: 4px solid #b45309; padding-left: 12px; background: #fffbeb; }
+      .assessor-evaluation { border: 1px solid #cbd5e1; border-radius: 6px; padding: 12px; background: #fff; }
+      .editable-field { width: 100%; min-height: 28px; border: 1px solid #94a3b8; border-radius: 4px; padding: 7px 9px; box-sizing: border-box; background: #fff; color: #0f172a; font: 10pt Arial, Helvetica, sans-serif; }
+      textarea.editable-field { min-height: 70px; resize: vertical; }
+      .signoff-table .editable-field { min-height: 32px; }
       @media print {
         body { background: #fff; }
-        .report { width: 186mm; max-width: 186mm; padding: 0; }
+        .report { width: 210mm; max-width: 210mm; min-height: 297mm; padding: 12mm; }
         .question-card, .summary, .warning-box, .coverage-warning, .limitations, .confirmation, .signoff { border-color: #999; }
+        .editable-field { border-color: #777; }
       }
     </style>
   </head>
   <body>
     <main class="report">
       <header>
-        <h1>RPL Preliminary Assessment Review</h1>
+        <h1>RPL Preliminary Interview Review</h1>
         <p class="subtitle">AI-generated preliminary review for assessor validation.</p>
       </header>
 
@@ -1067,12 +1158,15 @@ Rules:
 
       <section class="warning-box" aria-labelledby="preliminaryDisclaimerTitle">
         <h2 id="preliminaryDisclaimerTitle">IMPORTANT — PRELIMINARY AI REVIEW ONLY</h2>
-        <p>This report was prepared by an AI-based assistant as a preliminary analysis of the candidate's responses during an RPL interview. It does NOT constitute an assessment decision. All findings are preliminary and subject to validation by a qualified human RPL assessor. Final determination of competency for the qualification and its units of competency rests solely with the qualified assessor, consistent with the Standards for RTOs 2025 and ASQA's guidance on AI-assisted assessment.</p>
+        <p>${escapeHtml(DISCLAIMER_INTRO)}</p>
+        <ul class="disclaimer-list">
+          ${DISCLAIMER_BULLETS.map((item) => `<li>${escapeHtml(item)}</li>`).join("\n          ")}
+        </ul>
       </section>
 
       <section class="summary" aria-labelledby="executiveSummaryTitle">
         <h2 id="executiveSummaryTitle">${escapeHtml(executiveHeading)}</h2>
-        <p>${escapeHtml(reportModel?.executiveSummary || SUMMARY_FINAL_SENTENCE)}</p>
+        ${renderExecutiveSummary(reportModel)}
       </section>
 
       <section aria-labelledby="statusTableTitle">
@@ -1097,7 +1191,7 @@ Rules:
         </table>
       </section>
 
-      <section aria-labelledby="questionReviewTitle">
+      <section class="question-review-section" aria-labelledby="questionReviewTitle">
         <h2 id="questionReviewTitle">Question-by-Question Review</h2>
         ${renderQuestionArticles(questions)}
       </section>
@@ -1116,10 +1210,10 @@ Rules:
         <h2 id="signoffTitle">Assessor sign-off</h2>
         <table class="signoff-table">
           <tbody>
-            <tr><th scope="row">Assessor name</th><td></td></tr>
-            <tr><th scope="row">Assessor credential / TAE qualification</th><td></td></tr>
-            <tr><th scope="row">Final assessment outcome</th><td>(to be completed by assessor)</td></tr>
-            <tr><th scope="row">Signature &amp; date</th><td></td></tr>
+            <tr><th scope="row">Assessor name</th><td>${renderEditableTextField("Assessor name")}</td></tr>
+            <tr><th scope="row">Assessor credential / TAE qualification</th><td>${renderEditableTextField("Assessor credential / TAE qualification")}</td></tr>
+            <tr><th scope="row">Interview Outcome</th><td>${renderEditableTextField("Interview Outcome", { placeholder: "to be completed by assessor" })}</td></tr>
+            <tr><th scope="row">Signature &amp; date</th><td>${renderEditableTextField("Signature and date")}</td></tr>
           </tbody>
         </table>
       </section>

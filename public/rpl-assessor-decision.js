@@ -34,7 +34,13 @@
   };
 
   const formatEvidenceFragment = (value) => {
-    const text = normalizeWhitespace(value).replace(/[.!?]+$/g, "");
+    const text = normalizeWhitespace(value)
+      .replace(/[.!?]+$/g, "")
+      .replace(/\bthey would\b/gi, "you would")
+      .replace(/\bthey can\b/gi, "you can")
+      .replace(/\btheir\b/gi, "your")
+      .replace(/\bthe learner's\b/gi, "your")
+      .replace(/\bthe learner\b/gi, "you");
     if (!text) return "";
     if (/^who would be consulted if unsure(?: about .*)?$/i.test(text)) {
       return "who you would consult or ask for help if you were unsure";
@@ -48,8 +54,76 @@
     return text;
   };
 
+  const sentenceCase = (value) => {
+    const text = normalizeWhitespace(value);
+    return text ? `${text.charAt(0).toUpperCase()}${text.slice(1)}` : "";
+  };
+
+  const lowerFirst = (value) => {
+    const text = normalizeWhitespace(value);
+    return text ? `${text.charAt(0).toLowerCase()}${text.slice(1)}` : "";
+  };
+
+  const formatLearnerEvidenceFragment = (value) => {
+    const text = formatEvidenceFragment(value);
+    if (!text) return "";
+    if (/^(you|you've|you have|you would|you can)\b/i.test(text)) {
+      return sentenceCase(text);
+    }
+
+    const stated = text.match(/^states?\s+(.+)$/i);
+    if (stated) {
+      const detail = lowerFirst(stated[1])
+        .replace(/\band outlines\b/gi, "and outlined")
+        .replace(/\band indicates\b/gi, "and indicated")
+        .replace(/\band describes\b/gi, "and described")
+        .replace(/\band explains\b/gi, "and explained")
+        .replace(/\band identifies\b/gi, "and identified");
+      const learnerDetail = /^no\b/i.test(detail) ? `you have ${detail}` : detail;
+      return `You've stated ${learnerDetail}`;
+    }
+
+    const indicatedIntent = text.match(/^indicates?\s+intent\s+to\s+(.+)$/i);
+    if (indicatedIntent) {
+      return `You've indicated that you intend to ${lowerFirst(indicatedIntent[1])}`;
+    }
+
+    const learnerVerbMap = [
+      [/^outlines?\s+(.+)$/i, "outlined"],
+      [/^identifies?\s+(.+)$/i, "identified"],
+      [/^explains?\s+(.+)$/i, "explained"],
+      [/^describes?\s+(.+)$/i, "described"],
+      [/^mentions?\s+(.+)$/i, "mentioned"],
+      [/^acknowledges?\s+(.+)$/i, "acknowledged"],
+      [/^recognises?\s+(.+)$/i, "recognised"],
+      [/^recognizes?\s+(.+)$/i, "recognised"],
+      [/^notes?\s+(.+)$/i, "noted"],
+      [/^provides?\s+(.+)$/i, "provided"],
+    ];
+    for (const [pattern, verb] of learnerVerbMap) {
+      const match = text.match(pattern);
+      if (match) return `You've ${verb} ${lowerFirst(match[1])}`;
+    }
+
+    const indicates = text.match(/^indicates?\s+(.+)$/i);
+    if (indicates) {
+      return `You've indicated ${lowerFirst(indicates[1])}`;
+    }
+
+    const would = text.match(/^would\s+(.+)$/i);
+    if (would) {
+      return `You would ${lowerFirst(would[1])}`;
+    }
+
+    if (/^(the|a|an|one)\s+/i.test(text)) {
+      return `You've identified ${text}`;
+    }
+
+    return `You've mentioned ${text}`;
+  };
+
   const formatEvidenceBullets = (items) => toArray(items)
-    .map(formatEvidenceFragment)
+    .map(formatLearnerEvidenceFragment)
     .filter(Boolean)
     .map((item) => `- ${item}`)
     .join("\n");
@@ -205,10 +279,10 @@ ${JSON.stringify(payload, null, 2)}`;
     const givenName = normalizeWhitespace(context.givenName) || "there";
     const coveredBullets = formatEvidenceBullets(decision.covered);
     const covered = coveredBullets
-      ? `\n\nYou have addressed:\n${coveredBullets}`
+      ? `\n\nSo far, you've told us that:\n${coveredBullets}`
       : "";
     const opening = coveredBullets
-      ? "your response demonstrates a clear understanding of the key obligations in this scenario."
+      ? "thanks for that. Please add a little more detail for this question."
       : "I could not identify enough evidence yet to show the required understanding for this question.";
     const missing = formatMissingRequirement(decision.missing);
     const hintSentence = decision.hintWouldHelp
