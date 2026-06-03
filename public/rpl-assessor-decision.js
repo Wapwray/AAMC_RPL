@@ -201,11 +201,17 @@ ${JSON.stringify(payload, null, 2)}`;
     const covered = coveredBullets
       ? `\n\nYou have addressed:\n${coveredBullets}`
       : "";
+    const opening = coveredBullets
+      ? "your response demonstrates a clear understanding of the key obligations in this scenario."
+      : "I could not identify enough evidence yet to show the required understanding for this question.";
     const missing = formatMissingRequirement(decision.missing);
     const hintSentence = decision.hintWouldHelp
       ? "\n\nYou can press the Show Hint button for additional help."
       : "";
-    return `${givenName}, your response demonstrates a clear understanding of the key obligations in this scenario.${covered}\n\nThe only area that still needs more detail is ${missing}.${hintSentence}\n\nYou can add this by pressing the Start Transcription button or typing in the Your response box. If you cannot add any more, you can move to the next question.`;
+    const missingIntro = toArray(decision.missing).length > 1
+      ? "The key areas that still need more detail are"
+      : "The only area that still needs more detail is";
+    return `${givenName}, ${opening}${covered}\n\n${missingIntro} ${missing}.${hintSentence}\n\nYou can add this by pressing the Start Transcription button or typing in the Your response box. If you cannot add any more, you can move to the next question.`;
   };
 
   const buildFeedback = (decision, context = {}) => {

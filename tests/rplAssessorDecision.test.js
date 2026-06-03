@@ -100,6 +100,26 @@ test("additional evidence guidance formats multiple evidence points readably", (
   assert.doesNotMatch(feedback.displayText, /Objective/i);
 });
 
+test("low-evidence answers do not claim clear understanding", () => {
+  const decision = assessor.normaliseDecision({
+    overallAssessment: "ADDITIONAL EVIDENCE MAY BE NEEDED",
+    covered: [],
+    missing: [
+      "one internal stakeholder affected by the regulatory change",
+      "one external stakeholder affected by the regulatory change",
+      "how the regulatory change impacted those stakeholders",
+    ],
+    assessorRationale: "The learner did not provide usable evidence against the objective.",
+  }, { attemptCount: 1, maxAttempts: 3 });
+
+  const feedback = assessor.buildFeedback(decision, { givenName: "Bel" });
+
+  assert.match(feedback.displayText, /^Bel, I could not identify enough evidence yet/);
+  assert.match(feedback.displayText, /The key areas that still need more detail are/);
+  assert.doesNotMatch(feedback.displayText, /demonstrates a clear understanding/i);
+  assert.doesNotMatch(feedback.displayText, /You have addressed:/);
+});
+
 test("additional evidence at maximum attempts continues with exact status", () => {
   const decision = assessor.normaliseDecision({
     overallAssessment: "NEEDS MORE INFO",
