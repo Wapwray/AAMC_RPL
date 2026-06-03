@@ -563,7 +563,7 @@
           src="/RPL%20Bot%20Artwork/2024_logo_black_transparent_outline_HRES.png"
           alt="AAMC Training Group"
         />
-        
+
         <div class="welcomeContent">
           <div class="welcomeTitle" id="welcomeTitle">Welcome to the AAMC RPL Quiz</div>
           <div class="welcomeBody" id="welcomeBody">
@@ -762,6 +762,7 @@
       </div>
     </div>
 
+    <script src="rpl-preliminary-review.js"></script>
     <script>
       const questionsUrl =
         "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/4e73e4946e2f4d68a1c327ffd94ab86e/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=PL4kQafihKKASyjQ6277VCbFKpq76tRgecIcNrKuBps";
@@ -1691,6 +1692,182 @@
         return false;
       };
 
+      const getPreliminaryReviewModule = () => {
+        if (!window.RplPreliminaryReview) {
+          throw new Error("Preliminary review report module is not loaded.");
+        }
+        return window.RplPreliminaryReview;
+      };
+
+      const splitReportListField = (value) => {
+        const text = String(value || "").trim();
+        if (!text) return [];
+        return text
+          .split(/\r?\n|;|\|/)
+          .map((entry) => entry.trim())
+          .filter(Boolean);
+      };
+
+      const getQuestionSpecNumber = (question, index) => {
+        const explicitNumber = getQuestionFieldSource(question, [
+          "Question Number",
+          "QuestionNumber",
+          "Question No",
+          "QuestionNo",
+          "Q#",
+          "Number",
+          "No",
+        ]);
+        const titleNumber = extractQuestionNumberFromText(question?.Title || question?.title || "");
+        const candidate = explicitNumber || titleNumber || String(index + 1);
+        return /^\d+$/.test(String(candidate).trim()) ? parseInt(candidate, 10) : String(candidate).trim();
+      };
+
+      const buildOfficialQuestionBankForReport = (questionList = questions) => {
+        if (!Array.isArray(questionList) || !questionList.length) return [];
+        return questionList.map((question, index) => {
+          const questionNumber = getQuestionSpecNumber(question, index);
+          const section = getQuestionFieldSource(question, ["Section", "Topic", "Category", "Capability", "field_5"]);
+          const unitCode = getQuestionFieldSource(question, ["Unit Code", "UnitCode", "CODE", "Code", "Unit"]);
+          const unitTitle = getQuestionFieldSource(question, ["Unit Title", "UnitTitle", "Unit Name", "UnitName"]);
+          const assessmentCriteria = splitReportListField(getQuestionFieldSource(question, ["Assessment Criteria", "AssessmentCriteria", "Criteria"]));
+          const requiredEvidence = splitReportListField(getQuestionFieldSource(question, ["Required Evidence", "RequiredEvidence", "Evidence Required", "Evidence"]));
+          return {
+            questionNumber,
+            section,
+            unitCode,
+            unitTitle,
+            questionText: getQuestionText(question) || String(question?.Title || question?.title || `Question ${questionNumber}`).trim(),
+            hints: getQuestionHint(question),
+            objective: getQuestionObjective(question),
+            assessmentCriteria,
+            requiredEvidence,
+          };
+        });
+      };
+
+      const getReportCandidateMetadata = () => {
+        const ctx = getStudentContext();
+        const industryValue = industry || industryEl?.value?.trim() || "";
+        const jobTitleValue = jobTitle || jobTitleEl?.value?.trim() || "";
+        return {
+          fullName: ctx.fullName,
+          givenName: ctx.givenName,
+          contactId: String(ctx.contactId || ""),
+          assessmentName: "RPL",
+          qualification: "FNS40821 - Certificate IV in Finance and Mortgage Broking",
+          interviewDate: assessmentStartAt ? formatDate(assessmentStartAt) : formatDate(new Date()),
+          industry: industryValue,
+          jobTitle: jobTitleValue,
+        };
+      };
+
+      const getReportOptions = () => ({
+        outputMode: "html",
+        includeTranscriptWarnings: true,
+        qualificationDefault: "FNS40821 - Certificate IV in Finance and Mortgage Broking",
+        reportDate: formatDate(new Date()),
+        maxBatchChars: 16000,
+      });
+
+      const buildQuestionAnalysisPromptForBatch = (batch, candidateMetadata) => {
+        const reportModule = getPreliminaryReviewModule();
+        const questionSpecs = batch.map((item) => item.officialQuestionSpec || {
+          questionNumber: item.questionNumber,
+          section: item.section || "Not supplied in question bank",
+          questionText: item.parsedQuestionBlock?.transcriptQuestionText || "",
+          hints: item.parsedQuestionBlock?.transcriptHint || "",
+          objective: item.parsedQuestionBlock?.transcriptObjective || "",
+        });
+        const parsedQuestionBlocks = batch.map((item) => item.parsedQuestionBlock || {
+          questionNumber: item.questionNumber,
+          transcriptQuestionText: item.officialQuestionSpec?.questionText || "",
+          attempts: [],
+          assessorBotMessages: [],
+          rawBlockText: "",
+        });
+        const template = promptTemplates?.preliminaryQuestionAnalysisPrompt;
+        if (template) {
+          return applyTemplate(template, {
+            CandidateMetadataJson: JSON.stringify(candidateMetadata || {}, null, 2),
+            QuestionSpecsJson: JSON.stringify(questionSpecs, null, 2),
+            ParsedQuestionBlocksJson: JSON.stringify(parsedQuestionBlocks, null, 2),
+          });
+        }
+        return reportModule.buildQuestionAnalysisPrompt({
+          candidateMetadata,
+          questionSpecs,
+          parsedQuestionBlocks,
+        });
+      };
+
+      const analysePreliminaryQuestionBatch = async (batch, candidateMetadata, batchNumber, totalBatches) => {
+        const reportModule = getPreliminaryReviewModule();
+        const prompt = buildQuestionAnalysisPromptForBatch(batch, candidateMetadata);
+        const estimatedTokens = Math.min(12000, Math.max(2400, 1200 + batch.length * 1200 + Math.ceil(prompt.length / 6)));
+        setStatus(`Analysing report questions batch ${batchNumber} of ${totalBatches}...`);
+        const responseText = await callTextModel(prompt, {
+          mode: "final",
+          temperature: 0.1,
+          max_tokens: estimatedTokens,
+        });
+        const parsed = reportModule.parseQuestionAnalysisResponse(responseText);
+        return Array.isArray(parsed.questions) ? parsed.questions : [];
+      };
+
+      const analysePreliminaryQuestions = async (manifest, candidateMetadata, reportOptions) => {
+        const reportModule = getPreliminaryReviewModule();
+        const batches = reportModule.buildQuestionAnalysisBatches(manifest, reportOptions);
+        const analyses = [];
+        const warnings = [];
+        for (let index = 0; index < batches.length; index += 1) {
+          const batch = batches[index];
+          try {
+            analyses.push(...await analysePreliminaryQuestionBatch(batch, candidateMetadata, index + 1, batches.length));
+          } catch (batchError) {
+            logDebugDetail("Preliminary review batch failed", batchError?.message || String(batchError));
+            if (batch.length <= 1) {
+              warnings.push(`AI analysis warning: Question ${batch[0]?.questionNumber || index + 1} could not be analysed by the model and was classified from transcript source signals only.`);
+              continue;
+            }
+            warnings.push(`AI analysis warning: batch ${index + 1} was retried as individual questions after the first attempt failed.`);
+            for (let singleIndex = 0; singleIndex < batch.length; singleIndex += 1) {
+              const singleQuestion = batch[singleIndex];
+              try {
+                analyses.push(...await analysePreliminaryQuestionBatch([singleQuestion], candidateMetadata, singleIndex + 1, batch.length));
+              } catch (singleError) {
+                logDebugDetail("Preliminary review question failed", singleError?.message || String(singleError));
+                warnings.push(`AI analysis warning: Question ${singleQuestion?.questionNumber || singleIndex + 1} could not be analysed by the model and was classified from transcript source signals only.`);
+              }
+            }
+          }
+        }
+        return { analyses, warnings };
+      };
+
+      const buildPreliminaryReviewReport = async ({ fullTranscriptText, candidateMetadata, officialQuestionBank, reportOptions }) => {
+        const reportModule = getPreliminaryReviewModule();
+        const parsedQuestionBlocks = reportModule.parseTranscriptQuestions(fullTranscriptText);
+        const manifest = reportModule.buildQuestionManifest(officialQuestionBank, parsedQuestionBlocks);
+        const { analyses, warnings: analysisWarnings } = await analysePreliminaryQuestions(manifest, candidateMetadata, reportOptions);
+        const model = reportModule.buildReportModel({
+          fullTranscript: fullTranscriptText,
+          candidateMetadata,
+          officialQuestionBank,
+          reportOptions,
+          questionAnalyses: analyses,
+        });
+        model.warnings.push(...analysisWarnings);
+        const html = reportModule.renderReportHtml(model);
+        const validation = reportModule.validateReportHtmlCoverage(model, html);
+        if (!validation.valid) {
+          throw new Error(`Generated report coverage validation failed: expected ${validation.questionCount} question row(s), got ${validation.statusRows} status row(s) and ${validation.articleCount} article(s).`);
+        }
+        window.RPLLastPreliminaryReportModel = model;
+        window.RPLLastPreliminaryReportHtml = html;
+        return { html, model, validation };
+      };
+
       const setCompletedState = () => {
         setStatus("All questions completed.");
         headerTitleEl.textContent = "Compliance - Completed";
@@ -1732,12 +1909,19 @@
       const runFinalReview = async ({ openWindow = false, sendWebhook = false, showCompletion = false } = {}) => {
         const ctx = getStudentContext();
         const reviewText = buildFullTranscript();
-        const prompt = buildFinalReviewPrompt(reviewText);
-        setStatus("Generating final review...");
+        const candidateMetadata = getReportCandidateMetadata();
+        const officialQuestionBank = buildOfficialQuestionBankForReport(questions);
+        const reportOptions = getReportOptions();
+        setStatus("Generating preliminary review report...");
         if (finalBtn) finalBtn.disabled = true;
         showFinalisingOverlay();
         try {
-          const html = await callTextModel(prompt);
+          const { html } = await buildPreliminaryReviewReport({
+            fullTranscriptText: reviewText,
+            candidateMetadata,
+            officialQuestionBank,
+            reportOptions,
+          });
           if (openWindow) {
             const reportWindow = window.open("", "RPLFinalReview", "width=900,height=700,scrollbars=yes");
             if (!reportWindow) {
@@ -1770,9 +1954,9 @@
           if (showCompletion) {
             showCompletionScreen();
           }
-          setStatus("Final review ready.");
+          setStatus("Preliminary review report ready.");
         } catch (err) {
-          setStatus(err?.message || "Unable to generate final review.");
+          setStatus(err?.message || "Unable to generate preliminary review report.");
           throw err;
         } finally {
           hideFinalisingOverlay();
@@ -3243,69 +3427,24 @@ ${assessorSummaryToneInstruction}`;
             ReviewText: reviewText,
           });
         }
-        return `You are an expert reviewer in Australia for the ${industryValue || "Not stated in the Review"} industry. Use Australian English and spelling.
+        return `You are preparing an Australian RPL preliminary review report from a completed transcript for the ${industryValue || "Not stated in the Review"} industry. This is a post-interview assessor-facing workflow, not a learner-facing question prompt.
 
-SOURCE OF TRUTH
-Use ONLY the content inside the REVIEW block below. Do not use outside knowledge.
-If a detail is missing, write exactly: Not stated in the Review.
+Use the structured report generator where available. If this fallback prompt is used, produce a complete standalone HTML5 document for an assessor-facing preliminary review.
 
-STATUS RULE
-- Satisfactory = every question is ultimately satisfactory (including after follow-ups recorded in the source).
-- Discussion Required = at least one question remains unsatisfactory or unanswered in the final state.
+Rules:
+- Do not assume a fixed question count. Detect every distinct question block in the supplied REVIEW text.
+- Do not use legacy report labels such as Satisfactory, Unsatisfactory, Needs more info, Competent, Not competent, Pass, Fail, or Not classified by AI review.
+- Treat transcript Overall assessment values as source metadata only. Expected source values are LIKELY SUFFICIENT and ADDITIONAL EVIDENCE MAY BE NEEDED. Render only these assessor-facing labels: Likely sufficient, Additional evidence may be needed, Not available in transcript.
+- Include one preliminary status table row and one question review article for every detected question.
+- Preserve candidate responses verbatim in <pre class="verbatim"></pre> blocks and escape transcript-derived HTML special characters.
+- Include the required preliminary AI disclaimer, limitations, assessor confirmation, and assessor sign-off sections.
+- Do not write directly to the learner and do not include learner-facing directions.
 
-OUTPUT RULES
-- Produce valid HTML only (no code fences/CSS/JS).
-- Follow the structure EXACTLY as below; do not add other sections.
-- Keep tone factual and neutral.
-- Do NOT include recommendations, next steps, guidance, or action items.
-
-CONDITIONALS (do NOT render these lines in the output; they are just instructions)
-- If there are NO initially-unsatisfactory questions, in the “Questions Where the Student Did Not Give a Satisfactory Answer” section output ONLY:
-  “All questions were ultimately answered satisfactorily.” and do NOT include any <article> blocks.
-- If there ARE any initially-unsatisfactory questions, output one <article> block per such question (as shown), then proceed to the satisfactory list.
-
-HTML STRUCTURE (fill placeholders ONLY from the REVIEW; comments below are invisible in browsers)
-
-<u><strong>RPL Assessment Review Report</strong></u>
-
-<section>
-  <p><strong>Name:</strong>  Student Name </p>
-  <p><strong>Industry:</strong>  Industry </p>
-  <p><strong>Job Title:</strong>  Job Title </p>
-</section>
-
-<u><strong>Executive Summary — [Satisfactory | Discussion Required]</strong></u>
-<p>
-  2–5 sentences stating this is an RPL assessment review; summarising what was
-  evaluated at a high level (e.g., regulatory knowledge, ethics, client service,
-  workload management, professional development) using Australian terminology;
-  and giving a neutral overall appraisal consistent with the selected status.
-  Only include details present in the REVIEW; if a required detail is missing,
-  write: Not stated in the Review.
-</p>
-
-<u><strong>Questions Where the Student Did Not Give a Satisfactory Answer</strong></u>
-<!-- If none: output only the next paragraph line; omit all <article> blocks. -->
-<p>All questions were ultimately answered satisfactorily.</p>
-
-<!-- If there were initially-unsatisfactory questions, DELETE the single line above
-     and output one <article> block per question using this pattern: -->
-<!--
-<article>
-  <u><strong>Question [#]: [Short question text]</strong></u>
-  <p><strong>Why listed here:</strong> Initially required further detail before being deemed satisfactory, or remains unsatisfactory.</p>
-  <p><strong>Student’s Initial Response:</strong> [Concise paraphrase of the student’s first answer]</p>
-  <p><strong>AI Interviewer Feedback:</strong> [Key feedback requesting additions/clarifications]</p>
-  <p><strong>Student’s Follow-up Response:</strong> [Concise paraphrase of the follow-up; if none, write: Not stated in the Review]</p>
-  <p><strong>AI Interviewer Final Comment/Outcome:</strong> [Outcome summary; note whether the answer became satisfactory or still needs discussion]</p>
-</article>
--->
-
-<u><strong>Questions Where the Student Gave a Satisfactory Answer</strong></u>
-<ul>
-  <!-- List each question that was satisfactory in the final state -->
-  <li><strong>Question [#]:</strong> [One-line description of what the student demonstrated or identified]</li>
-</ul>
+Candidate metadata:
+Name: ${fullName || ctx.fullName}
+Contact ID: ${ctx.contactId}
+Industry: ${industryValue || "Not stated in the Review"}
+Job title: ${jobTitle || jobTitleEl?.value?.trim() || "Not stated in the Review"}
 
 REVIEW
 <<<BEGIN_REVIEW
