@@ -304,19 +304,25 @@ app.post("/api/speech/token", async (_req, res) => {
 app.post("/api/analysis/chat", async (req, res) => {
   const modeHeader = String(req.headers["x-rpl-mode"] || "").toLowerCase();
   const isFinal = modeHeader === "final";
-  const useRouter = !isFinal;
+  const isAssessor = modeHeader === "assessor";
+  const envPrefix = isFinal ? "RPL_FINAL" : isAssessor ? "RPL_ASSESSOR" : "RPL_ROUTER";
+  const getModelEnv = (suffix) => process.env[`${envPrefix}_${suffix}`] || "";
 
-  const apiKey = isFinal ? process.env.RPL_FINAL_API_KEY : process.env.RPL_ROUTER_API_KEY;
-  const apiVersion = isFinal ? process.env.RPL_FINAL_API_VERSION : process.env.RPL_ROUTER_API_VERSION;
-  const endpoint = isFinal ? process.env.RPL_FINAL_AZURE_ENDPOINT : process.env.RPL_ROUTER_AZURE_ENDPOINT;
-  const deployment = isFinal ? process.env.RPL_FINAL_DEPLOYMENT : process.env.RPL_ROUTER_DEPLOYMENT;
-  const modelName = isFinal ? process.env.RPL_FINAL_MODEL_NAME : process.env.RPL_ROUTER_MODEL_NAME;
+  const apiKey = getModelEnv("API_KEY");
+  const apiVersion = getModelEnv("API_VERSION");
+  const endpoint = getModelEnv("AZURE_ENDPOINT");
+  const deployment = getModelEnv("DEPLOYMENT");
+  const modelName = getModelEnv("MODEL_NAME");
+  const apiStyle = getModelEnv("API_STYLE").toLowerCase();
+  const endpointBase = String(endpoint || "").replace(/\/+$/, "");
+  const useOpenAiV1 = apiStyle === "v1" ||
+    apiStyle === "openai-v1" ||
+    /\/openai\/v1$/i.test(endpointBase) ||
+    (isAssessor && !apiVersion);
 
-  if (!apiKey || !apiVersion || !endpoint || !deployment) {
+  if (!apiKey || !endpoint || !deployment || (!useOpenAiV1 && !apiVersion)) {
     res.status(500).json({
-      error: isFinal
-        ? "Missing required RPL_FINAL_* environment variables."
-        : "Missing required RPL_ROUTER_* environment variables.",
+      error: `Missing required ${envPrefix}_* environment variables.`,
     });
     return;
   }
@@ -327,26 +333,27 @@ app.post("/api/analysis/chat", async (req, res) => {
     return;
   }
 
-  const normalizedBase = endpoint
+  const normalizedBase = endpointBase
+    .replace(/\/api\/projects\/[^/]+$/i, "")
     .replace(/\/+$/, "")
     .replace(/\/openai(\/v\d+)?$/i, "");
-  const url = `${normalizedBase}/openai/deployments/${encodeURIComponent(
-    deployment
-  )}/chat/completions?api-version=${encodeURIComponent(apiVersion)}`;
+  const url = useOpenAiV1
+    ? `${normalizedBase}/openai/v1/chat/completions`
+    : `${normalizedBase}/openai/deployments/${encodeURIComponent(
+        deployment
+      )}/chat/completions?api-version=${encodeURIComponent(apiVersion)}`;
 
-  const messages = useRouter || isFinal
-    ? [
-        { role: "system", content: "You are a helpful assistant." },
-        { role: "user", content: prompt },
-      ]
-    : [{ role: "user", content: prompt }];
+  const messages = [
+    { role: "system", content: "You are a helpful assistant." },
+    { role: "user", content: prompt },
+  ];
 
   const requestedMaxTokens = Number.isFinite(Number(max_tokens)) ? Number(max_tokens) : 300;
   const resolvedMaxTokens = isFinal
     ? Math.max(1200, requestedMaxTokens)
-    : useRouter
-      ? Math.max(800, requestedMaxTokens)
-      : requestedMaxTokens;
+    : isAssessor
+      ? Math.max(900, requestedMaxTokens)
+      : Math.max(800, requestedMaxTokens);
 
   const body = {
     messages,
