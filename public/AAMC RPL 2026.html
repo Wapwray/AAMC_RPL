@@ -3776,7 +3776,7 @@ END_REVIEW>>>`;
         try {
           await sendRecordingOnEvaluate(attemptNumber, questionNumber);
           const prompt = buildPrompt(questions[currentIndex], currentResponses);
-          const feedback = await callTextModel(prompt);
+          const feedback = await callTextModel(prompt, { mode: "assessor" });
           const showNextQuestionOnly = shouldShowNextQuestionOnly(feedback);
           const displayFeedback = showNextQuestionOnly ? getNextQuestionDisplayText() : getGuidanceDisplayText(feedback);
           addChatEntry(displayFeedback, "ai", feedback);
