@@ -1339,11 +1339,43 @@
           (normalized.includes(NEXT_QUESTION_DISPLAY_SIGNAL) || normalized.includes("press the next button to continue"));
       };
 
+      const escapeRegExp = (value) => String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+      const getGuidanceDisplayText = (feedback) => {
+        const text = String(feedback || "").trim();
+        if (!text) return "";
+        const cleaned = getAssessorSummaryText(text);
+        const ctx = getStudentContext();
+        const givenName = firstName || ctx.givenName || ctx.fullName || "";
+        const namePattern = givenName ? escapeRegExp(givenName) : "";
+        const directOpeningPatterns = [
+          /^\s*(please|you\b|your\b)/i,
+          namePattern ? new RegExp(`^\\s*${namePattern}\\s*,\\s*(please|you\\b|your\\b)`, "i") : null,
+        ].filter(Boolean);
+        if (directOpeningPatterns.some((pattern) => pattern.test(cleaned))) return cleaned;
+
+        const directRequestPatterns = [
+          namePattern ? new RegExp(`\\b${namePattern}\\s*,\\s*please\\b`, "i") : null,
+          /\bplease\s+(add|provide|tell|explain|describe|include|give|share)\b/i,
+          /\byou can\s+(add|provide|type|move|do this)\b/i,
+          /\bif you cannot add any more\b/i,
+        ].filter(Boolean);
+        const indexes = directRequestPatterns
+          .map((pattern) => {
+            const match = cleaned.match(pattern);
+            return match ? match.index : -1;
+          })
+          .filter((index) => index >= 0);
+        if (!indexes.length) return cleaned;
+        const firstDirectRequestIndex = Math.min(...indexes);
+        return cleaned.slice(firstDirectRequestIndex).replace(/^\s*[.;:,\-]+\s*/, "").trim() || cleaned;
+      };
+
       const getAssessorSummaryToneInstruction = () => {
         const ctx = getStudentContext();
         const givenName = firstName || ctx.givenName || ctx.fullName;
         return `Assessor summary and Guidance instruction:
-      Learner-facing text shown in the Guidance window must be addressed directly to ${givenName}. This includes requests for more information and the required continue sentence. When writing Assessor summary or final transcript feedback that is kept for the transcript, write about ${givenName} in the third person, not to ${givenName}. Do not use "you", "your", or "you have" in the Assessor summary or final transcript feedback portion. This restriction does not apply to learner-facing Guidance text or the required continue sentence. Start the Assessor summary with "${givenName}," followed by a third-person verb phrase. For example, write "${givenName}, identified RG209 as a recent regulatory change" rather than "${givenName}, you have identified RG209 as a recent regulatory change".`;
+      Learner-facing text shown in the Guidance window must be addressed directly to ${givenName}. This includes requests for more information and the required continue sentence. When asking for more information, return only the learner-facing request and use "you" and "your". Do not include a third-person assessor summary, evidence evaluation paragraph, or sentences such as "${givenName} identified", "${givenName} described", or "${givenName} has not" in Guidance-window text. When writing Assessor summary or final transcript feedback that is kept for the transcript, write about ${givenName} in the third person, not to ${givenName}. Do not use "you", "your", or "you have" in the Assessor summary or final transcript feedback portion. This restriction does not apply to learner-facing Guidance text or the required continue sentence. Start the Assessor summary with "${givenName}," followed by a third-person verb phrase. For example, write "${givenName}, identified RG209 as a recent regulatory change" rather than "${givenName}, you have identified RG209 as a recent regulatory change".`;
       };
 
       const updateStudentContextBanner = () => {
@@ -1460,12 +1492,13 @@
           const summary = summaryMatch ? summaryMatch[1].trim() : "";
           const overallAssessmentMatch = section.match(/Overall assessment:\s*(LIKELY SUFFICIENT|ADDITIONAL EVIDENCE MAY BE NEEDED|Satisfactory|Unsatisfactory|NEEDS MORE INFO)/i);
           const attempts = [];
-          const attemptsSection = section.split("-----------------------------")[1] || "";
-          const attemptRegex = /\n([^\n]+) \(Attempt (\d+)\):\n([\s\S]*?)(?=\nAssessorBot:|\nSubmitted:|\n\n|\n-----------------------------|$)/g;
+          const detailSections = section.split("-----------------------------");
+          const attemptsSection = detailSections.length > 1 ? detailSections.slice(1).join("\n-----------------------------") : "";
+          const attemptRegex = /\n([^\n]+) \(Attempt (\d+)\):\n([\s\S]*?)(?=\n(?:AI Interviewer|AssessorBot):|\nSubmitted:|\n\n|\n-----------------------------|$)/g;
           let attemptMatch;
           while ((attemptMatch = attemptRegex.exec(attemptsSection))) {
             const tail = attemptsSection.slice(attemptMatch.index + attemptMatch[0].length);
-            const feedbackMatch = tail.match(/^\n?AssessorBot:\n([\s\S]*?)(?=\nSubmitted:|\n-----------------------------|$)/);
+            const feedbackMatch = tail.match(/^\n?(?:AI Interviewer|AssessorBot):\n([\s\S]*?)(?=\nSubmitted:|\n-----------------------------|$)/);
             const submittedMatch = tail.match(/Submitted:\s*([^\n]+)/);
             attempts.push({
               answer: (attemptMatch[3] || "").trim(),
@@ -1758,12 +1791,12 @@ Job Title: ${jobTitleValue || "N/A"}
           if (overallAssessment) {
             output += `Overall assessment: ${overallAssessment}.\n\n`;
           }
-          output += `-----------------------------\n${entry.questionText}\n\n`;
+          output += `-----------------------------\nQUESTION TRANSCRIPT\nAI Interview: ${entry.questionText}\n\n`;
           entry.attempts.forEach((attempt, attemptIndex) => {
             output += `${givenName} (Attempt ${attemptIndex + 1}):\n${attempt.answer}\n\n`;
             const feedbackText = getTranscriptAttemptFeedbackText(attempt.feedback);
             if (feedbackText) {
-              output += `AssessorBot:\n${feedbackText}\n`;
+              output += `AI Interviewer:\n${feedbackText}\n`;
             }
             if (attempt.submittedAt) {
               output += `Submitted: ${formatDateTime(attempt.submittedAt)}\n`;
@@ -3142,7 +3175,7 @@ ${answerBlock}
 
     Take into account that ${fullName} works in the ${industry} industry as a ${jobTitle}. Assess the response primarily against the question asked, the Objective, and the full student response text. Use the Hint only as supplementary evidence to clarify intent or recognise implied understanding; do not require the student to cover hint-only details unless they are also required by the question or Objective. Determine whether the required understanding has been demonstrated, including where key terms, concepts, or regulations are implied rather than explicitly stated.
 
-    Any AI response that will be shown in the Guidance window must be addressed directly to ${firstName}. For requests for more information, provide concise, supportive, conversational feedback directly to ${firstName}. Keep the tone professional at all times (polite, respectful, and workplace-appropriate). Use ${firstName}'s first name only. Do not refer to the student by their full name in the learner-facing response. For final transcript feedback in the continue cases below, write about ${firstName} in the third person, not to ${firstName}. For example, write "${firstName} identified RG209 as a recent regulatory change" rather than "${firstName}, you identified RG209 as a recent regulatory change".
+    Any AI response that will be shown in the Guidance window must be addressed directly to ${firstName}. For requests for more information, provide concise, supportive, conversational feedback directly to ${firstName}. Return only the learner-facing request; do not include a third-person assessor summary or evidence evaluation paragraph before the request. Use "you" and "your" when referring to ${firstName}'s response. Keep the tone professional at all times (polite, respectful, and workplace-appropriate). Use ${firstName}'s first name only. Do not refer to the student by their full name in the learner-facing response. For final transcript feedback in the continue cases below, write about ${firstName} in the third person, not to ${firstName}. For example, write "${firstName} identified RG209 as a recent regulatory change" rather than "${firstName}, you identified RG209 as a recent regulatory change".
 
 Follow these rules:
 
@@ -3156,8 +3189,8 @@ Follow these rules:
 "${getNextQuestionDisplayText()}"
 
     4. In the two cases above, do not return only the continue sentence; include the transcript feedback and Overall assessment line before it. The app will keep the full response in the transcript and show only the continue sentence on screen.
-    5. If the combined responses do not yet address the question or meet the intent of the Objective, and fewer than ${MAX_ATTEMPTS} attempts have been made, do not provide the answer and do not include an Overall assessment line. Only ask for the specific missing information that has not yet been covered.
-6. When asking for more information, address ${firstName} conversationally using their first name. Advise them to add more details by pressing the 'Start Transcription' button or typing in the 'Your response' box. Also tell them that if they cannot add any more, they can move to the next question.
+    5. If the combined responses do not yet address the question or meet the intent of the Objective, and fewer than ${MAX_ATTEMPTS} attempts have been made, do not provide the answer and do not include an Overall assessment line. Return only a learner-facing Guidance message asking for the specific missing information that has not yet been covered. Do not include third-person statements such as "${firstName} identified", "${firstName} described", or "${firstName} has not".
+  6. When asking for more information, address ${firstName} conversationally using their first name and use "you" and "your". Advise them to add more details by pressing the 'Start Transcription' button or typing in the 'Your response' box. Also tell them that if they cannot add any more, they can move to the next question.
 7. Feedback must be based only on the learner's submitted responses, the question asked, the stated Objective, and the Hint. Use the question asked and stated Objective as the primary criteria, and use the Hint only as supplementary evidence. Do not introduce new assessment requirements that are not required by those fields.
 8. Do not coach the learner by giving model answers, suggested wording, or the exact answer they should provide.
 9. Do not say "Hi" at the start of the response.
@@ -3232,9 +3265,9 @@ HTML STRUCTURE (fill placeholders ONLY from the REVIEW; comments below are invis
   <u><strong>Question [#]: [Short question text]</strong></u>
   <p><strong>Why listed here:</strong> Initially required further detail before being deemed satisfactory, or remains unsatisfactory.</p>
   <p><strong>Student’s Initial Response:</strong> [Concise paraphrase of the student’s first answer]</p>
-  <p><strong>AssessorBot Feedback:</strong> [Key feedback requesting additions/clarifications]</p>
+  <p><strong>AI Interviewer Feedback:</strong> [Key feedback requesting additions/clarifications]</p>
   <p><strong>Student’s Follow-up Response:</strong> [Concise paraphrase of the follow-up; if none, write: Not stated in the Review]</p>
-  <p><strong>AssessorBot Final Comment/Outcome:</strong> [Outcome summary; note whether the answer became satisfactory or still needs discussion]</p>
+  <p><strong>AI Interviewer Final Comment/Outcome:</strong> [Outcome summary; note whether the answer became satisfactory or still needs discussion]</p>
 </article>
 -->
 
@@ -3576,7 +3609,7 @@ END_REVIEW>>>`;
           const prompt = buildPrompt(questions[currentIndex], currentResponses);
           const feedback = await callTextModel(prompt);
           const showNextQuestionOnly = shouldShowNextQuestionOnly(feedback);
-          const displayFeedback = showNextQuestionOnly ? getNextQuestionDisplayText() : feedback;
+          const displayFeedback = showNextQuestionOnly ? getNextQuestionDisplayText() : getGuidanceDisplayText(feedback);
           addChatEntry(displayFeedback, "ai", feedback);
           attemptRecord.feedback = feedback;
           const entry = ensureTranscriptQuestion(currentIndex, questionText, { objective: objectiveText, hint: hintText });
