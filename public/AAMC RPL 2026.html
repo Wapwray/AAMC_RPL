@@ -107,18 +107,26 @@
       .answerStack textarea { height: 112px; min-height: 112px; max-height: 112px; overflow-y: auto; }
       .answerWrap.is-locked textarea { background: #e2e8f0; color: #64748b; }
       .evaluateSide {
-        align-self: end;
+        align-self: start;
         width: 100%;
         grid-column: 2;
-        grid-row: 3;
+        grid-row: 4;
+        position: relative;
+        z-index: 72;
       }
-      .nextFloating { position: fixed; right: 24px; bottom: 62px; z-index: 70; width: 220px; }
+      .nextFloating { position: fixed; right: 24px; bottom: 62px; z-index: 60; width: 220px; }
       .feedbackSection {
         display: grid;
         grid-template-rows: auto minmax(0, 1fr);
         min-height: 0;
         grid-column: 1;
         grid-row: 3;
+      }
+      @media (max-height: 780px) and (min-width: 901px) {
+        .nextFloating {
+          position: static;
+          margin-top: 10px;
+        }
       }
       .hintBtn { background: #0b8f64; }
       .hintBtn:hover:not(:disabled) { background: #0a7a55; }
@@ -3031,7 +3039,7 @@ Job Title: ${jobTitleValue || "N/A"}
             Hints: hintText,
           });
         }
-        return `You are an expert in the Australian Financial industry and are acting as an assessor of ${fullName}'s responses to the question '${questionText}'. ${firstName} has provided multiple attempts. Use all attempts together to judge completeness without requiring repetition.\n\n${answerBlock}\n\nTake into account ${fullName} works in the ${industry} Industry as a ${jobTitle} and assess using the objective '${objective}' if they have demonstrated the required understanding, even if key terms, concepts, or regulations are implied rather than explicitly stated.\n\nProvide a concise, conversational overview to ${firstName} that follows these rules. Keep the tone professional at all times (polite, respectful, and workplace-appropriate):\n\n1) If the responses together effectively answer the question and meet the intent of the Objective, do not ask for any further details. Acknowledge that the response is sufficient and tell them to move to the next question.\n\n2) If the responses together have not effectively answered the question or do not meet the Objective, do not give the answer. Only ask for the missing information that has not been covered yet. Advise ${firstName} to add more details by pressing the 'Start Transcription' button or typing in the Your response box. Tell them that if they cannot add any more they can move to the next question.\n\n3) Do not say 'Hi' at the start of the response.`;
+        return `You are an expert in the Australian Financial industry and are acting as an assessor of ${fullName}'s responses to the question '${questionText}'. ${firstName} has provided multiple attempts. Use all attempts together to judge completeness without requiring repetition.\n\n${answerBlock}\n\nTake into account ${fullName} works in the ${industry} Industry as a ${jobTitle} and assess using the objective '${objective}' if they have demonstrated the required understanding, even if key terms, concepts, or regulations are implied rather than explicitly stated.\n\nProvide a concise, conversational overview to ${firstName} that follows these rules. Keep the tone professional at all times (polite, respectful, and workplace-appropriate):\n\n1) If the responses together effectively answer the question and meet the intent of the Objective, do not ask for any further details. Acknowledge that the response is sufficient and tell them to move to the next question.\n\n2) If the responses together have not effectively answered the question or do not meet the Objective, do not give the answer. Only ask for the missing information that has not been covered yet. Advise ${firstName} to add more details by pressing the 'Start Transcription' button or typing in the 'Your response' box. Tell them that if they cannot add any more they can move to the next question.\n\n3) Do not say 'Hi' at the start of the response.`;
       };
 
       const buildFinalReviewPrompt = (reviewText) => {
