@@ -908,6 +908,8 @@
       const FINAL_FOOTER_TEXT = "Submitting your responses does not guarantee RPL. A qualified assessor will review your evidence and determine the outcome.";
       const NEXT_QUESTION_DISPLAY_SUFFIX = "Please press the Next Question button to continue.";
       const NEXT_QUESTION_DISPLAY_SIGNAL = "press the next question button to continue";
+      const ASSESSMENT_LIKELY_SUFFICIENT = "LIKELY SUFFICIENT";
+      const ASSESSMENT_ADDITIONAL_EVIDENCE = "ADDITIONAL EVIDENCE MAY BE NEEDED";
       let lockedButtonStates = null;
       let attemptLocked = false;
       let attemptLockStates = null;
@@ -1337,6 +1339,13 @@
           (normalized.includes(NEXT_QUESTION_DISPLAY_SIGNAL) || normalized.includes("press the next button to continue"));
       };
 
+      const getAssessorSummaryToneInstruction = () => {
+        const ctx = getStudentContext();
+        const givenName = firstName || ctx.givenName || ctx.fullName;
+        return `Assessor summary instruction:
+When writing Assessor summary or final transcript feedback, write about ${givenName} in the third person, not to ${givenName}. Do not use "you", "your", or "you have" in the Assessor summary. Start the summary with "${givenName}," followed by a third-person verb phrase. For example, write "${givenName}, identified RG209 as a recent regulatory change" rather than "${givenName}, you have identified RG209 as a recent regulatory change".`;
+      };
+
       const updateStudentContextBanner = () => {
         const fullNameEl = document.getElementById("studentFullName");
         const givenNameEl = document.getElementById("studentGivenName");
@@ -1371,6 +1380,12 @@
       const getOverallAssessment = (feedback) => {
         if (!feedback) return "";
         const normalized = feedback.toLowerCase();
+        const explicitAssessmentMatch = normalized.match(/(?:overall assessment|final evaluation|evaluation)\s*:\s*(additional evidence may be needed|likely sufficient|unsatisfactory|satisfactory|needs more info|needs more information)/i);
+        if (explicitAssessmentMatch) {
+          const value = explicitAssessmentMatch[1];
+          if (value.startsWith("likely sufficient") || value.startsWith("satisfactory")) return ASSESSMENT_LIKELY_SUFFICIENT;
+          return ASSESSMENT_ADDITIONAL_EVIDENCE;
+        }
         const needsMoreInfoSignals = [
           "add more",
           "more detail",
@@ -1389,22 +1404,38 @@
           "cannot add any more"
         ];
         if (needsMoreInfoSignals.some((signal) => normalized.includes(signal))) {
-          return "NEEDS MORE INFO";
+          return ASSESSMENT_ADDITIONAL_EVIDENCE;
         }
         if (normalized.includes("proceed to the next question") || normalized.includes("sufficient")) {
-          return "SATISFACTORY";
+          return ASSESSMENT_LIKELY_SUFFICIENT;
         }
-        return "SATISFACTORY";
+        return ASSESSMENT_LIKELY_SUFFICIENT;
       };
 
-      const ensureTranscriptQuestion = (index, questionText) => {
+      const getTranscriptOverallAssessment = (feedback, attemptCount = 0) => {
+        const assessment = getOverallAssessment(feedback);
+        return assessment;
+      };
+
+      const getAssessorSummaryText = (feedback) => String(feedback || "")
+        .replace(/\n?Overall assessment:\s*(LIKELY SUFFICIENT|ADDITIONAL EVIDENCE MAY BE NEEDED|Satisfactory|Unsatisfactory|NEEDS MORE INFO)\.?/i, "")
+        .replace(/\n?Thank you for your responses,\s*[^.\n]+\.\s*Please press the Next Question button to continue\.?/i, "")
+        .trim();
+
+      const ensureTranscriptQuestion = (index, questionText, details = {}) => {
         if (!transcriptQuestions[index]) {
           transcriptQuestions[index] = {
             questionText: questionText || "",
+            objective: details.objective || "",
+            hint: details.hint || "",
             attempts: [],
             summary: "",
+            overallAssessment: "",
           };
         }
+        if (questionText) transcriptQuestions[index].questionText = questionText;
+        if (details.objective) transcriptQuestions[index].objective = details.objective;
+        if (details.hint) transcriptQuestions[index].hint = details.hint;
         return transcriptQuestions[index];
       };
 
@@ -1416,16 +1447,20 @@
         while ((match = questionRegex.exec(transcriptText))) {
           const index = Math.max(0, parseInt(match[1], 10) - 1);
           const section = match[2] || "";
-          const questionLine = (section.split("\n")[0] || "").trim();
-          const summaryMatch = section.match(/Summary:\s*([\s\S]*?)(?=\n\n|\nOverall assessment:|\n-----------------------------)/i);
+          const questionMatch = section.match(/^([\s\S]*?)(?=\nObjective:|\nHint:|\nAssessor summary:|\nSummary:|\nOverall assessment:|\n-----------------------------|$)/i);
+          const questionLine = questionMatch ? questionMatch[1].trim() : "";
+          const objectiveMatch = section.match(/\nObjective:\s*([\s\S]*?)(?=\nHint:|\nAssessor summary:|\nSummary:|\nOverall assessment:|\n-----------------------------|$)/i);
+          const hintMatch = section.match(/\nHint:\s*([\s\S]*?)(?=\nAssessor summary:|\nSummary:|\nOverall assessment:|\n-----------------------------|$)/i);
+          const summaryMatch = section.match(/Summary:\s*([\s\S]*?)(?=\nOverall assessment:|\n-----------------------------)/i);
           const summary = summaryMatch ? summaryMatch[1].trim() : "";
+          const overallAssessmentMatch = section.match(/Overall assessment:\s*(LIKELY SUFFICIENT|ADDITIONAL EVIDENCE MAY BE NEEDED|Satisfactory|Unsatisfactory|NEEDS MORE INFO)/i);
           const attempts = [];
           const attemptsSection = section.split("-----------------------------")[1] || "";
           const attemptRegex = /\n([^\n]+) \(Attempt (\d+)\):\n([\s\S]*?)(?=\nAssessorBot:|\nSubmitted:|\n\n|\n-----------------------------|$)/g;
           let attemptMatch;
           while ((attemptMatch = attemptRegex.exec(attemptsSection))) {
             const tail = attemptsSection.slice(attemptMatch.index + attemptMatch[0].length);
-            const feedbackMatch = tail.match(/^\n?AssessorBot:\n([\s\S]*?)(?=\nSubmitted:|\n\n|\n-----------------------------|$)/);
+            const feedbackMatch = tail.match(/^\n?AssessorBot:\n([\s\S]*?)(?=\nSubmitted:|\n-----------------------------|$)/);
             const submittedMatch = tail.match(/Submitted:\s*([^\n]+)/);
             attempts.push({
               answer: (attemptMatch[3] || "").trim(),
@@ -1435,8 +1470,11 @@
           }
           parsed[index] = {
             questionText: questionLine,
+            objective: objectiveMatch ? objectiveMatch[1].trim() : "",
+            hint: hintMatch ? hintMatch[1].trim() : "",
             attempts,
             summary,
+            overallAssessment: overallAssessmentMatch ? getOverallAssessment(`Overall assessment: ${overallAssessmentMatch[1].trim()}`) : "",
           };
         }
         return parsed;
@@ -1566,7 +1604,7 @@
         for (let i = 0; i < totalCount; i += 1) {
           const entry = entries[i];
           if (!entry || !entry.summary) return i;
-          if (getOverallAssessment(entry.summary) === "NEEDS MORE INFO" && (entry.attempts?.length || 0) < MAX_ATTEMPTS) return i;
+          if (getOverallAssessment(entry.summary) === ASSESSMENT_ADDITIONAL_EVIDENCE && (entry.attempts?.length || 0) < MAX_ATTEMPTS) return i;
         }
         return totalCount;
       };
@@ -1699,15 +1737,20 @@ Job Title: ${jobTitleValue || "N/A"}
         transcriptQuestions.forEach((entry, index) => {
           if (!entry) return;
           const summaryText = entry.summary || "";
-          const overallAssessment = getOverallAssessment(summaryText);
+          const summaryOutputText = getAssessorSummaryText(summaryText);
+          const objectiveText = entry.objective || "N/A";
+          const hintText = entry.hint || "N/A";
+          const overallAssessment = entry.overallAssessment || getTranscriptOverallAssessment(summaryText, entry.attempts?.length || 0);
           output += `Question ${index + 1}: ${entry.questionText}\n\n`;
-          if (summaryText) {
-            output += `Assessor summary: ${summaryText}\n\n`;
+          output += `Objective: ${objectiveText}\n\n`;
+          output += `Hint: ${hintText}\n\n`;
+          if (summaryOutputText) {
+            output += `Assessor summary: ${summaryOutputText}\n\n`;
           }
           if (overallAssessment) {
             output += `Overall assessment: ${overallAssessment}.\n\n`;
           }
-          output += `-----------------------------\n${entry.questionText}\n\n`;
+          output += `-----------------------------\n${entry.questionText}\n\nObjective: ${objectiveText}\n\nHint: ${hintText}\n\n`;
           entry.attempts.forEach((attempt, attemptIndex) => {
             output += `${givenName} (Attempt ${attemptIndex + 1}):\n${attempt.answer}\n\n`;
             if (attempt.feedback) {
@@ -3054,9 +3097,10 @@ Job Title: ${jobTitleValue || "N/A"}
           .map((response, index) => `Response ${index + 1}: ${response}`)
           .join("\n");
         const ctx = getStudentContext();
+        const assessorSummaryToneInstruction = getAssessorSummaryToneInstruction();
         const template = promptTemplates?.assessmentPrompt;
         if (template) {
-          return applyTemplate(template, {
+          const renderedPrompt = applyTemplate(template, {
             FullName: fullName || ctx.fullName,
             GivenName: firstName || ctx.givenName || ctx.fullName,
             ContactID: ctx.contactId,
@@ -3070,32 +3114,47 @@ Job Title: ${jobTitleValue || "N/A"}
             MaxAttempts: String(MAX_ATTEMPTS),
             ContinueMessage: getNextQuestionDisplayText(),
           });
+          return `${renderedPrompt}\n\n${assessorSummaryToneInstruction}`;
         }
         return `You are an expert in the Australian Financial industry and are acting as an assessor reviewing ${fullName}'s responses to the question '${questionText}'. ${firstName} has provided ${answers.length} attempt(s). Use all attempts together to judge whether the response addresses the question and the objective, without requiring unnecessary repetition.
 
+    Assessment context:
+    Question asked:
+    ${questionText}
+
+    Objective:
+    ${objective}
+
+    Hint:
+    ${hintText}
+
+    Full student response text:
 ${answerBlock}
 
-Take into account that ${fullName} works in the ${industry} industry as a ${jobTitle}. Assess the response against the objective '${objective}' and determine whether the required understanding has been demonstrated, including where key terms, concepts, or regulations are implied rather than explicitly stated.
+    Take into account that ${fullName} works in the ${industry} industry as a ${jobTitle}. Assess the response against the question asked, the objective, the hint, and the full student response text. Determine whether the required understanding has been demonstrated, including where key terms, concepts, or regulations are implied rather than explicitly stated.
 
-Provide concise, supportive, conversational feedback directly to ${firstName}. Keep the tone professional at all times (polite, respectful, and workplace-appropriate). Use ${firstName}'s first name only. Do not refer to the student by their full name in the learner-facing response.
+    For requests for more information, provide concise, supportive, conversational feedback directly to ${firstName}. Keep the tone professional at all times (polite, respectful, and workplace-appropriate). Use ${firstName}'s first name only. Do not refer to the student by their full name in the learner-facing response. For final transcript feedback in the continue cases below, write about ${firstName} in the third person, not to ${firstName}. For example, write "${firstName} identified RG209 as a recent regulatory change" rather than "${firstName}, you identified RG209 as a recent regulatory change".
 
 Follow these rules:
 
-1. Do not state or imply a final assessment outcome, competency decision, pass/fail result, or formal confirmation that the response is satisfactory, not satisfactory, competent, or not yet competent.
-2. If the combined responses address the question and meet the intent of the Objective, include the full concise evaluation feedback for the transcript, then include this exact sentence on its own final line:
+    1. Do not state or imply a final assessment outcome, competency decision, pass/fail result, or formal confirmation of the evidence status in learner-facing requests for more information.
+    2. If the combined responses address the question and meet the intent of the Objective, include the full concise evaluation feedback for the transcript in third person about ${firstName}, then include a line exactly in this format: "Overall assessment: ${ASSESSMENT_LIKELY_SUFFICIENT}". Then include this exact sentence on its own final line:
 
 "${getNextQuestionDisplayText()}"
 
-3. If the current attempt count is ${answers.length} and that equals ${MAX_ATTEMPTS}, include the full concise evaluation feedback for the transcript, regardless of whether the response fully addresses the question or Objective, then include this exact sentence on its own final line:
+    3. If the current attempt count is ${answers.length} and that equals ${MAX_ATTEMPTS}, include the full concise evaluation feedback for the transcript in third person about ${firstName}, regardless of whether the response fully addresses the question or Objective, then include a line exactly in this format using the evaluation produced from the question asked, objective, hint, and full student response text: "Overall assessment: ${ASSESSMENT_LIKELY_SUFFICIENT}" or "Overall assessment: ${ASSESSMENT_ADDITIONAL_EVIDENCE}". Then include this exact sentence on its own final line:
 
 "${getNextQuestionDisplayText()}"
 
-4. If the combined responses do not yet address the question or meet the intent of the Objective, and fewer than ${MAX_ATTEMPTS} attempts have been made, do not provide the answer. Only ask for the specific missing information that has not yet been covered.
-5. When asking for more information, address ${firstName} conversationally using their first name. Advise them to add more details by pressing the 'Start Transcription' button or typing in the 'Your response' box. Also tell them that if they cannot add any more, they can move to the next question.
-6. Feedback must be based only on the learner's submitted responses and the stated Objective. Do not introduce new assessment requirements that are not required by the question or Objective.
-7. Do not coach the learner by giving model answers, suggested wording, or the exact answer they should provide.
-8. Do not say "Hi" at the start of the response.
-9. Keep the response brief, clear, learner-facing, and conversational.`;
+    4. In the two cases above, do not return only the continue sentence; include the transcript feedback and Overall assessment line before it. The app will keep the full response in the transcript and show only the continue sentence on screen.
+    5. If the combined responses do not yet address the question or meet the intent of the Objective, and fewer than ${MAX_ATTEMPTS} attempts have been made, do not provide the answer and do not include an Overall assessment line. Only ask for the specific missing information that has not yet been covered.
+6. When asking for more information, address ${firstName} conversationally using their first name. Advise them to add more details by pressing the 'Start Transcription' button or typing in the 'Your response' box. Also tell them that if they cannot add any more, they can move to the next question.
+7. Feedback must be based only on the learner's submitted responses, the question asked, the stated Objective, and the Hint. Do not introduce new assessment requirements that are not required by those fields.
+8. Do not coach the learner by giving model answers, suggested wording, or the exact answer they should provide.
+9. Do not say "Hi" at the start of the response.
+10. Keep the response brief, clear, and conversational.
+
+${assessorSummaryToneInstruction}`;
       };
 
       const buildFinalReviewPrompt = (reviewText) => {
@@ -3485,7 +3544,10 @@ END_REVIEW>>>`;
 
         currentAttempts += 1;
         currentResponses.push(answer);
-        const questionText = getQuestionText(questions[currentIndex]);
+        const currentQuestion = questions[currentIndex];
+        const questionText = getQuestionText(currentQuestion);
+        const objectiveText = getQuestionObjective(currentQuestion);
+        const hintText = getQuestionHint(currentQuestion);
         const attemptNumber = currentAttempts;
         const questionNumber = currentIndex + 1;
         const attemptRecord = {
@@ -3508,10 +3570,11 @@ END_REVIEW>>>`;
           const displayFeedback = showNextQuestionOnly ? getNextQuestionDisplayText() : feedback;
           addChatEntry(displayFeedback, "ai", feedback);
           attemptRecord.feedback = feedback;
-          const entry = ensureTranscriptQuestion(currentIndex, questionText);
+          const entry = ensureTranscriptQuestion(currentIndex, questionText, { objective: objectiveText, hint: hintText });
           entry.questionText = questionText;
           entry.attempts.push(attemptRecord);
           entry.summary = feedback;
+          entry.overallAssessment = getTranscriptOverallAssessment(feedback, entry.attempts.length);
           if (showNextQuestionOnly) {
             setStatus("Feedback ready. Press Next to continue.");
             setAttemptLockState(true);
