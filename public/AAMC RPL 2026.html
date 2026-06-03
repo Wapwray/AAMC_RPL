@@ -77,8 +77,8 @@
         grid-template-rows: auto auto auto 1fr;
         gap: 14px 18px;
         align-items: stretch;
-        padding-top: 72px;
-        height: calc(100vh - 220px - 72px);
+        padding-top: 16px;
+        height: calc(100vh - 220px - 16px);
       }
       .assessmentMain { display: contents; }
       .assessmentSide { display: contents; }
@@ -100,7 +100,7 @@
       }
       .questionBox { grid-column: 1; grid-row: 2; }
       .answerWrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: stretch; min-height: 0; }
-      .answerWrap { grid-column: 1; grid-row: 3; }
+      .answerWrap { grid-column: 1; grid-row: 4; }
       .answerStack { display: grid; gap: 6px; grid-template-rows: auto 1fr; min-height: 0; height: 100%; }
       .answerStack textarea { height: 100%; min-height: var(--assessment-window-min-height); max-height: none; }
       .answerWrap.is-locked textarea { background: #e2e8f0; color: #64748b; }
@@ -110,13 +110,13 @@
         grid-column: 2;
         grid-row: 3;
       }
-      .nextFloating { position: fixed; right: 24px; bottom: 24px; z-index: 70; width: 220px; }
+      .nextFloating { position: fixed; right: 24px; bottom: 62px; z-index: 70; width: 220px; }
       .feedbackSection {
         display: grid;
         grid-template-rows: auto minmax(0, 1fr);
         min-height: 0;
         grid-column: 1;
-        grid-row: 4;
+        grid-row: 3;
       }
       .hintBtn { background: #0b8f64; }
       .hintBtn:hover:not(:disabled) { background: #0a7a55; }
@@ -503,8 +503,8 @@
         }
         .assessmentLayout {
           grid-template-columns: 1fr;
-          padding-top: 64px;
-          height: calc(100vh - 220px - 64px);
+          padding-top: 16px;
+          height: calc(100vh - 220px - 16px);
         }
         .assessmentSide {
           grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -593,7 +593,7 @@
         <div id="setupCard" class="card collectCard">
           <div class="collectHeader">
             <div class="collectGreeting" id="collectGreeting">Hello,</div>
-            <div class="collectSubtitle">AI-assisted RPL Interview</div>
+            <div class="collectSubtitle">AI-Assisted RPL Interview</div>
           </div>
           <div class="status" id="status">Idle.</div>
           <div class="collectTop">
@@ -2354,7 +2354,7 @@ Job Title: ${jobTitleValue || "N/A"}
           oscillator.connect(gainNode);
           gainNode.connect(audioCtx.destination);
           const now = audioCtx.currentTime;
-          gainNode.gain.exponentialRampToValueAtTime(0.08, now + 0.01);
+          gainNode.gain.exponentialRampToValueAtTime(0.18, now + 0.01);
           gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
           oscillator.start(now);
           oscillator.stop(now + 0.2);
@@ -3216,7 +3216,7 @@ END_REVIEW>>>`;
         setStatus("Loading questions...");
         beginBtn.disabled = true;
         if (postWelcomeTitleEl) {
-          postWelcomeTitleEl.textContent = "AI-assisted RPL Interview";
+          postWelcomeTitleEl.textContent = "AI-Assisted RPL Interview";
         }
 
         if (!skipCollect) {
@@ -3323,7 +3323,7 @@ END_REVIEW>>>`;
         if (postWelcomePageEl) postWelcomePageEl.classList.remove("hidden");
         if (postWelcomeTitleEl) {
           postWelcomeTitleEl.textContent =
-            welcomeMode === "existing" ? "AI-assisted RPL Interview" : "Student Information";
+            welcomeMode === "existing" ? "AI-Assisted RPL Interview" : "Student Information";
         }
         if (initScreenEl) initScreenEl.classList.remove("hidden");
         if (appShellEl) appShellEl.classList.add("hidden");
