@@ -282,7 +282,7 @@ ${JSON.stringify(payload, null, 2)}`;
       ? `\n\nSo far, you've told us that:\n${coveredBullets}`
       : "";
     const opening = coveredBullets
-      ? "thanks for that. Please add a little more detail for this question."
+      ? "thanks for that. Some additional detail is required."
       : "I could not identify enough evidence yet to show the required understanding for this question.";
     const missing = formatMissingRequirement(decision.missing);
     const hintSentence = decision.hintWouldHelp
@@ -290,7 +290,7 @@ ${JSON.stringify(payload, null, 2)}`;
       : "";
     const missingIntro = toArray(decision.missing).length > 1
       ? "The key areas that still need more detail are"
-      : "The only area that still needs more detail is";
+      : "Explain";
     return `${givenName}, ${opening}${covered}\n\n${missingIntro} ${missing}.${hintSentence}\n\nYou can add this by pressing the Start Transcription button or typing in the Your response box. If you cannot add any more, you can move to the next question.`;
   };
 
@@ -300,7 +300,7 @@ ${JSON.stringify(payload, null, 2)}`;
     const guidance = buildLearnerGuidance(decision, context);
     const shouldContinue = Boolean(decision.shouldContinue);
     const transcriptAttemptText = shouldContinue
-      ? `${summary}\n\nOverall assessment: ${decision.overallAssessment}\n\n${continueMessage}`
+      ? `${summary}\n\nPreliminary Status: ${decision.overallAssessment}\n\n${continueMessage}`
       : guidance;
     const displayText = shouldContinue ? continueMessage : guidance;
 

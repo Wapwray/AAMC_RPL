@@ -22,7 +22,7 @@ Hint: Consider timing, documents, and client understanding.
 
 AI Interviewer Summary: Alex described providing disclosure documents and checking client understanding.
 
-Overall assessment: SATISFACTORY.
+Preliminary Status: SATISFACTORY.
 
 -----------------------------
 QUESTION TRANSCRIPT
@@ -44,7 +44,7 @@ Hint: Include internal process, timeframes, and external dispute resolution.
 
 AI Interviewer Summary: Alex only mentioned listening to the client.
 
-Overall assessment: ADDITIONAL EVIDENCE MAY BE NEEDED.
+Preliminary Status: ADDITIONAL EVIDENCE MAY BE NEEDED.
 
 -----------------------------
 QUESTION TRANSCRIPT
@@ -62,7 +62,7 @@ Question 25 - Extra transcript-only question
 
 Objective: Confirm additional evidence handling.
 
-Overall assessment: NEEDS MORE INFO.
+Preliminary Status: NEEDS MORE INFO.
 
 -----------------------------
 QUESTION TRANSCRIPT
@@ -126,20 +126,20 @@ test("builds report list from official question bank plus unmapped transcript qu
       {
         questionNumber: 1,
         shortStatus: "Likely sufficient",
-        preliminaryStatus: "Likely sufficient (pending assessor verification)",
+        preliminaryStatus: "LIKELY SUFFICIENT",
         aiPreliminaryObservation: "The candidate addressed disclosure obligations.",
       },
       {
         questionNumber: 24,
         shortStatus: "Additional evidence may be needed",
-        preliminaryStatus: "Additional evidence may be needed (assessor follow-up suggested)",
+        preliminaryStatus: "ADDITIONAL EVIDENCE MAY BE NEEDED",
         aiPreliminaryObservation: "The candidate did not fully explain complaint escalation.",
         assessorActionSuggested: "Seek evidence about complaint handling timeframes and escalation.",
       },
       {
         questionNumber: 25,
         shortStatus: "Additional evidence may be needed",
-        preliminaryStatus: "Additional evidence may be needed (assessor follow-up suggested)",
+        preliminaryStatus: "ADDITIONAL EVIDENCE MAY BE NEEDED",
         aiPreliminaryObservation: "The candidate supplied an extra response requiring assessor review.",
       },
     ],
@@ -150,7 +150,7 @@ test("builds report list from official question bank plus unmapped transcript qu
   assert.equal(model.metadata.transcriptQuestionCount, 3);
   assert.equal(model.metadata.questionBankCount, 24);
   assert.equal(model.questions[23].questionNumber, 24);
-  assert.equal(model.questions[23].shortStatus, "Additional evidence may be needed");
+  assert.equal(model.questions[23].shortStatus, "ADDITIONAL EVIDENCE MAY BE NEEDED");
   assert.equal(model.questions[24].questionNumber, 25);
   assert.equal(model.questions[24].section, "Additional transcript question");
   assert.equal(model.questions[1].shortStatus, "Not available in transcript");
@@ -162,7 +162,7 @@ test("reconciles duplicate transcript questions by text and avoids CT rule secti
 
 Objective: Confirm complaint handling and escalation obligations are understood.
 
-Overall assessment: ADDITIONAL EVIDENCE MAY BE NEEDED.
+Preliminary Status: ADDITIONAL EVIDENCE MAY BE NEEDED.
 
 -----------------------------
 QUESTION TRANSCRIPT
@@ -211,7 +211,7 @@ Compare before vs. after - what you do differently now?
 
 AI Interviewer Summary: The candidate identified a regulatory change and described changed work practices.
 
-Overall assessment: LIKELY SUFFICIENT.
+Preliminary Status: LIKELY SUFFICIENT.
 
 -----------------------------
 QUESTION TRANSCRIPT
@@ -293,34 +293,32 @@ test("renders approved report labels, escaped verbatim responses, and one row/ar
   assert.equal(html.includes("AI preliminary observation"), false);
   assert.equal(html.includes("Assessor action suggested"), false);
   assert.equal(html.includes("AI follow-up exchange"), false);
-  assert.equal(html.includes("AI INTERVIEW RESPONSE"), true);
+  assert.equal(html.includes("AI INTERVIEW RESPONSE"), false);
   assert.equal(html.includes("Assessor Evaluation - Objective Met / Not Met"), true);
   assert.equal(html.includes("Assessor Notes"), true);
   assert.equal(html.includes("to be completed by assessor"), true);
   assert.equal(html.includes("Final assessment outcome"), false);
   assert.equal(html.includes("Interview Outcome"), true);
-  assert.equal(html.includes("LIKELY SUFFICIENT"), false);
-  assert.equal(html.includes("ADDITIONAL EVIDENCE MAY BE NEEDED"), false);
+  assert.equal(html.includes("LIKELY SUFFICIENT"), true);
+  assert.equal(html.includes("ADDITIONAL EVIDENCE MAY BE NEEDED"), true);
   assert.equal(html.includes("NEEDS MORE INFO"), false);
   assert.equal(html.includes("Not classified by AI review"), false);
   assert.doesNotMatch(html, /\bassessment\b/i);
-  assert.equal(html.includes("Likely sufficient (pending assessor verification)"), true);
-  assert.equal(html.includes("Additional evidence may be needed (assessor follow-up suggested)"), true);
+  assert.equal(html.includes("Likely sufficient (pending assessor verification)"), false);
+  assert.equal(html.includes("Additional evidence may be needed (assessor follow-up suggested)"), false);
   assert.equal(html.includes("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; keep notes."), true);
   const question24Index = html.indexOf('data-question-number="24"');
   const objectiveIndex = html.indexOf("<h4>Objective</h4>", question24Index);
   const summaryIndex = html.indexOf("<h4>AI Interview Summary</h4>", objectiveIndex);
-  const candidateResponsesIndex = html.indexOf("<h4>Candidate response(s)</h4>", summaryIndex);
-  const attemptIndex = html.indexOf("Alex response attempt 1", candidateResponsesIndex);
+  const conversationIndex = html.indexOf("<h4>Student and AI Interview conversation</h4>", summaryIndex);
+  const attemptIndex = html.indexOf("Alex (Attempt 1):", conversationIndex);
   const responseIndex = html.indexOf("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; keep notes.", attemptIndex);
-  const aiResponseIndex = html.indexOf("AI INTERVIEW RESPONSE", responseIndex);
-  const aiResponseTextIndex = html.indexOf("Please provide more detail about the complaint process", aiResponseIndex);
+  const aiResponseIndex = html.indexOf("AI Interviewer: Please provide more detail about the complaint process", responseIndex);
   assert.ok(question24Index >= 0);
   assert.ok(objectiveIndex > question24Index);
   assert.ok(summaryIndex > objectiveIndex);
-  assert.ok(candidateResponsesIndex > summaryIndex);
+  assert.ok(conversationIndex > summaryIndex);
   assert.ok(attemptIndex >= 0);
   assert.ok(responseIndex > attemptIndex);
   assert.ok(aiResponseIndex > responseIndex);
-  assert.ok(aiResponseTextIndex > aiResponseIndex);
 });

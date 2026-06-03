@@ -1444,7 +1444,7 @@
       const getOverallAssessment = (feedback) => {
         if (!feedback) return "";
         const normalized = feedback.toLowerCase();
-        const explicitAssessmentMatch = normalized.match(/(?:overall assessment|final evaluation|evaluation)\s*:\s*(additional evidence may be needed|likely sufficient|unsatisfactory|satisfactory|needs more info|needs more information)/i);
+        const explicitAssessmentMatch = normalized.match(/(?:preliminary status|overall assessment|final evaluation|evaluation)\s*:\s*(additional evidence may be needed|likely sufficient|unsatisfactory|satisfactory|needs more info|needs more information)/i);
         if (explicitAssessmentMatch) {
           const value = explicitAssessmentMatch[1];
           if (value.startsWith("likely sufficient") || value.startsWith("satisfactory")) return ASSESSMENT_LIKELY_SUFFICIENT;
@@ -1482,12 +1482,12 @@
       };
 
       const getAssessorSummaryText = (feedback) => String(feedback || "")
-        .replace(/\n?Overall assessment:\s*(LIKELY SUFFICIENT|ADDITIONAL EVIDENCE MAY BE NEEDED|Satisfactory|Unsatisfactory|NEEDS MORE INFO)\.?/i, "")
+        .replace(/\n?(?:Preliminary Status|Overall assessment):\s*(LIKELY SUFFICIENT|ADDITIONAL EVIDENCE MAY BE NEEDED|Satisfactory|Unsatisfactory|NEEDS MORE INFO)\.?/i, "")
         .replace(/\n?Thank you for your responses,\s*[^.\n]+\.\s*Please press the Next Question button to continue\.?/i, "")
         .trim();
 
       const getTranscriptAttemptFeedbackText = (feedback) => String(feedback || "")
-        .replace(/(^|\n)Overall assessment:\s*(LIKELY SUFFICIENT|ADDITIONAL EVIDENCE MAY BE NEEDED|Satisfactory|Unsatisfactory|NEEDS MORE INFO)\.?\s*(?=\n|$)/gi, "$1")
+        .replace(/(^|\n)(?:Preliminary Status|Overall assessment):\s*(LIKELY SUFFICIENT|ADDITIONAL EVIDENCE MAY BE NEEDED|Satisfactory|Unsatisfactory|NEEDS MORE INFO)\.?\s*(?=\n|$)/gi, "$1")
         .replace(/\n{3,}/g, "\n\n")
         .trim();
 
@@ -1516,13 +1516,13 @@
         while ((match = questionRegex.exec(transcriptText))) {
           const index = Math.max(0, parseInt(match[1], 10) - 1);
           const section = match[2] || "";
-          const questionMatch = section.match(/^([\s\S]*?)(?=\nObjective:|\nHint:|\nAI Interviewer Summary:|\nAI Interview Summary:|\nAssessor summary:|\nSummary:|\nOverall assessment:|\n-----------------------------|$)/i);
+          const questionMatch = section.match(/^([\s\S]*?)(?=\nObjective:|\nHint:|\nAI Interviewer Summary:|\nAI Interview Summary:|\nAssessor summary:|\nSummary:|\nPreliminary Status:|\nOverall assessment:|\n-----------------------------|$)/i);
           const questionLine = questionMatch ? questionMatch[1].trim() : "";
-          const objectiveMatch = section.match(/\nObjective:\s*([\s\S]*?)(?=\nHint:|\nAI Interviewer Summary:|\nAI Interview Summary:|\nAssessor summary:|\nSummary:|\nOverall assessment:|\n-----------------------------|$)/i);
-          const hintMatch = section.match(/\nHint:\s*([\s\S]*?)(?=\nAI Interviewer Summary:|\nAI Interview Summary:|\nAssessor summary:|\nSummary:|\nOverall assessment:|\n-----------------------------|$)/i);
-          const summaryMatch = section.match(/(?:AI Interviewer Summary|AI Interview Summary|Assessor summary|Summary):\s*([\s\S]*?)(?=\nOverall assessment:|\n-----------------------------)/i);
+          const objectiveMatch = section.match(/\nObjective:\s*([\s\S]*?)(?=\nHint:|\nAI Interviewer Summary:|\nAI Interview Summary:|\nAssessor summary:|\nSummary:|\nPreliminary Status:|\nOverall assessment:|\n-----------------------------|$)/i);
+          const hintMatch = section.match(/\nHint:\s*([\s\S]*?)(?=\nAI Interviewer Summary:|\nAI Interview Summary:|\nAssessor summary:|\nSummary:|\nPreliminary Status:|\nOverall assessment:|\n-----------------------------|$)/i);
+          const summaryMatch = section.match(/(?:AI Interviewer Summary|AI Interview Summary|Assessor summary|Summary):\s*([\s\S]*?)(?=\n(?:Preliminary Status|Overall assessment):|\n-----------------------------)/i);
           const summary = summaryMatch ? summaryMatch[1].trim() : "";
-          const overallAssessmentMatch = section.match(/Overall assessment:\s*(LIKELY SUFFICIENT|ADDITIONAL EVIDENCE MAY BE NEEDED|Satisfactory|Unsatisfactory|NEEDS MORE INFO)/i);
+          const overallAssessmentMatch = section.match(/(?:Preliminary Status|Overall assessment):\s*(LIKELY SUFFICIENT|ADDITIONAL EVIDENCE MAY BE NEEDED|Satisfactory|Unsatisfactory|NEEDS MORE INFO)/i);
           const attempts = [];
           const detailSections = section.split("-----------------------------");
           const attemptsSection = detailSections.length > 1 ? detailSections.slice(1).join("\n-----------------------------") : "";
@@ -1544,7 +1544,7 @@
             hint: hintMatch ? hintMatch[1].trim() : "",
             attempts,
             summary,
-            overallAssessment: overallAssessmentMatch ? getOverallAssessment(`Overall assessment: ${overallAssessmentMatch[1].trim()}`) : "",
+            overallAssessment: overallAssessmentMatch ? getOverallAssessment(`Preliminary Status: ${overallAssessmentMatch[1].trim()}`) : "",
           };
         }
         return parsed;
@@ -2036,7 +2036,7 @@ Job Title: ${jobTitleValue || "N/A"}
             output += `AI Interviewer Summary: ${summaryOutputText}\n\n`;
           }
           if (overallAssessment) {
-            output += `Overall assessment: ${overallAssessment}.\n\n`;
+            output += `Preliminary Status: ${overallAssessment}.\n\n`;
           }
           output += `-----------------------------\nQUESTION TRANSCRIPT\nAI Interviewer: ${entry.questionText}\n\n`;
           entry.attempts.forEach((attempt, attemptIndex) => {

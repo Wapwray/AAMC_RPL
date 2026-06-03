@@ -9,11 +9,11 @@
 
   const SOURCE_LIKELY_SUFFICIENT = "LIKELY SUFFICIENT";
   const SOURCE_ADDITIONAL_EVIDENCE = "ADDITIONAL EVIDENCE MAY BE NEEDED";
-  const SHORT_LIKELY_SUFFICIENT = "Likely sufficient";
-  const SHORT_ADDITIONAL_EVIDENCE = "Additional evidence may be needed";
+  const SHORT_LIKELY_SUFFICIENT = SOURCE_LIKELY_SUFFICIENT;
+  const SHORT_ADDITIONAL_EVIDENCE = SOURCE_ADDITIONAL_EVIDENCE;
   const SHORT_NOT_AVAILABLE = "Not available in transcript";
-  const FULL_LIKELY_SUFFICIENT = "Likely sufficient (pending assessor verification)";
-  const FULL_ADDITIONAL_EVIDENCE = "Additional evidence may be needed (assessor follow-up suggested)";
+  const FULL_LIKELY_SUFFICIENT = SOURCE_LIKELY_SUFFICIENT;
+  const FULL_ADDITIONAL_EVIDENCE = SOURCE_ADDITIONAL_EVIDENCE;
   const FULL_NOT_AVAILABLE = "Not available in transcript";
   const REPORT_TYPE = "AI-generated preliminary interview review (not a final competency decision)";
   const DEFAULT_QUALIFICATION = "FNS40821 - Certificate IV in Finance and Mortgage Broking";
@@ -30,7 +30,7 @@
   const LIMITATIONS_TEXT = "This report is an automated preliminary analysis and may not capture all nuances of the candidate's competence. It does not account for non-verbal cues, workplace context, third-party evidence, or any documentation provided outside the recorded interview transcript. The AI cannot confirm authenticity or currency of evidence; those Rules of Evidence must be verified through human assessor processes.";
   const ASSESSOR_CONFIRMATION_TEXT = "A qualified RPL assessor must review the full transcript and any additional evidence, and make the final competency judgement for each unit. The assessor should confirm that all critical evidence meets the requirements of the relevant qualification and its constituent units, applying the Rules of Evidence (valid, sufficient, authentic, current). No outcome described in this preliminary report should be treated as final until signed off by the qualified assessor.";
   const TRANSCRIPT_SUMMARY_LABELS = ["AI Interviewer Summary", "AI Interview Summary", "Assessor summary", "Summary"];
-  const TRANSCRIPT_FIELD_LABELS = ["Objective", "Hint", ...TRANSCRIPT_SUMMARY_LABELS, "Overall assessment"];
+  const TRANSCRIPT_FIELD_LABELS = ["Objective", "Hint", ...TRANSCRIPT_SUMMARY_LABELS, "Preliminary Status", "Overall assessment"];
 
   const escapeHtml = (value) => String(value === undefined || value === null ? "" : value)
     .replace(/&/g, "&amp;")
@@ -354,18 +354,18 @@
     const parsed = headings.map((heading, index) => {
       const nextHeading = headings[index + 1];
       const rawBlockText = text.slice(heading.index, nextHeading ? nextHeading.index : text.length).trim();
-      const rawOverallAssessment = (rawBlockText.match(/^\s*Overall assessment\s*:\s*([^\r\n]+)/im) || [])[1] || "";
+      const rawOverallAssessment = (rawBlockText.match(/^\s*(?:Preliminary Status|Overall assessment)\s*:\s*([^\r\n]+)/im) || [])[1] || "";
       const attemptsWithPositions = parseAttempts(rawBlockText);
       const assessorBotMessages = parseAssessorBotMessages(rawBlockText, attemptsWithPositions);
       const transcriptQuestionText = getQuestionTextFromBlock(rawBlockText, heading.headingText, heading.trailingText);
-      const aiInterviewSummary = getLabelValue(rawBlockText, TRANSCRIPT_SUMMARY_LABELS, ["Overall assessment"]);
+      const aiInterviewSummary = getLabelValue(rawBlockText, TRANSCRIPT_SUMMARY_LABELS, ["Preliminary Status", "Overall assessment"]);
 
       return {
         questionNumber: heading.questionNumber,
         originalQuestionIdentifier: heading.rawIdentifier,
         transcriptQuestionText,
-        transcriptObjective: getLabelValue(rawBlockText, ["Objective"], ["Hint", ...TRANSCRIPT_SUMMARY_LABELS, "Overall assessment"]),
-        transcriptHint: getLabelValue(rawBlockText, ["Hint"], [...TRANSCRIPT_SUMMARY_LABELS, "Overall assessment"]),
+        transcriptObjective: getLabelValue(rawBlockText, ["Objective"], ["Hint", ...TRANSCRIPT_SUMMARY_LABELS, "Preliminary Status", "Overall assessment"]),
+        transcriptHint: getLabelValue(rawBlockText, ["Hint"], [...TRANSCRIPT_SUMMARY_LABELS, "Preliminary Status", "Overall assessment"]),
         aiInterviewSummary,
         assessorSummary: aiInterviewSummary,
         rawOverallAssessment: rawOverallAssessment.trim(),
@@ -820,10 +820,8 @@ Rules:
     const spec = item.officialQuestionSpec || {};
     const block = item.parsedQuestionBlock || null;
     const attempts = block && Array.isArray(block.attempts) ? block.attempts : [];
-    const hasCandidateEvidence = attempts.some((attempt) => cleanMetadataValue(attempt.responseText));
-    let shortStatus = shortStatusFromAnyValue(analysis?.shortStatus || analysis?.preliminaryStatus) || inferFallbackShortStatus(item);
-    if (!hasCandidateEvidence) shortStatus = SHORT_NOT_AVAILABLE;
-    if (hasCandidateEvidence && shortStatus === SHORT_NOT_AVAILABLE) shortStatus = SHORT_ADDITIONAL_EVIDENCE;
+    const transcriptStatus = shortStatusFromAnyValue(block?.normalisedOverallAssessment || block?.rawOverallAssessment || "");
+    const shortStatus = transcriptStatus || SHORT_NOT_AVAILABLE;
 
     const section = getDisplaySection({ ...spec, section: spec.section || analysis?.section || item.section });
     const questionNumber = item.questionNumber !== undefined && item.questionNumber !== null && item.questionNumber !== ""
@@ -855,6 +853,7 @@ Rules:
       preliminaryStatus: fullStatusFromShortStatus(shortStatus),
       shortStatus,
       attempts,
+      assessorBotMessages: Array.isArray(block?.assessorBotMessages) ? block.assessorBotMessages : [],
       aiFollowUpExchange,
       aiInterviewResponses,
       aiInterviewSummary,
@@ -1008,33 +1007,72 @@ Rules:
                 <td><span class="status-badge ${statusClassName(question.shortStatus)}">${escapeHtml(question.shortStatus)}</span></td>
               </tr>`).join("");
 
-  const renderAiInterviewResponsesForAttempt = (question, attemptNumber) => {
-    const responses = Array.isArray(question.aiInterviewResponses) ? question.aiInterviewResponses : [];
-    return responses
-      .filter((response) => Number(response.followsAttemptNumber) === Number(attemptNumber))
-      .map((response) => `<section class="ai-interview-response">
-                <h4>AI INTERVIEW RESPONSE</h4>
-                ${renderResponseBox(response.messageText || "")}
-              </section>`)
-      .join("\n");
+  const buildConversationTranscriptText = (question) => {
+    const turns = [];
+    const questionAsked = cleanMetadataValue(question.questionAsked);
+    const attempts = Array.isArray(question.attempts) ? question.attempts : [];
+    const messages = Array.isArray(question.assessorBotMessages) ? question.assessorBotMessages : [];
+    const usedMessageIndexes = new Set();
+
+    if (questionAsked) {
+      turns.push(`AI Interviewer: ${questionAsked}`);
+    }
+
+    messages.forEach((message, messageIndex) => {
+      const followsAttempt = Number(message.followsAttemptNumber);
+      if (Number.isFinite(followsAttempt) && followsAttempt > 0) return;
+      const text = cleanMetadataValue(message.messageText);
+      if (!text) return;
+      if (questionAsked && normalizeQuestionTextForMatch(text) === normalizeQuestionTextForMatch(questionAsked)) {
+        usedMessageIndexes.add(messageIndex);
+        return;
+      }
+      turns.push(`AI Interviewer: ${text}`);
+      usedMessageIndexes.add(messageIndex);
+    });
+
+    attempts.forEach((attempt, index) => {
+      const attemptNumber = Number.isFinite(Number(attempt.attemptNumber)) ? Number(attempt.attemptNumber) : index + 1;
+      const speaker = cleanMetadataValue(attempt.speakerLabel) || "Student";
+      const responseText = cleanMetadataValue(attempt.responseText);
+      const submittedAt = cleanMetadataValue(attempt.submittedAt);
+
+      if (responseText) {
+        turns.push(`${speaker} (Attempt ${attemptNumber}): ${responseText}`);
+      } else {
+        turns.push(`${speaker} (Attempt ${attemptNumber}):`);
+      }
+      if (submittedAt) {
+        turns.push(`Submitted: ${submittedAt}`);
+      }
+
+      messages.forEach((message, messageIndex) => {
+        if (usedMessageIndexes.has(messageIndex)) return;
+        if (Number(message.followsAttemptNumber) !== attemptNumber) return;
+        const text = cleanMetadataValue(message.messageText);
+        if (!text) return;
+        turns.push(`AI Interviewer: ${text}`);
+        usedMessageIndexes.add(messageIndex);
+      });
+    });
+
+    messages.forEach((message, messageIndex) => {
+      if (usedMessageIndexes.has(messageIndex)) return;
+      const text = cleanMetadataValue(message.messageText);
+      if (!text) return;
+      turns.push(`AI Interviewer: ${text}`);
+      usedMessageIndexes.add(messageIndex);
+    });
+
+    return turns.join("\n\n");
   };
 
-  const renderAttempts = (question) => {
-    if (!Array.isArray(question.attempts) || !question.attempts.length) {
-      return "<p>No candidate response located in transcript.</p>";
+  const renderConversation = (question) => {
+    const transcriptText = buildConversationTranscriptText(question);
+    if (!transcriptText) {
+      return "<p>No Student/AI Interview conversation located in transcript.</p>";
     }
-    return question.attempts.map((attempt, index) => {
-      const attemptNumber = attempt.attemptNumber || index + 1;
-      const submittedAt = cleanMetadataValue(attempt.submittedAt)
-        ? `<p class="muted">Submitted: ${escapeHtml(attempt.submittedAt)}</p>`
-        : "";
-      return `<section class="candidate-attempt">
-                <h4>${escapeHtml(attempt.speakerLabel || "Candidate")} response attempt ${escapeHtml(attemptNumber)}</h4>
-                ${renderResponseBox(attempt.responseText || "")}
-                ${submittedAt}
-              </section>
-              ${renderAiInterviewResponsesForAttempt(question, attemptNumber)}`;
-    }).join("\n");
+    return renderResponseBox(transcriptText);
   };
 
   const renderExecutiveSummary = (reportModel) => {
@@ -1088,8 +1126,8 @@ Rules:
               <p>${escapeHtml(valueOrMissing(question.aiInterviewSummary))}</p>
             </section>
             <section>
-              <h4>Candidate response(s)</h4>
-              ${renderAttempts(question)}
+              <h4>Student and AI Interview conversation</h4>
+              ${renderConversation(question)}
             </section>
             ${renderAssessorStaticSection(question)}
           </article>

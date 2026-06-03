@@ -49,7 +49,7 @@ test("likely sufficient feedback displays only the continue sentence but stores 
   });
 
   assert.equal(feedback.displayText, "Thank you for your responses, Bel. Please press the Next Question button to continue.");
-  assert.match(feedback.transcriptAttemptText, /Overall assessment: LIKELY SUFFICIENT/);
+  assert.match(feedback.transcriptAttemptText, /Preliminary Status: LIKELY SUFFICIENT/);
   assert.doesNotMatch(feedback.assessorSummary, /\byou\b|\byour\b/i);
   assert.match(feedback.assessorSummary, /^Bel,/);
 });
@@ -69,13 +69,13 @@ test("additional evidence guidance is learner-facing and does not leak hint cont
   });
 
   assert.equal(feedback.shouldContinue, false);
-  assert.match(feedback.displayText, /^Bel, thanks for that\. Please add a little more detail for this question\./);
+  assert.match(feedback.displayText, /^Bel, thanks for that\. Some additional detail is required\./);
   assert.match(feedback.displayText, /So far, you've told us that:\n- You've identified the change/);
-  assert.match(feedback.displayText, /The only area that still needs more detail is how the work process changed\./);
+  assert.match(feedback.displayText, /Explain how the work process changed\./);
   assert.match(feedback.displayText, /Show Hint button/);
   assert.doesNotMatch(feedback.displayText, /Objective/i);
   assert.doesNotMatch(feedback.displayText, /RG209|responsible lending obligations/i);
-  assert.doesNotMatch(feedback.transcriptAttemptText, /Overall assessment:/);
+  assert.doesNotMatch(feedback.transcriptAttemptText, /(?:Overall assessment|Preliminary Status):/);
 });
 
 test("additional evidence guidance formats multiple evidence points readably", () => {
@@ -91,11 +91,11 @@ test("additional evidence guidance formats multiple evidence points readably", (
   }, { attemptCount: 1, maxAttempts: 3 });
   const feedback = assessor.buildFeedback(decision, { givenName: "Richard" });
 
-  assert.match(feedback.displayText, /^Richard, thanks for that\. Please add a little more detail for this question\./);
+  assert.match(feedback.displayText, /^Richard, thanks for that\. Some additional detail is required\./);
   assert.match(feedback.displayText, /So far, you've told us that:\n- You would recommend the more appropriate loan/);
   assert.match(feedback.displayText, /\n- You would document recommendations and rationale/);
   assert.match(feedback.displayText, /\n- You would keep file notes, CRM records/);
-  assert.match(feedback.displayText, /The only area that still needs more detail is who you would consult or ask for help if you were unsure\./);
+  assert.match(feedback.displayText, /Explain who you would consult or ask for help if you were unsure\./);
   assert.doesNotMatch(feedback.displayText, /appropriate course of action/);
   assert.doesNotMatch(feedback.displayText, /demonstrates a clear understanding/i);
   assert.doesNotMatch(feedback.displayText, /Richard, Your/);
@@ -158,6 +158,6 @@ test("additional evidence at maximum attempts continues with exact status", () =
 
   assert.equal(decision.overallAssessment, assessor.STATUS_ADDITIONAL_EVIDENCE);
   assert.equal(feedback.shouldContinue, true);
-  assert.match(feedback.transcriptAttemptText, /Overall assessment: ADDITIONAL EVIDENCE MAY BE NEEDED/);
+  assert.match(feedback.transcriptAttemptText, /Preliminary Status: ADDITIONAL EVIDENCE MAY BE NEEDED/);
   assert.equal(feedback.displayText, "Thank you for your responses, Bel. Please press the Next Question button to continue.");
 });
