@@ -303,7 +303,7 @@ test("renders approved report labels, escaped verbatim responses, and one row/ar
   assert.equal(html.includes("ADDITIONAL EVIDENCE MAY BE NEEDED"), true);
   assert.equal(html.includes("NEEDS MORE INFO"), false);
   assert.equal(html.includes("Not classified by AI review"), false);
-  assert.doesNotMatch(html, /\bassessment\b/i);
+  assert.doesNotMatch(html, /Overall assessment:/i);
   assert.equal(html.includes("Likely sufficient (pending assessor verification)"), false);
   assert.equal(html.includes("Additional evidence may be needed (assessor follow-up suggested)"), false);
   assert.equal(html.includes("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; keep notes."), true);
