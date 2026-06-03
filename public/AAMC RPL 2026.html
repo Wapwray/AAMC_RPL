@@ -715,7 +715,7 @@
               </div>
             </div>
           </div>
-          <button id="nextBtn" class="secondary nextFloating" disabled>Next</button>
+          <button id="nextBtn" class="secondary nextFloating" disabled>Next Question</button>
         </div>
       </div>
     </div>
@@ -3447,7 +3447,7 @@ END_REVIEW>>>`;
           entry.attempts.push(attemptRecord);
           entry.summary = feedback;
           const normalizedFeedback = feedback.toLowerCase();
-          if (normalizedFeedback.includes("press the next button to continue")) {
+          if (normalizedFeedback.includes("press the next question button to continue") || normalizedFeedback.includes("press the next button to continue")) {
             setStatus("Feedback ready. Press Next to continue.");
             setAttemptLockState(true);
             return;
