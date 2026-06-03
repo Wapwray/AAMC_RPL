@@ -1,5 +1,6 @@
 const express = require("express");
 const crypto = require("crypto");
+const fs = require("fs/promises");
 const path = require("path");
 
 const INDUSTRY_API_URL =
@@ -26,6 +27,8 @@ const INDUSTRY_FALLBACK_ITEMS = [
 const app = express();
 const port = process.env.PORT || 3000;
 const jsonBodyLimit = process.env.RPL_FILTER_MAX_BODY_SIZE || process.env.RPL_JSON_BODY_LIMIT || "2mb";
+const promptsFilePath = path.join(__dirname, "public", "prompts.json");
+const promptAdminKey = process.env.RPL_PROMPTS_ADMIN_KEY || process.env.RPL_ADMIN_API_KEY || "";
 
 app.use(express.json({ limit: jsonBodyLimit }));
 app.use(express.static(path.join(__dirname, "public")));
@@ -75,6 +78,68 @@ const requireRplFilterAuth = (req, res, next) => {
 
   res.status(401).json({ success: false, error: "Missing or invalid RPL filter API credentials." });
 };
+
+const requirePromptAdminAuth = (req, res, next) => {
+  if (!promptAdminKey) {
+    next();
+    return;
+  }
+
+  const providedApiKey = getHeader(req, "x-admin-key") || getHeader(req, "x-api-key") || getHeader(req, "api-key");
+  const authHeader = getHeader(req, "authorization");
+  const providedBearer = authHeader.toLowerCase().startsWith("bearer ") ? authHeader.slice(7).trim() : "";
+
+  if (safeEquals(providedApiKey, promptAdminKey) || safeEquals(providedBearer, promptAdminKey)) {
+    next();
+    return;
+  }
+
+  res.status(401).json({ success: false, error: "Missing or invalid prompt admin credentials." });
+};
+
+const readPromptsFile = async () => {
+  const raw = await fs.readFile(promptsFilePath, "utf8");
+  return JSON.parse(raw);
+};
+
+const writePromptsFile = async (prompts) => {
+  await fs.writeFile(promptsFilePath, `${JSON.stringify(prompts, null, 2)}\n`, "utf8");
+};
+
+app.post("/api/prompts", requirePromptAdminAuth, async (req, res) => {
+  const body = req.body || {};
+  const updates = {};
+
+  if (Object.prototype.hasOwnProperty.call(body, "assessmentPrompt")) {
+    if (typeof body.assessmentPrompt !== "string") {
+      res.status(400).json({ success: false, error: "assessmentPrompt must be a string." });
+      return;
+    }
+    updates.assessmentPrompt = body.assessmentPrompt;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, "finalReviewPrompt")) {
+    if (typeof body.finalReviewPrompt !== "string") {
+      res.status(400).json({ success: false, error: "finalReviewPrompt must be a string." });
+      return;
+    }
+    updates.finalReviewPrompt = body.finalReviewPrompt;
+  }
+
+  if (!Object.keys(updates).length) {
+    res.status(400).json({ success: false, error: "No prompt updates were supplied." });
+    return;
+  }
+
+  try {
+    const currentPrompts = await readPromptsFile();
+    const nextPrompts = { ...currentPrompts, ...updates };
+    await writePromptsFile(nextPrompts);
+    res.json({ success: true, prompts: nextPrompts });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error?.message || String(error) });
+  }
+});
 
 app.get("/api/teams-auth-config", (req, res) => {
   const forwardedHost = req.headers["x-forwarded-host"];
