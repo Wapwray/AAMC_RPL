@@ -799,6 +799,11 @@
         "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/e227ea1f254a4fc885e0a6cbbed2a9ea/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=9wpXy_WL_FQZhqDZ18f2e6SwLneEIGN1QlGMMY7HnaI";
       const RESET_WEBHOOK_URL =
         "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/918a6cdf1ad946c69343a1571dc227d3/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=DdLjvO3xkDt0cwCs3ApZNNSwhjQrXZ3_ebt79Oj1YdQ";
+      const TRANSCRIPT_WEBHOOK_URL =
+        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/903538467bfb426fb4b074ef9cc3caa4/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=H7BkpCmAeGTUqrl4NPh94_bK4-3hX5r82Xh-sbwnWG4";
+      const NEXT_QUESTION_WEBHOOK_URL =
+        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/5403405d1b2543a48ccd83c2d5f703ee/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=vNYYnuckqabWJ9uC_CH0kGTymUyBIutten9INl_-f-s";
+      const TRANSCRIPT_VERIFY_DELAYS_MS = [500, 1000, 1500, 2500, 4000, 6000];
 
       const statusEl = document.getElementById("status");
       const headerTitleEl = document.getElementById("headerTitle");
@@ -1096,8 +1101,8 @@
       const setWelcomeResumeData = (data) => {
         if (!data || typeof data !== "object") return;
         const combined = pickFirstValue(data["Industry,Job Title"], data.industryJobTitle);
-        const currentQuestionText = pickFirstValue(data["Current Question"], data.currentQuestion);
-        const transcriptText = pickFirstValue(data["Full Transcription"], data.fullTranscription);
+        const currentQuestionText = extractResumeCurrentQuestion(data);
+        const transcriptText = extractResumeTranscript(data);
 
         let industryValue = combined;
         let jobValue = "";
@@ -1137,6 +1142,75 @@
         }
         return "";
       };
+
+      const parseWebhookJson = (text) => {
+        if (!text) return null;
+        try {
+          const parsed = JSON.parse(text);
+          if (parsed && typeof parsed.body === "string" && parsed.body.trim().startsWith("{")) {
+            try {
+              return { ...parsed, ...JSON.parse(parsed.body) };
+            } catch {
+              return parsed;
+            }
+          }
+          return parsed;
+        } catch {
+          return null;
+        }
+      };
+
+      const pickFirstResumeValue = (...candidates) => {
+        for (const candidate of candidates) {
+          if (candidate === undefined || candidate === null) continue;
+          if (typeof candidate === "object") {
+            const nested = pickFirstValue(
+              candidate.$content,
+              candidate.content,
+              candidate.value,
+              candidate.body,
+              candidate.text
+            );
+            if (nested) return nested;
+            continue;
+          }
+          const text = pickFirstValue(candidate);
+          if (text) return text;
+        }
+        return "";
+      };
+
+      const extractResumeTranscript = (data) => {
+        if (!data || typeof data !== "object") return "";
+        return pickFirstResumeValue(
+          data["Full Transcription"],
+          data["Full Transcript"],
+          data.FullTranscript,
+          data.fullTranscript,
+          data.fulltranscript,
+          data.Transcript,
+          data.transcript
+        );
+      };
+
+      const extractResumeCurrentQuestion = (data) => {
+        if (!data || typeof data !== "object") return "";
+        return pickFirstResumeValue(
+          data["Current Question"],
+          data.CurrentQuestion,
+          data.currentQuestion,
+          data.currentquestion,
+          data.QuestionNumber,
+          data.questionNumber
+        );
+      };
+
+      const normalizeTranscriptForCompare = (value) => String(value || "")
+        .replace(/^\uFEFF/, "")
+        .replace(/\r\n?/g, "\n")
+        .trim();
+
+      const wait = (delayMs) => new Promise((resolve) => window.setTimeout(resolve, delayMs));
 
       const setMicStatus = (message) => {
         if (micStatusEl) micStatusEl.textContent = message;
@@ -1354,6 +1428,34 @@
           givenName: givenName || DEFAULT_GIVEN_NAME,
           contactId: contactId || DEFAULT_CONTACT_ID,
         };
+      };
+
+      const fetchResumeData = async ({ log = false, label = "Resume webhook" } = {}) => {
+        const ctx = getStudentContext();
+        const payload = {
+          FullName: ctx.fullName,
+          ContactID: String(ctx.contactId),
+          GivenName: ctx.givenName,
+        };
+        if (log) {
+          logWelcomeDebug(label, "Sending payload");
+          logWelcomeDebug(`${label} payload`, formatDebugPayload(payload));
+        }
+
+        const response = await fetch(RESUME_WEBHOOK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const text = await response.text();
+        if (log) {
+          logWelcomeDebug(label, `${response.status} ${response.statusText}`);
+          logWelcomeDebug(`${label} response`, text || "(empty)");
+        }
+        if (!response.ok) {
+          throw new Error(`${label} failed (${response.status}) ${response.statusText}`.trim());
+        }
+        return parseWebhookJson(text);
       };
 
       const getNextQuestionDisplayText = () => {
@@ -2091,6 +2193,38 @@ Job Title: ${jobTitleValue || "N/A"}
         return output;
       };
 
+      const fetchPersistedTranscript = async () => {
+        const data = await fetchResumeData({ label: "Transcript verification" });
+        const transcriptText = extractResumeTranscript(data);
+        if (transcriptText) {
+          resumeTranscriptText = transcriptText;
+        }
+        return transcriptText;
+      };
+
+      const verifyTranscriptSaved = async (expectedTranscript) => {
+        const expected = normalizeTranscriptForCompare(expectedTranscript);
+        if (!expected) return false;
+
+        for (let index = 0; index < TRANSCRIPT_VERIFY_DELAYS_MS.length; index += 1) {
+          const delayMs = TRANSCRIPT_VERIFY_DELAYS_MS[index];
+          await wait(delayMs);
+          setStatus(`Verifying transcript save (${index + 1}/${TRANSCRIPT_VERIFY_DELAYS_MS.length})...`);
+          try {
+            const persistedTranscript = await fetchPersistedTranscript();
+            const persisted = normalizeTranscriptForCompare(persistedTranscript);
+            logAssessmentDebug("Transcript verification", `attempt ${index + 1}: saved=${persisted.length}, expected=${expected.length}`);
+            if (persisted && persisted === expected) {
+              logAssessmentDebug("Transcript verification", "Saved transcript matched expected snapshot.");
+              return true;
+            }
+          } catch (error) {
+            logAssessmentDebug("Transcript verification error", error?.message || String(error));
+          }
+        }
+        return false;
+      };
+
       const sendTranscriptOnNext = async () => {
         const ctx = getStudentContext();
         const currentQuestion = questions[currentIndex] || {};
@@ -2113,11 +2247,9 @@ Job Title: ${jobTitleValue || "N/A"}
           CurrentQuestion: currentQuestionValue,
         };
         logAssessmentDebug("Transcript webhook", "Sending payload");
-        const url =
-          "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/903538467bfb426fb4b074ef9cc3caa4/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=H7BkpCmAeGTUqrl4NPh94_bK4-3hX5r82Xh-sbwnWG4";
 
         try {
-          const response = await fetch(url, {
+          const response = await fetch(TRANSCRIPT_WEBHOOK_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
@@ -2131,6 +2263,10 @@ Job Title: ${jobTitleValue || "N/A"}
           }
           if (!response.ok) {
             throw new Error(`Transcript webhook failed (${response.status}) ${response.statusText}`.trim());
+          }
+          const verified = await verifyTranscriptSaved(fullTranscript);
+          if (!verified) {
+            throw new Error("Transcript save could not be verified. Please try Next again.");
           }
           return true;
         } catch (error) {
@@ -2290,29 +2426,10 @@ Job Title: ${jobTitleValue || "N/A"}
       };
 
       const loadResumeWebhook = async () => {
-        const ctx = getStudentContext();
-        const payload = {
-          FullName: ctx.fullName,
-          ContactID: String(ctx.contactId),
-          GivenName: ctx.givenName,
-        };
-        logWelcomeDebug("Resume webhook", "Sending payload");
-        logWelcomeDebug("Resume payload", formatDebugPayload(payload));
         try {
-          const response = await fetch(RESUME_WEBHOOK_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          });
-          logWelcomeDebug("Resume webhook", `${response.status} ${response.statusText}`);
-          const text = await response.text();
-          logWelcomeDebug("Resume response", text || "(empty)");
-          if (!text) return null;
-          let parsed = null;
-          try {
-            parsed = JSON.parse(text);
-          } catch (err) {
-            logWelcomeDebug("Resume parse error", err?.message || String(err));
+          const parsed = await fetchResumeData({ log: true, label: "Resume webhook" });
+          if (!parsed) {
+            logWelcomeDebug("Resume parse error", "Unable to parse resume response.");
             return null;
           }
           setWelcomeResumeData(parsed);
@@ -3910,15 +4027,13 @@ END_REVIEW>>>`;
           CurrentQuestion: nextQuestionValue,
         };
         logAssessmentDebug("Next webhook", "Sending payload");
-        const url =
-          "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/5403405d1b2543a48ccd83c2d5f703ee/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=vNYYnuckqabWJ9uC_CH0kGTymUyBIutten9INl_-f-s";
         try {
           const transcriptSaved = await sendTranscriptOnNext();
           if (!transcriptSaved) {
             throw new Error("Transcript save did not complete. Please try Next again.");
           }
 
-          const response = await fetch(url, {
+          const response = await fetch(NEXT_QUESTION_WEBHOOK_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
