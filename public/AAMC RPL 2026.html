@@ -1210,6 +1210,38 @@
         .replace(/\r\n?/g, "\n")
         .trim();
 
+      const parseTranscriptSaveResult = (text) => {
+        const parsed = parseWebhookJson(text);
+        if (!parsed || typeof parsed !== "object") return null;
+        return parsed;
+      };
+
+      const isExplicitTranscriptSaveFailure = (result) => {
+        if (!result || typeof result !== "object") return false;
+        if (result.success === false || result.Success === false) return true;
+        const status = pickFirstValue(result.status, result.Status, result.result, result.Result);
+        return status.toLowerCase() === "failed" || status.toLowerCase() === "error";
+      };
+
+      const isExplicitTranscriptSaveSuccess = (result) => {
+        if (!result || typeof result !== "object") return false;
+        if (result.success === true || result.Success === true) return true;
+        const status = pickFirstValue(result.status, result.Status, result.result, result.Result);
+        return status.toLowerCase() === "success" || status.toLowerCase() === "succeeded";
+      };
+
+      const getTranscriptSaveErrorMessage = (result) => {
+        if (!result || typeof result !== "object") return "";
+        return pickFirstValue(
+          result.error,
+          result.Error,
+          result.message,
+          result.Message,
+          result.details,
+          result.Details
+        );
+      };
+
       const wait = (delayMs) => new Promise((resolve) => window.setTimeout(resolve, delayMs));
 
       const setMicStatus = (message) => {
@@ -2245,6 +2277,9 @@ Job Title: ${jobTitleValue || "N/A"}
           GivenName: ctx.givenName,
           FullTranscript: fullTranscript,
           CurrentQuestion: currentQuestionValue,
+          text: ctx.fullName,
+          text_4: String(ctx.contactId),
+          text_1: fullTranscript,
         };
         logAssessmentDebug("Transcript webhook", "Sending payload");
 
@@ -2257,12 +2292,19 @@ Job Title: ${jobTitleValue || "N/A"}
           logDebugDetail("Transcript HTTP status", `${response.status} ${response.statusText}`);
           logAssessmentDebug("Transcript webhook", `${response.status} ${response.statusText}`);
           const text = await response.text();
+          const saveResult = parseTranscriptSaveResult(text);
           if (text) {
             logDebugDetail("Transcript response", text);
             logAssessmentDebug("Transcript response", text);
           }
           if (!response.ok) {
             throw new Error(`Transcript webhook failed (${response.status}) ${response.statusText}`.trim());
+          }
+          if (isExplicitTranscriptSaveFailure(saveResult)) {
+            throw new Error(getTranscriptSaveErrorMessage(saveResult) || "Transcript webhook reported that the save failed.");
+          }
+          if (isExplicitTranscriptSaveSuccess(saveResult)) {
+            logAssessmentDebug("Transcript webhook", "Save response reported success.");
           }
           const verified = await verifyTranscriptSaved(fullTranscript);
           if (!verified) {

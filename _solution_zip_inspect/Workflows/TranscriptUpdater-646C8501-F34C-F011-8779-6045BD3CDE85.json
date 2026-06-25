@@ -55,6 +55,13 @@
                   "type": "string",
                   "x-ms-content-hint": "TEXT",
                   "x-ms-dynamically-added": true
+                },
+                "CurrentQuestion": {
+                  "description": "The next current question value saved with this transcript.",
+                  "title": "CurrentQuestion",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
                 }
               },
               "required": [
@@ -67,10 +74,62 @@
         }
       },
       "actions": {
-        "Update_Transcript": {
+        "Get_Transcript_Metadata": {
           "runAfter": {},
           "metadata": {
+            "operationMetadataId": "c0f0ad51-0b17-4e16-a1c6-4b8e412327d7"
+          },
+          "type": "OpenApiConnection",
+          "inputs": {
+            "host": {
+              "connectionName": "shared_sharepointonline",
+              "operationId": "GetFileMetadataByPath",
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+            },
+            "parameters": {
+              "dataset": "https://wraymedia.sharepoint.com/sites/AssessorBotStoredContent",
+              "path": "/Shared Documents/RPL - Full Transcripts/@{triggerBody()?['text']}-@{triggerBody()?['text_4']}-Full Transcript.txt"
+            },
+            "authentication": "@parameters('$authentication')"
+          }
+        },
+        "Update_Transcript": {
+          "runAfter": {
+            "Get_Transcript_Metadata": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
             "operationMetadataId": "1132db48-b66c-47ed-a80d-6176968ce8cd"
+          },
+          "type": "OpenApiConnection",
+          "inputs": {
+            "host": {
+              "connectionName": "shared_sharepointonline",
+              "operationId": "UpdateFile",
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+            },
+            "parameters": {
+              "dataset": "https://wraymedia.sharepoint.com/sites/AssessorBotStoredContent",
+              "id": "@outputs('Get_Transcript_Metadata')?['body/Id']",
+              "body": "@triggerBody()?['text_1']"
+            },
+            "authentication": "@parameters('$authentication')"
+          },
+          "runtimeConfiguration": {
+            "contentTransfer": {
+              "transferMode": "Chunked"
+            }
+          }
+        },
+        "Create_Transcript": {
+          "runAfter": {
+            "Get_Transcript_Metadata": [
+              "Failed"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "a45d2f45-03f1-4ce6-a33f-cc6761c0f4bd"
           },
           "type": "OpenApiConnection",
           "inputs": {
@@ -90,6 +149,181 @@
           "runtimeConfiguration": {
             "contentTransfer": {
               "transferMode": "Chunked"
+            }
+          }
+        },
+        "Respond_Transcript_Updated": {
+          "runAfter": {
+            "Update_Transcript": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "64667d0f-d619-4722-833c-77d6d3e5f829"
+          },
+          "type": "Response",
+          "kind": "PowerApp",
+          "inputs": {
+            "statusCode": 200,
+            "body": {
+              "success": true,
+              "operation": "updated",
+              "fileName": "@{triggerBody()?['text']}-@{triggerBody()?['text_4']}-Full Transcript.txt",
+              "currentQuestion": "@{triggerBody()?['CurrentQuestion']}",
+              "transcriptLength": "@{length(triggerBody()?['text_1'])}",
+              "savedAt": "@{utcNow()}"
+            },
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": {
+                  "title": "Success",
+                  "type": "boolean",
+                  "x-ms-dynamically-added": true
+                },
+                "operation": {
+                  "title": "Operation",
+                  "type": "string",
+                  "x-ms-dynamically-added": true
+                },
+                "fileName": {
+                  "title": "FileName",
+                  "type": "string",
+                  "x-ms-dynamically-added": true
+                },
+                "currentQuestion": {
+                  "title": "CurrentQuestion",
+                  "type": "string",
+                  "x-ms-dynamically-added": true
+                },
+                "transcriptLength": {
+                  "title": "TranscriptLength",
+                  "type": "string",
+                  "x-ms-dynamically-added": true
+                },
+                "savedAt": {
+                  "title": "SavedAt",
+                  "type": "string",
+                  "x-ms-dynamically-added": true
+                }
+              }
+            }
+          }
+        },
+        "Respond_Transcript_Created": {
+          "runAfter": {
+            "Create_Transcript": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "861ed017-b9b4-4846-b1eb-51fd29d1e9ee"
+          },
+          "type": "Response",
+          "kind": "PowerApp",
+          "inputs": {
+            "statusCode": 200,
+            "body": {
+              "success": true,
+              "operation": "created",
+              "fileName": "@{triggerBody()?['text']}-@{triggerBody()?['text_4']}-Full Transcript.txt",
+              "currentQuestion": "@{triggerBody()?['CurrentQuestion']}",
+              "transcriptLength": "@{length(triggerBody()?['text_1'])}",
+              "savedAt": "@{utcNow()}"
+            },
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": {
+                  "title": "Success",
+                  "type": "boolean",
+                  "x-ms-dynamically-added": true
+                },
+                "operation": {
+                  "title": "Operation",
+                  "type": "string",
+                  "x-ms-dynamically-added": true
+                },
+                "fileName": {
+                  "title": "FileName",
+                  "type": "string",
+                  "x-ms-dynamically-added": true
+                },
+                "currentQuestion": {
+                  "title": "CurrentQuestion",
+                  "type": "string",
+                  "x-ms-dynamically-added": true
+                },
+                "transcriptLength": {
+                  "title": "TranscriptLength",
+                  "type": "string",
+                  "x-ms-dynamically-added": true
+                },
+                "savedAt": {
+                  "title": "SavedAt",
+                  "type": "string",
+                  "x-ms-dynamically-added": true
+                }
+              }
+            }
+          }
+        },
+        "Respond_Transcript_Failed": {
+          "runAfter": {
+            "Update_Transcript": [
+              "Failed",
+              "TimedOut",
+              "Skipped"
+            ],
+            "Create_Transcript": [
+              "Failed",
+              "TimedOut",
+              "Skipped"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "7347ca4e-76d7-490f-8500-4090c3cd86f9"
+          },
+          "type": "Response",
+          "kind": "PowerApp",
+          "inputs": {
+            "statusCode": 500,
+            "body": {
+              "success": false,
+              "error": "SharePoint transcript write failed.",
+              "fileName": "@{triggerBody()?['text']}-@{triggerBody()?['text_4']}-Full Transcript.txt",
+              "currentQuestion": "@{triggerBody()?['CurrentQuestion']}",
+              "savedAt": "@{utcNow()}"
+            },
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": {
+                  "title": "Success",
+                  "type": "boolean",
+                  "x-ms-dynamically-added": true
+                },
+                "error": {
+                  "title": "Error",
+                  "type": "string",
+                  "x-ms-dynamically-added": true
+                },
+                "fileName": {
+                  "title": "FileName",
+                  "type": "string",
+                  "x-ms-dynamically-added": true
+                },
+                "currentQuestion": {
+                  "title": "CurrentQuestion",
+                  "type": "string",
+                  "x-ms-dynamically-added": true
+                },
+                "savedAt": {
+                  "title": "SavedAt",
+                  "type": "string",
+                  "x-ms-dynamically-added": true
+                }
+              }
             }
           }
         }
