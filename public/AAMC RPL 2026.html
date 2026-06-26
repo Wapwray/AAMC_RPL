@@ -845,8 +845,7 @@
         "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/903538467bfb426fb4b074ef9cc3caa4/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=H7BkpCmAeGTUqrl4NPh94_bK4-3hX5r82Xh-sbwnWG4";
       const NEXT_QUESTION_WEBHOOK_URL =
         "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/5403405d1b2543a48ccd83c2d5f703ee/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=vNYYnuckqabWJ9uC_CH0kGTymUyBIutten9INl_-f-s";
-      const CURRENT_ATTEMPT_WEBHOOK_URL =
-        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/f86d96def8d44f09b52f2ffc28bd006f/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=5aZztyGRO7_9LfZKZGMAHkSwJeWOZtXSdi_5hk4adLY";
+      const CURRENT_ATTEMPT_WEBHOOK_URL = TRANSCRIPT_WEBHOOK_URL;
       const TRANSCRIPT_VERIFY_DELAYS_MS = [500, 1000, 1500, 2500, 4000, 6000];
 
       const statusEl = document.getElementById("status");
@@ -2327,7 +2326,6 @@ Job Title: ${jobTitleValue || "N/A"}
       };
 
       const sendTranscriptOnNext = async () => {
-        const ctx = getStudentContext();
         const currentQuestion = questions[currentIndex] || {};
         const currentQuestionText = getQuestionText(currentQuestion);
         const currentObjectiveText = getQuestionObjective(currentQuestion);
@@ -2338,59 +2336,8 @@ Job Title: ${jobTitleValue || "N/A"}
         });
         fullTranscript = buildFullTranscript();
         window.RPLFullTranscript = fullTranscript;
-        const isLastQuestion = currentIndex + 1 >= questions.length;
-        const currentQuestionValue = isLastQuestion ? "XXX" : String(currentIndex + 2);
-        const payload = {
-          FullName: ctx.fullName,
-          ContactID: String(ctx.contactId),
-          GivenName: ctx.givenName,
-          FullTranscript: fullTranscript,
-          CurrentQuestion: currentQuestionValue,
-        };
-        logAssessmentDebug("Transcript webhook", "Sending payload");
-
-        try {
-          const response = await fetch(TRANSCRIPT_WEBHOOK_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          });
-          logDebugDetail("Transcript HTTP status", `${response.status} ${response.statusText}`);
-          logAssessmentDebug("Transcript webhook", `${response.status} ${response.statusText}`);
-          const text = await response.text();
-          const saveResult = parseTranscriptSaveResult(text);
-          if (text) {
-            logDebugDetail("Transcript response", text);
-            logAssessmentDebug("Transcript response", text);
-          }
-          if (!response.ok) {
-            throw new Error(`Transcript webhook failed (${response.status}) ${response.statusText}`.trim());
-          }
-          if (isExplicitTranscriptSaveFailure(saveResult)) {
-            throw new Error(getTranscriptSaveErrorMessage(saveResult) || "Transcript webhook reported that the save failed.");
-          }
-          if (isExplicitTranscriptSaveSuccess(saveResult)) {
-            logAssessmentDebug("Transcript webhook", "Save response reported success.");
-            return true;
-          }
-          if (!hasExplicitTranscriptSaveResult(saveResult)) {
-            logAssessmentDebug("Transcript webhook", "Legacy save response accepted; verifying in background.");
-            verifyTranscriptSaved(fullTranscript, { updateStatus: false })
-              .then((verified) => {
-                logAssessmentDebug("Transcript background verification", verified ? "Saved transcript matched." : "Saved transcript did not match before timeout.");
-              })
-              .catch((verificationError) => {
-                logAssessmentDebug("Transcript background verification error", verificationError?.message || String(verificationError));
-              });
-            return true;
-          }
-          return true;
-        } catch (error) {
-          logDebugDetail("Transcript error", error?.message || String(error));
-          logAssessmentDebug("Transcript error", error?.message || String(error));
-          setStatus(error?.message || "Transcript webhook failed.");
-          return false;
-        }
+        logAssessmentDebug("Transcript snapshot", "Updated locally before moving question.");
+        return true;
       };
 
       const updateCurrentQuestionFromWebhook = async () => {
@@ -4198,6 +4145,7 @@ END_REVIEW>>>`;
           ContactID: String(ctx.contactId),
           GivenName: ctx.givenName,
           CurrentQuestion: nextQuestionValue,
+          CurrentAttempt: "1",
         };
         logAssessmentDebug("Next webhook", "Sending payload");
         try {
