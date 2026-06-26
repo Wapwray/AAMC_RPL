@@ -1230,6 +1230,10 @@
         return status.toLowerCase() === "success" || status.toLowerCase() === "succeeded";
       };
 
+      const hasExplicitTranscriptSaveResult = (result) => (
+        isExplicitTranscriptSaveSuccess(result) || isExplicitTranscriptSaveFailure(result)
+      );
+
       const getTranscriptSaveErrorMessage = (result) => {
         if (!result || typeof result !== "object") return "";
         return pickFirstValue(
@@ -2234,14 +2238,16 @@ Job Title: ${jobTitleValue || "N/A"}
         return transcriptText;
       };
 
-      const verifyTranscriptSaved = async (expectedTranscript) => {
+      const verifyTranscriptSaved = async (expectedTranscript, { updateStatus = true } = {}) => {
         const expected = normalizeTranscriptForCompare(expectedTranscript);
         if (!expected) return false;
 
         for (let index = 0; index < TRANSCRIPT_VERIFY_DELAYS_MS.length; index += 1) {
           const delayMs = TRANSCRIPT_VERIFY_DELAYS_MS[index];
           await wait(delayMs);
-          setStatus(`Verifying transcript save (${index + 1}/${TRANSCRIPT_VERIFY_DELAYS_MS.length})...`);
+          if (updateStatus) {
+            setStatus(`Verifying transcript save (${index + 1}/${TRANSCRIPT_VERIFY_DELAYS_MS.length})...`);
+          }
           try {
             const persistedTranscript = await fetchPersistedTranscript();
             const persisted = normalizeTranscriptForCompare(persistedTranscript);
@@ -2305,10 +2311,18 @@ Job Title: ${jobTitleValue || "N/A"}
           }
           if (isExplicitTranscriptSaveSuccess(saveResult)) {
             logAssessmentDebug("Transcript webhook", "Save response reported success.");
+            return true;
           }
-          const verified = await verifyTranscriptSaved(fullTranscript);
-          if (!verified) {
-            throw new Error("Transcript save could not be verified. Please try Next again.");
+          if (!hasExplicitTranscriptSaveResult(saveResult)) {
+            logAssessmentDebug("Transcript webhook", "Legacy save response accepted; verifying in background.");
+            verifyTranscriptSaved(fullTranscript, { updateStatus: false })
+              .then((verified) => {
+                logAssessmentDebug("Transcript background verification", verified ? "Saved transcript matched." : "Saved transcript did not match before timeout.");
+              })
+              .catch((verificationError) => {
+                logAssessmentDebug("Transcript background verification error", verificationError?.message || String(verificationError));
+              });
+            return true;
           }
           return true;
         } catch (error) {
