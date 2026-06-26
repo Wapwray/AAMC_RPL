@@ -529,6 +529,31 @@
         width: min(880px, 100%);
         text-align: left;
       }
+      .liveDebugPanel {
+        position: fixed;
+        left: 20px;
+        bottom: 58px;
+        z-index: 70;
+        width: min(640px, calc(100vw - 40px));
+        max-height: 240px;
+        background: rgba(255, 255, 255, 0.96);
+        border: 1px solid rgba(148, 163, 184, 0.85);
+        border-radius: 10px;
+        box-shadow: 0 14px 34px rgba(15, 23, 42, 0.18);
+        padding: 10px;
+        -webkit-backdrop-filter: blur(6px);
+        backdrop-filter: blur(6px);
+      }
+      .liveDebugPanel .assessmentDebugHeader {
+        margin-bottom: 6px;
+      }
+      .liveDebugLog {
+        max-height: 160px;
+        font-size: 11px;
+        background: #0f172a;
+        color: #e2e8f0;
+        border-color: #334155;
+      }
       .initTitle {
         font-weight: 700;
         margin-bottom: 6px;
@@ -572,6 +597,16 @@
           border-radius: 14px;
           font-size: 11px;
           padding: 8px 10px;
+        }
+        .liveDebugPanel {
+          left: 12px;
+          right: 12px;
+          bottom: 70px;
+          width: auto;
+          max-height: 190px;
+        }
+        .liveDebugLog {
+          max-height: 110px;
         }
       }
     </style>
@@ -760,6 +795,13 @@
             </div>
             <button id="nextBtn" class="secondary nextFloating" disabled>Next Question</button>
           </div>
+          <div id="liveDebugPanel" class="assessmentDebug liveDebugPanel">
+            <div class="assessmentDebugHeader">
+              <div class="assessmentDebugTitle">Next Question Debug</div>
+              <button id="liveDebugClearBtn" class="secondary" type="button">Clear</button>
+            </div>
+            <div id="assessmentDebugLog" class="assessmentDebugLog liveDebugLog">Waiting for activity...</div>
+          </div>
         </div>
       </div>
     </div>
@@ -876,6 +918,7 @@
       const hintBodyEl = document.getElementById("hintBody");
       const finalisingOverlayEl = document.getElementById("finalisingOverlay");
       const thinkingOverlayEl = document.getElementById("thinkingOverlay");
+      const liveDebugClearBtn = document.getElementById("liveDebugClearBtn");
       const answerWrapEl = document.querySelector(".answerWrap");
       // const modeToggleEl = document.getElementById("modeToggle");
       // const modeLabelEl = document.getElementById("modeLabel");
@@ -2393,12 +2436,27 @@ Job Title: ${jobTitleValue || "N/A"}
       const logAssessmentDebug = (label, detail) => {
         if (!assessmentDebugLogEl) return;
         const timestamp = new Date().toLocaleTimeString();
-        const message = detail === undefined || detail === null ? label : `${label}: ${detail}`;
-        if (assessmentDebugLogEl.textContent === "Waiting for activity…") {
+        const formattedDetail = detail === undefined || detail === null ? "" : formatDebugPayload(detail);
+        const message = formattedDetail ? `${label}: ${formattedDetail}` : label;
+        if (assessmentDebugLogEl.textContent === "Waiting for activity…" || assessmentDebugLogEl.textContent === "Waiting for activity...") {
           assessmentDebugLogEl.textContent = "";
         }
         assessmentDebugLogEl.textContent = `[${timestamp}] ${message}\n` + assessmentDebugLogEl.textContent;
       };
+
+      liveDebugClearBtn?.addEventListener("click", () => {
+        if (assessmentDebugLogEl) {
+          assessmentDebugLogEl.textContent = "Waiting for activity...";
+        }
+      });
+
+      window.addEventListener("error", (event) => {
+        logAssessmentDebug("Window error", event?.error?.stack || event?.message || "Unknown error");
+      });
+
+      window.addEventListener("unhandledrejection", (event) => {
+        logAssessmentDebug("Unhandled rejection", event?.reason?.stack || event?.reason?.message || event?.reason || "Unknown rejection");
+      });
 
       const loadPromptTemplates = async () => {
         try {
