@@ -3792,6 +3792,9 @@ Job Title: ${jobTitleValue || "N/A"}
         setAttemptLockState(false);
         if (showHintBtn) showHintBtn.disabled = false;
         updateEvaluateButtonState();
+        if (resumeCurrentQuestionNumber === number && resumeAttemptCount > 1 && nextBtn) {
+          nextBtn.disabled = false;
+        }
         if (hasCompletedMaxAttemptForCurrentQuestion()) {
           setStatus("Maximum attempts reached. Please move to the next question.");
           setAttemptLockState(true);
