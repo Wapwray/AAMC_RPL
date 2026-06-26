@@ -845,6 +845,8 @@
         "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/903538467bfb426fb4b074ef9cc3caa4/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=H7BkpCmAeGTUqrl4NPh94_bK4-3hX5r82Xh-sbwnWG4";
       const NEXT_QUESTION_WEBHOOK_URL =
         "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/5403405d1b2543a48ccd83c2d5f703ee/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=vNYYnuckqabWJ9uC_CH0kGTymUyBIutten9INl_-f-s";
+      const CURRENT_ATTEMPT_WEBHOOK_URL =
+        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/f86d96def8d44f09b52f2ffc28bd006f/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=5aZztyGRO7_9LfZKZGMAHkSwJeWOZtXSdi_5hk4adLY";
       const TRANSCRIPT_VERIFY_DELAYS_MS = [500, 1000, 1500, 2500, 4000, 6000];
 
       const statusEl = document.getElementById("status");
@@ -971,6 +973,8 @@
       let resumeApplied = false;
       let resumeCurrentQuestionNumber = null;
       let resumeCurrentQuestionValue = "";
+      let resumeCurrentAttemptNumber = null;
+      let resumeCurrentAttemptValue = "";
       let resumeLoadPromise = null;
       let lastStudentContextResponseText = "";
       let lastQuestionResponseText = "";
@@ -1145,6 +1149,7 @@
         if (!data || typeof data !== "object") return;
         const combined = pickFirstValue(data["Industry,Job Title"], data.industryJobTitle);
         const currentQuestionText = extractResumeCurrentQuestion(data);
+        const currentAttemptText = extractResumeCurrentAttempt(data);
         const transcriptText = extractResumeTranscript(data);
 
         let industryValue = combined;
@@ -1170,6 +1175,9 @@
         resumeCurrentQuestionValue = String(currentQuestionText || "").trim();
         const parsedNumber = Number.parseInt(resumeCurrentQuestionValue, 10);
         resumeCurrentQuestionNumber = Number.isFinite(parsedNumber) ? parsedNumber : null;
+        resumeCurrentAttemptValue = String(currentAttemptText || "").trim();
+        const parsedAttempt = Number.parseInt(resumeCurrentAttemptValue, 10);
+        resumeCurrentAttemptNumber = Number.isFinite(parsedAttempt) ? parsedAttempt : null;
       };
 
       const isCompletionQuestionValue = (value) => {
@@ -1245,6 +1253,18 @@
           data.currentquestion,
           data.QuestionNumber,
           data.questionNumber
+        );
+      };
+
+      const extractResumeCurrentAttempt = (data) => {
+        if (!data || typeof data !== "object") return "";
+        return pickFirstResumeValue(
+          data["Current Attempt"],
+          data.CurrentAttempt,
+          data.currentAttempt,
+          data.currentattempt,
+          data.AttemptNumber,
+          data.attemptNumber
         );
       };
 
@@ -3203,6 +3223,38 @@ Job Title: ${jobTitleValue || "N/A"}
         }
       };
 
+      const sendCurrentAttemptOnEvaluate = async (attemptNumber, questionNumber) => {
+        const ctx = getStudentContext();
+        const payload = {
+          FullName: ctx.fullName,
+          ContactID: String(ctx.contactId),
+          GivenName: ctx.givenName,
+          CurrentQuestion: String(questionNumber),
+          CurrentAttempt: String(attemptNumber),
+        };
+        logAssessmentDebug("Attempt webhook", "Sending payload");
+        logAssessmentDebug("Attempt payload", payload);
+        try {
+          const response = await fetch(CURRENT_ATTEMPT_WEBHOOK_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          logAssessmentDebug("Attempt webhook", `${response.status} ${response.statusText}`);
+          const text = await response.text();
+          if (text) {
+            logAssessmentDebug("Attempt response", text);
+          }
+          if (!response.ok) {
+            throw new Error(`Attempt webhook failed (${response.status}) ${response.statusText}`.trim());
+          }
+          return true;
+        } catch (error) {
+          logAssessmentDebug("Attempt error", error?.message || String(error));
+          return false;
+        }
+      };
+
       const fetchAzureSpeechToken = async () => {
         const now = Date.now();
         if (speechTokenInfo.token && speechTokenInfo.region && speechTokenInfo.expiresAt - 60000 > now) {
@@ -3625,7 +3677,13 @@ Job Title: ${jobTitleValue || "N/A"}
         const question = questions[currentIndex] || {};
         const total = questions.length;
         const number = currentIndex + 1;
-        headerTitleEl.textContent = `Compliance - Question ${number} of ${total} - Attempt 1`;
+        const transcriptAttemptCount = transcriptQuestions[currentIndex]?.attempts?.length || 0;
+        const resumeAttemptCount = resumeCurrentQuestionNumber === number && resumeCurrentAttemptNumber
+          ? Math.max(0, resumeCurrentAttemptNumber)
+          : 0;
+        const restoredAttemptCount = Math.min(MAX_ATTEMPTS, Math.max(transcriptAttemptCount, resumeAttemptCount));
+        const displayAttempt = Math.min(MAX_ATTEMPTS, restoredAttemptCount + 1);
+        headerTitleEl.textContent = `Compliance - Question ${number} of ${total} - Attempt ${displayAttempt}`;
         questionTextEl.innerHTML = getQuestionTextHtml(question) || "No question available.";
         answerInputEl.value = "";
         lastResponseRecording = null;
@@ -3639,8 +3697,11 @@ Job Title: ${jobTitleValue || "N/A"}
         }
         lastPlaybackDuration = 0;
         updatePlaybackUi(0, 0);
-        currentAttempts = 0;
-        currentResponses = [];
+        currentAttempts = restoredAttemptCount;
+        currentResponses = (transcriptQuestions[currentIndex]?.attempts || [])
+          .slice(0, currentAttempts)
+          .map((attempt) => attempt.answer)
+          .filter(Boolean);
         evaluateBtn.disabled = true;
         nextBtn.disabled = true;
         chatHistoryEl.textContent = "";
@@ -4071,6 +4132,7 @@ END_REVIEW>>>`;
         showThinkingOverlay();
 
         try {
+          await sendCurrentAttemptOnEvaluate(attemptNumber, questionNumber);
           await sendRecordingOnEvaluate(attemptNumber, questionNumber);
           const prompt = buildPrompt(questions[currentIndex], currentResponses);
           const responseText = await callTextModel(prompt, { mode: "assessor", temperature: 0, max_tokens: 900 });
