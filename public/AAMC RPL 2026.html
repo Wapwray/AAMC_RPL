@@ -4304,25 +4304,45 @@ END_REVIEW>>>`;
           ContactID: String(ctx.contactId),
           GivenName: ctx.givenName,
           CurrentQuestion: nextQuestionValue,
+          CurrentAttempt: "1",
         };
         logAssessmentDebug("Next webhook", "Sending payload");
+        logAssessmentDebug("Next payload", payload);
         try {
           const transcriptSaved = await sendTranscriptOnNext();
           if (!transcriptSaved) {
             throw new Error("Transcript save did not complete. Please try Next again.");
           }
 
-          const response = await fetch(NEXT_QUESTION_WEBHOOK_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          });
+          const postNextQuestionPayload = async (body) => {
+            const response = await fetch(NEXT_QUESTION_WEBHOOK_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            });
+            const text = await response.text();
+            return { response, text };
+          };
+
+          let { response, text } = await postNextQuestionPayload(payload);
           logDebugDetail("Next question HTTP status", `${response.status} ${response.statusText}`);
           logAssessmentDebug("Next webhook", `${response.status} ${response.statusText}`);
-          const text = await response.text();
           if (text) {
             logDebugDetail("Next question response", text);
             logAssessmentDebug("Next response", text);
+          }
+          if (!response.ok && response.status === 400 && /CurrentAttempt/i.test(text) && /not been defined|additional properties/i.test(text)) {
+            const legacyPayload = { ...payload };
+            delete legacyPayload.CurrentAttempt;
+            logAssessmentDebug("Next webhook", "Retrying without CurrentAttempt for legacy schema");
+            logAssessmentDebug("Next retry payload", legacyPayload);
+            ({ response, text } = await postNextQuestionPayload(legacyPayload));
+            logDebugDetail("Next question retry HTTP status", `${response.status} ${response.statusText}`);
+            logAssessmentDebug("Next retry webhook", `${response.status} ${response.statusText}`);
+            if (text) {
+              logDebugDetail("Next question retry response", text);
+              logAssessmentDebug("Next retry response", text);
+            }
           }
           if (!response.ok) {
             throw new Error(`Next webhook failed (${response.status}) ${response.statusText}`.trim());
