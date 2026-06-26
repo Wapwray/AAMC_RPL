@@ -2294,40 +2294,8 @@ Job Title: ${jobTitleValue || "N/A"}
         return output;
       };
 
-      const buildConversationPartTranscript = ({ questionNumber, questionText, attemptNumber, answer, feedback, submittedAt }) => {
-        const ctx = getStudentContext();
-        const givenName = ctx.givenName || ctx.fullName;
-        const feedbackText = getTranscriptAttemptFeedbackText(feedback);
-        let output =
-`=============================
-Assessment Transcript Backup
-=============================
-Name: ${ctx.fullName}
-Contact ID: ${ctx.contactId}
-Assessment: RPL
-Question: ${questionNumber}
-Attempt: ${attemptNumber}
-Date: ${formatDate(new Date())}
-=============================
-
-Question ${questionNumber}: ${questionText}
-
------------------------------
-QUESTION TRANSCRIPT
-AI Interviewer: ${questionText}
-
-${givenName} (Attempt ${attemptNumber}):
-${answer}
-
-`;
-        if (feedbackText) {
-          output += `AI Interviewer:\n${feedbackText}\n\n`;
-        }
-        if (submittedAt) {
-          output += `Submitted: ${formatDateTime(submittedAt)}\n`;
-        }
-        output += "-----------------------------\n";
-        return output;
+      const buildConversationPartTranscript = (guidanceText) => {
+        return String(guidanceText || "").trim();
       };
 
       const fetchPersistedTranscript = async () => {
@@ -3248,7 +3216,7 @@ ${answer}
         }
       };
 
-      const sendTranscriptBackupOnEvaluate = async ({ attemptNumber, questionNumber, questionText, answer, feedback, submittedAt }) => {
+      const sendTranscriptBackupOnEvaluate = async ({ attemptNumber, questionNumber, guidanceText }) => {
         const ctx = getStudentContext();
         const fileName = `${ctx.fullName} - ${ctx.contactId} - ${questionNumber} - ${attemptNumber}.txt`;
         const payload = {
@@ -3258,14 +3226,7 @@ ${answer}
           CurrentQuestion: String(questionNumber),
           CurrentAttempt: String(attemptNumber),
           FileName: fileName,
-          ConversationPartTranscript: buildConversationPartTranscript({
-            questionNumber,
-            questionText,
-            attemptNumber,
-            answer,
-            feedback,
-            submittedAt,
-          }),
+          ConversationPartTranscript: buildConversationPartTranscript(guidanceText),
         };
         logAssessmentDebug("Transcript backup webhook", "Sending payload");
         logAssessmentDebug("Transcript backup payload", payload);
@@ -4185,10 +4146,7 @@ END_REVIEW>>>`;
           const backupSaved = await sendTranscriptBackupOnEvaluate({
             attemptNumber,
             questionNumber,
-            questionText,
-            answer,
-            feedback: attemptRecord.feedback,
-            submittedAt: attemptRecord.submittedAt,
+            guidanceText: assessorFeedback.displayText,
           });
           const attemptAndTranscriptSaved = await sendCurrentAttemptOnEvaluate(attemptNumber, questionNumber);
           const saveWarning = !attemptAndTranscriptSaved
