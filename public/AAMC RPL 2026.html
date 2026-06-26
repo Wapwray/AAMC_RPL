@@ -2521,8 +2521,11 @@ Job Title: ${jobTitleValue || "N/A"}
             return parsed;
           }
           if (welcomeBodyEl && resumeCurrentQuestionNumber) {
+            const resumeAttemptDisplay = resumeCurrentAttemptNumber && Number.isFinite(resumeCurrentAttemptNumber)
+              ? resumeCurrentAttemptNumber
+              : 1;
             welcomeBodyEl.innerHTML = `
-              <p>It looks like you were on Question ${resumeCurrentQuestionNumber}.</p>
+              <p>You are currently on Question ${resumeCurrentQuestionNumber} Attempt ${resumeAttemptDisplay}.</p>
               <p>Press the RESUME button to continue.</p>
             `;
           }
