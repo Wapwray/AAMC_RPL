@@ -972,6 +972,7 @@
       let assessmentStartAt = null;
       let transcriptQuestions = [];
       let resumeTranscriptText = "";
+      let resumeGuidanceWindowText = "";
       let resumeApplied = false;
       let resumeCurrentQuestionNumber = null;
       let resumeCurrentQuestionValue = "";
@@ -1153,6 +1154,7 @@
         const currentQuestionText = extractResumeCurrentQuestion(data);
         const currentAttemptText = extractResumeCurrentAttempt(data);
         const transcriptText = extractResumeTranscript(data);
+        const guidanceWindowText = extractResumeGuidanceWindow(data);
 
         let industryValue = combined;
         let jobValue = "";
@@ -1174,6 +1176,7 @@
         }
 
         resumeTranscriptText = transcriptText || "";
+        resumeGuidanceWindowText = guidanceWindowText || "";
         resumeCurrentQuestionValue = String(currentQuestionText || "").trim();
         const parsedNumber = Number.parseInt(resumeCurrentQuestionValue, 10);
         resumeCurrentQuestionNumber = Number.isFinite(parsedNumber) ? parsedNumber : null;
@@ -1268,6 +1271,23 @@
           data.AttemptNumber,
           data.attemptNumber
         );
+      };
+
+      const extractResumeGuidanceWindow = (data) => {
+        if (!data || typeof data !== "object") return "";
+        const candidates = [
+          data["Guidance Window"],
+          data.GuidanceWindow,
+          data.guidanceWindow,
+          data.guidancewindow
+        ];
+        for (const candidate of candidates) {
+          if (candidate === undefined || candidate === null) continue;
+          if (typeof candidate === "object") return candidate;
+          const text = pickFirstResumeValue(candidate);
+          if (text) return text;
+        }
+        return "";
       };
 
       const normalizeTranscriptForCompare = (value) => String(value || "")
@@ -2294,8 +2314,46 @@ Job Title: ${jobTitleValue || "N/A"}
         return output;
       };
 
-      const buildConversationPartTranscript = (guidanceText) => {
-        return String(guidanceText || "").trim();
+      const getGuidanceWindowEntries = () => {
+        if (!chatHistoryEl) return [];
+        return Array.from(chatHistoryEl.querySelectorAll(".chatEntry"))
+          .map((entry) => ({
+            role: entry.classList.contains("user") ? "user" : "ai",
+            text: entry.textContent || "",
+          }))
+          .filter((entry) => entry.text.trim());
+      };
+
+      const buildGuidanceWindowSnapshot = ({ questionNumber, attemptNumber }) => {
+        return JSON.stringify({
+          version: 1,
+          currentQuestion: String(questionNumber),
+          currentAttempt: String(attemptNumber),
+          entries: getGuidanceWindowEntries(),
+        });
+      };
+
+      const parseGuidanceWindowSnapshot = (value) => {
+        if (!value) return [];
+        let parsed = value;
+        if (typeof value === "string") {
+          try {
+            parsed = JSON.parse(value);
+          } catch {
+            return [];
+          }
+        }
+        const entries = Array.isArray(parsed)
+          ? parsed
+          : Array.isArray(parsed?.entries)
+            ? parsed.entries
+            : [];
+        return entries
+          .map((entry) => ({
+            role: entry?.role === "user" ? "user" : "ai",
+            text: String(entry?.text || ""),
+          }))
+          .filter((entry) => entry.text.trim());
       };
 
       const fetchPersistedTranscript = async () => {
@@ -3216,7 +3274,7 @@ Job Title: ${jobTitleValue || "N/A"}
         }
       };
 
-      const sendTranscriptBackupOnEvaluate = async ({ attemptNumber, questionNumber, guidanceText }) => {
+      const sendTranscriptBackupOnEvaluate = async ({ attemptNumber, questionNumber }) => {
         const ctx = getStudentContext();
         const fileName = `${ctx.fullName} - ${ctx.contactId} - ${questionNumber} - ${attemptNumber}.txt`;
         const payload = {
@@ -3226,7 +3284,7 @@ Job Title: ${jobTitleValue || "N/A"}
           CurrentQuestion: String(questionNumber),
           CurrentAttempt: String(attemptNumber),
           FileName: fileName,
-          ConversationPartTranscript: buildConversationPartTranscript(guidanceText),
+          ConversationPartTranscript: buildGuidanceWindowSnapshot({ questionNumber, attemptNumber }),
         };
         logAssessmentDebug("Transcript backup webhook", "Sending payload");
         logAssessmentDebug("Transcript backup payload", payload);
@@ -3593,13 +3651,34 @@ Job Title: ${jobTitleValue || "N/A"}
         }
       };
 
-      const addChatEntry = (text, role, transcriptText = text) => {
+      const addChatEntry = (text, role, transcriptText = text, options = {}) => {
         const entry = document.createElement("div");
         entry.className = `chatEntry ${role}`;
         entry.textContent = text;
         chatHistoryEl.appendChild(entry);
         chatHistoryEl.scrollTop = chatHistoryEl.scrollHeight;
-        appendToTranscript(role === "user" ? "User" : "System", transcriptText);
+        if (options.appendTranscript !== false) {
+          appendToTranscript(role === "user" ? "User" : "System", transcriptText);
+        }
+      };
+
+      const renderGuidanceWindowSnapshot = () => {
+        if (!resumeGuidanceWindowText) return false;
+        if (resumeCurrentQuestionNumber && resumeCurrentQuestionNumber !== currentIndex + 1) return false;
+        const entries = parseGuidanceWindowSnapshot(resumeGuidanceWindowText);
+        if (!entries.length) return false;
+        entries.forEach((entry) => {
+          addChatEntry(entry.text, entry.role, entry.text, { appendTranscript: false });
+        });
+        return true;
+      };
+
+      const updateQuestionAttemptHeader = (attemptCount = currentAttempts) => {
+        if (!headerTitleEl) return;
+        const total = questions.length;
+        const number = currentIndex + 1;
+        const displayAttempt = Math.min(MAX_ATTEMPTS, Math.max(0, attemptCount) + 1);
+        headerTitleEl.textContent = `Compliance - Question ${number} of ${total} - Attempt ${displayAttempt}`;
       };
 
       const buildQuestionsTableHtml = (questionList) => {
@@ -3678,8 +3757,7 @@ Job Title: ${jobTitleValue || "N/A"}
           ? Math.max(0, resumeCurrentAttemptNumber)
           : 0;
         const restoredAttemptCount = Math.min(MAX_ATTEMPTS, Math.max(transcriptAttemptCount, resumeAttemptCount));
-        const displayAttempt = Math.min(MAX_ATTEMPTS, restoredAttemptCount + 1);
-        headerTitleEl.textContent = `Compliance - Question ${number} of ${total} - Attempt ${displayAttempt}`;
+        updateQuestionAttemptHeader(restoredAttemptCount);
         questionTextEl.innerHTML = getQuestionTextHtml(question) || "No question available.";
         answerInputEl.value = "";
         lastResponseRecording = null;
@@ -3701,6 +3779,7 @@ Job Title: ${jobTitleValue || "N/A"}
         evaluateBtn.disabled = true;
         nextBtn.disabled = true;
         chatHistoryEl.textContent = "";
+        renderGuidanceWindowSnapshot();
         setAttemptLockState(false);
         if (showHintBtn) showHintBtn.disabled = false;
         updateEvaluateButtonState();
@@ -4120,6 +4199,7 @@ END_REVIEW>>>`;
           feedback: "",
         };
         addChatEntry(`Response ${currentAttempts}: ${answer}`, "user");
+        updateQuestionAttemptHeader(currentAttempts);
         setStatus(`Evaluating response (attempt ${currentAttempts} of ${MAX_ATTEMPTS})...`);
         evaluateBtn.disabled = true;
         playbackLocked = true;
@@ -4146,7 +4226,6 @@ END_REVIEW>>>`;
           const backupSaved = await sendTranscriptBackupOnEvaluate({
             attemptNumber,
             questionNumber,
-            guidanceText: assessorFeedback.displayText,
           });
           const attemptAndTranscriptSaved = await sendCurrentAttemptOnEvaluate(attemptNumber, questionNumber);
           const saveWarning = !attemptAndTranscriptSaved
