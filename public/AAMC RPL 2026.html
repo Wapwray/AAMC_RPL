@@ -2326,9 +2326,6 @@ Job Title: ${jobTitleValue || "N/A"}
           GivenName: ctx.givenName,
           FullTranscript: fullTranscript,
           CurrentQuestion: currentQuestionValue,
-          text: ctx.fullName,
-          text_4: String(ctx.contactId),
-          text_1: fullTranscript,
         };
         logAssessmentDebug("Transcript webhook", "Sending payload");
 
