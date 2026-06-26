@@ -3170,7 +3170,7 @@ Job Title: ${jobTitleValue || "N/A"}
         }
       };
 
-      const sendCurrentAttemptOnEvaluate = async (attemptNumber, questionNumber) => {
+      const sendCurrentAttemptOnEvaluate = async (attemptNumber, questionNumber, label = "Attempt webhook") => {
         const ctx = getStudentContext();
         const payload = {
           FullName: ctx.fullName,
@@ -3179,25 +3179,25 @@ Job Title: ${jobTitleValue || "N/A"}
           CurrentQuestion: String(questionNumber),
           CurrentAttempt: String(attemptNumber),
         };
-        logAssessmentDebug("Attempt webhook", "Sending payload");
-        logAssessmentDebug("Attempt payload", payload);
+        logAssessmentDebug(label, "Sending payload");
+        logAssessmentDebug(`${label} payload`, payload);
         try {
           const response = await fetch(CURRENT_ATTEMPT_WEBHOOK_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
           });
-          logAssessmentDebug("Attempt webhook", `${response.status} ${response.statusText}`);
+          logAssessmentDebug(label, `${response.status} ${response.statusText}`);
           const text = await response.text();
           if (text) {
-            logAssessmentDebug("Attempt response", text);
+            logAssessmentDebug(`${label} response`, text);
           }
           if (!response.ok) {
-            throw new Error(`Attempt webhook failed (${response.status}) ${response.statusText}`.trim());
+            throw new Error(`${label} failed (${response.status}) ${response.statusText}`.trim());
           }
           return true;
         } catch (error) {
-          logAssessmentDebug("Attempt error", error?.message || String(error));
+          logAssessmentDebug(`${label} error`, error?.message || String(error));
           return false;
         }
       };
@@ -4145,7 +4145,6 @@ END_REVIEW>>>`;
           ContactID: String(ctx.contactId),
           GivenName: ctx.givenName,
           CurrentQuestion: nextQuestionValue,
-          CurrentAttempt: "1",
         };
         logAssessmentDebug("Next webhook", "Sending payload");
         try {
@@ -4176,6 +4175,12 @@ END_REVIEW>>>`;
           nextQuestionInFlight = false;
           nextBtn.disabled = false;
           return;
+        }
+        if (!isLastQuestion) {
+          sendCurrentAttemptOnEvaluate(1, nextQuestionValue, "Attempt reset webhook")
+            .then((saved) => {
+              logAssessmentDebug("Attempt reset", saved ? "CurrentAttempt reset to 1." : "Reset request did not complete.");
+            });
         }
         if (isLastQuestion) {
           nextQuestionInFlight = false;
