@@ -3673,6 +3673,15 @@ Job Title: ${jobTitleValue || "N/A"}
         return true;
       };
 
+      const hasCompletedMaxAttemptForCurrentQuestion = () => {
+        if (currentAttempts < MAX_ATTEMPTS) return false;
+        const currentEntry = transcriptQuestions[currentIndex];
+        const maxAttempt = currentEntry?.attempts?.[MAX_ATTEMPTS - 1];
+        if (getTranscriptAttemptFeedbackText(maxAttempt?.feedback)) return true;
+        const guidanceEntries = parseGuidanceWindowSnapshot(resumeGuidanceWindowText);
+        return guidanceEntries.some((entry) => entry.role === "ai" && entry.text.trim());
+      };
+
       const updateQuestionAttemptHeader = (attemptCount = currentAttempts) => {
         if (!headerTitleEl) return;
         const total = questions.length;
@@ -3783,6 +3792,10 @@ Job Title: ${jobTitleValue || "N/A"}
         setAttemptLockState(false);
         if (showHintBtn) showHintBtn.disabled = false;
         updateEvaluateButtonState();
+        if (hasCompletedMaxAttemptForCurrentQuestion()) {
+          setStatus("Maximum attempts reached. Please move to the next question.");
+          setAttemptLockState(true);
+        }
       };
 
       const buildPrompt = (question, answers) => {
