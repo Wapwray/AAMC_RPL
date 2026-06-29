@@ -4318,6 +4318,30 @@ END_REVIEW>>>`;
             throw new Error("Transcript save did not complete. Please try Next again.");
           }
 
+          const transcriptWebhookPayload = {
+            FullName: ctx.fullName,
+            ContactID: String(ctx.contactId),
+            GivenName: ctx.givenName,
+            FullTranscript: fullTranscript || buildFullTranscript(),
+            CurrentQuestion: nextQuestionValue,
+            CurrentAttempt: "1",
+          };
+          logAssessmentDebug("Transcript webhook", "Sending payload");
+          logAssessmentDebug("Transcript webhook payload", transcriptWebhookPayload);
+          const transcriptResponse = await fetch(TRANSCRIPT_WEBHOOK_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(transcriptWebhookPayload),
+          });
+          const transcriptResponseText = await transcriptResponse.text();
+          logAssessmentDebug("Transcript webhook", `${transcriptResponse.status} ${transcriptResponse.statusText}`);
+          if (transcriptResponseText) {
+            logAssessmentDebug("Transcript webhook response", transcriptResponseText);
+          }
+          if (!transcriptResponse.ok) {
+            throw new Error(`Transcript webhook failed (${transcriptResponse.status}) ${transcriptResponse.statusText}`.trim());
+          }
+
           const postNextQuestionPayload = async (body) => {
             const response = await fetch(NEXT_QUESTION_WEBHOOK_URL, {
               method: "POST",
