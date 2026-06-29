@@ -627,6 +627,7 @@
             <p>Initialising…</p>
           </div>
           <button id="welcomeContinueBtn" disabled>Continue</button>
+          <button id="welcomeDebugBtn" class="secondary" type="button" style="margin-top: 8px; font-size: 13px; padding: 6px 14px;">Show Debug</button>
           <div id="welcomeDebugSection" class="assessmentDebug welcomeDebugPanel hidden">
             <div class="assessmentDebugHeader">
               <div class="assessmentDebugTitle">Welcome Debug</div>
@@ -884,6 +885,7 @@
       const welcomeDebugSectionEl = document.getElementById("welcomeDebugSection");
       const welcomeDebugLogEl = document.getElementById("welcomeDebugLog");
       const welcomeResetBtn = document.getElementById("welcomeResetBtn");
+      const welcomeDebugBtn = document.getElementById("welcomeDebugBtn");
       const postWelcomePageEl = document.getElementById("postWelcomePage");
       const postWelcomeTitleEl = document.getElementById("postWelcomeTitle");
       const appFooterDisclaimerEl = document.getElementById("appFooterDisclaimer");
@@ -1036,7 +1038,7 @@
         const adminMode = isAdminDebugEnabled();
         if (debugSectionEl) debugSectionEl.classList.toggle("hidden", !adminMode);
         if (initDebugSectionEl) initDebugSectionEl.classList.toggle("hidden", !adminMode);
-        if (welcomeDebugSectionEl) welcomeDebugSectionEl.classList.toggle("hidden", !adminMode);
+        if (adminMode && welcomeDebugSectionEl) welcomeDebugSectionEl.classList.remove("hidden");
       };
 
       const limitDebugText = (value, maxLength = 1600) => {
@@ -1278,7 +1280,7 @@
         if (!data || typeof data !== "object") return "";
         const candidates = [
           data["Guidance Window"],
-          data.Guidance
+          data.GuidanceWindow,
           data.guidanceWindow,
           data.guidancewindow
         ];
@@ -4143,6 +4145,34 @@ END_REVIEW>>>`;
 
       welcomeResetBtn?.addEventListener("click", async () => {
         await runWelcomeReset();
+      });
+
+      welcomeDebugBtn?.addEventListener("click", () => {
+        if (!welcomeDebugSectionEl) return;
+        const isHidden = welcomeDebugSectionEl.classList.contains("hidden");
+        welcomeDebugSectionEl.classList.toggle("hidden", !isHidden);
+        if (welcomeDebugBtn) {
+          welcomeDebugBtn.textContent = isHidden ? "Hide Debug" : "Show Debug";
+        }
+        if (isHidden) {
+          logWelcomeDebug("Debug panel", "Manually opened by user");
+          logWelcomeDebug("Student context", formatDebugPayload(getStudentContext()));
+          logWelcomeDebug("Welcome mode", welcomeMode);
+          logWelcomeDebug("Welcome webhook URL", WELCOME_WEBHOOK_URL);
+          logWelcomeDebug("Resume webhook URL", RESUME_WEBHOOK_URL);
+          logWelcomeDebug("Questions URL", questionsUrl);
+          logWelcomeDebug("Prompts URL", PROMPTS_URL);
+          logWelcomeDebug("Speech SDK loaded", typeof window.SpeechSDK !== "undefined");
+          logWelcomeDebug("RplPreliminaryReview loaded", typeof window.RplPreliminaryReview !== "undefined");
+          logWelcomeDebug("RplAssessorDecision loaded", typeof window.RplAssessorDecision !== "undefined");
+          logWelcomeDebug("resumeLoadPromise", resumeLoadPromise ? "pending" : "null");
+          logWelcomeDebug("resumeTranscriptText length", resumeTranscriptText?.length || 0);
+          logWelcomeDebug("resumeCurrentQuestionNumber", resumeCurrentQuestionNumber);
+          logWelcomeDebug("resumeCurrentAttemptNumber", resumeCurrentAttemptNumber);
+          logWelcomeDebug("welcomeContinueBtn disabled", welcomeContinueBtn?.disabled);
+          logWelcomeDebug("welcomeContinueBtn text", welcomeContinueBtn?.textContent);
+          logWelcomeDebug("welcomeContinueBtn hidden", welcomeContinueBtn?.classList.contains("hidden"));
+        }
       });
 
       welcomeContinueBtn?.addEventListener("click", async () => {
