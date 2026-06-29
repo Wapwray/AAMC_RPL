@@ -1278,7 +1278,7 @@
         if (!data || typeof data !== "object") return "";
         const candidates = [
           data["Guidance Window"],
-          data.GuidanceWindow,
+          data.Guidance
           data.guidanceWindow,
           data.guidancewindow
         ];
@@ -2313,6 +2313,49 @@ Job Title: ${jobTitleValue || "N/A"}
         });
 
         return output;
+      };
+
+      const buildFullTranscriptJson = () => {
+        const ctx = getStudentContext();
+        const now = new Date();
+        const industryValue = industry || industryEl?.value?.trim() || "";
+        const jobTitleValue = jobTitle || jobTitleEl?.value?.trim() || "";
+        const givenName = ctx.givenName || ctx.fullName;
+        return JSON.stringify({
+          version: 1,
+          candidate: {
+            fullName: ctx.fullName,
+            givenName: ctx.givenName,
+            contactId: ctx.contactId,
+            industry: industryValue || "N/A",
+            jobTitle: jobTitleValue || "N/A",
+            assessmentName: "RPL",
+            qualification: "FNS50322 Diploma of Finance and Mortgage Broking Management",
+            interviewDate: assessmentStartAt ? formatDate(assessmentStartAt) : formatDate(now),
+            initialStartDate: assessmentStartAt ? formatDateTime(assessmentStartAt) : formatDateTime(now),
+          },
+          questions: transcriptQuestions.map((entry, index) => {
+            if (!entry) return null;
+            const summaryText = entry.summary || "";
+            const summaryOutputText = getAssessorSummaryText(summaryText);
+            const overallAssessment = entry.overallAssessment || getTranscriptOverallAssessment(summaryText, entry.attempts?.length || 0);
+            return {
+              questionNumber: index + 1,
+              questionText: entry.questionText || "",
+              objective: entry.objective || "N/A",
+              hint: entry.hint || "N/A",
+              aiInterviewerSummary: summaryOutputText || "",
+              preliminaryStatus: overallAssessment || "",
+              attempts: (entry.attempts || []).map((attempt, attemptIndex) => ({
+                attemptNumber: attemptIndex + 1,
+                candidateName: givenName,
+                answer: attempt.answer || "",
+                feedback: getTranscriptAttemptFeedbackText(attempt.feedback) || "",
+                submittedAt: attempt.submittedAt ? formatDateTime(attempt.submittedAt) : "",
+              })),
+            };
+          }).filter(Boolean),
+        });
       };
 
       const getGuidanceWindowEntries = () => {
@@ -4323,6 +4366,7 @@ END_REVIEW>>>`;
             ContactID: String(ctx.contactId),
             GivenName: ctx.givenName,
             FullTranscript: fullTranscript || buildFullTranscript(),
+            FullTranscriptJson: buildFullTranscriptJson(),
             CurrentQuestion: nextQuestionValue,
           };
           logAssessmentDebug("Transcript webhook", "Sending payload");
