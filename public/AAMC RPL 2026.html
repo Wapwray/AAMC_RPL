@@ -4324,7 +4324,6 @@ END_REVIEW>>>`;
             GivenName: ctx.givenName,
             FullTranscript: fullTranscript || buildFullTranscript(),
             CurrentQuestion: nextQuestionValue,
-            CurrentAttempt: "1",
           };
           logAssessmentDebug("Transcript webhook", "Sending payload");
           logAssessmentDebug("Transcript webhook payload", transcriptWebhookPayload);
