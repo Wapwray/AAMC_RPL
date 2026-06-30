@@ -1885,6 +1885,7 @@
             questionText: questionText || "",
             objective: details.objective || "",
             hint: details.hint || "",
+            section: details.section || "",
             attempts: [],
             summary: "",
             overallAssessment: "",
@@ -1893,6 +1894,7 @@
         if (questionText) transcriptQuestions[index].questionText = questionText;
         if (details.objective) transcriptQuestions[index].objective = details.objective;
         if (details.hint) transcriptQuestions[index].hint = details.hint;
+        if (details.section) transcriptQuestions[index].section = details.section;
         return transcriptQuestions[index];
       };
 
@@ -2427,10 +2429,12 @@ Job Title: ${jobTitleValue || "N/A"}
           if (!entry) return;
           const summaryText = entry.summary || "";
           const summaryOutputText = getAssessorSummaryText(summaryText);
+          const sectionText = entry.section || "Not stated in transcript";
           const objectiveText = entry.objective || "N/A";
           const hintText = entry.hint || "N/A";
           const overallAssessment = entry.overallAssessment || getTranscriptOverallAssessment(summaryText, entry.attempts?.length || 0);
           output += `Question ${index + 1}: ${entry.questionText}\n\n`;
+          output += `Section: ${sectionText}\n\n`;
           output += `Objective: ${objectiveText}\n\n`;
           output += `Hint: ${hintText}\n\n`;
           if (summaryOutputText) {
@@ -2630,9 +2634,11 @@ Job Title: ${jobTitleValue || "N/A"}
         const currentQuestionText = getQuestionText(currentQuestion);
         const currentObjectiveText = getQuestionObjective(currentQuestion);
         const currentHintText = getQuestionHint(currentQuestion);
+        const currentSectionText = getQuestionSection(currentQuestion);
         ensureTranscriptQuestion(currentIndex, currentQuestionText, {
           objective: currentObjectiveText,
           hint: currentHintText,
+          section: currentSectionText,
         });
         await ensureCompleteTranscriptQuestions();
         fullTranscript = buildFullTranscript();
@@ -3084,6 +3090,7 @@ Job Title: ${jobTitleValue || "N/A"}
       const getQuestionTextHtml = (question) => normalizeRichTextHtml(getQuestionTextSource(question));
 
       const getQuestionObjective = (question) => richTextToPlainText(getQuestionFieldSource(question, ["Objective", "field_4"]));
+      const getQuestionSection = (question) => getQuestionFieldSource(question, ["section", "Section", "category", "Category", "reportSection", "ReportSection", "assessmentArea", "AssessmentArea", "Topic", "Capability"]);
 
       const updateEvaluateButtonState = () => {
         if (!evaluateBtn) return;
@@ -4695,6 +4702,7 @@ END_REVIEW>>>`;
         const questionText = getQuestionText(currentQuestion);
         const objectiveText = getQuestionObjective(currentQuestion);
         const hintText = getQuestionHint(currentQuestion);
+        const sectionText = getQuestionSection(currentQuestion);
         const attemptNumber = currentAttempts;
         const questionNumber = getCurrentQuestionNumber();
         const attemptRecord = {
@@ -4722,7 +4730,7 @@ END_REVIEW>>>`;
           const showNextQuestionOnly = assessorFeedback.shouldContinue;
           addChatEntry(assessorFeedback.displayText, "ai", assessorFeedback.transcriptAttemptText);
           attemptRecord.feedback = assessorFeedback.transcriptAttemptText;
-          const entry = ensureTranscriptQuestion(currentIndex, questionText, { objective: objectiveText, hint: hintText });
+          const entry = ensureTranscriptQuestion(currentIndex, questionText, { objective: objectiveText, hint: hintText, section: sectionText });
           entry.questionText = questionText;
           entry.attempts.push(attemptRecord);
           entry.summary = assessorFeedback.assessorSummary;
