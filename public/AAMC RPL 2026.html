@@ -2440,26 +2440,58 @@ Job Title: ${jobTitleValue || "N/A"}
         return false;
       };
 
+      let transcriptMergeAttempted = false;
+
       const ensureCompleteTranscriptQuestions = async () => {
+        if (transcriptMergeAttempted) return;
+        transcriptMergeAttempted = true;
         const hasPreviousQuestionsData = currentIndex > 0 && transcriptQuestions.slice(0, currentIndex).some(Boolean);
         if (!hasPreviousQuestionsData && currentIndex > 0) {
           logAssessmentDebug("Transcript merge", "Previous questions missing from transcriptQuestions, attempting to fetch persisted transcript.");
-          try {
-            const persistedTranscript = await fetchPersistedTranscript();
-            if (persistedTranscript) {
-              const persistedQuestions = parseTranscriptQuestions(persistedTranscript);
-              let mergedCount = 0;
-              persistedQuestions.forEach((entry, index) => {
-                if (entry && !transcriptQuestions[index]) {
-                  transcriptQuestions[index] = entry;
+        } else if (currentIndex > 0) {
+          logAssessmentDebug("Transcript merge", "Verifying transcriptQuestions against persisted transcript to prevent overwrite on restart.");
+        } else {
+          transcriptMergeAttempted = false;
+          return;
+        }
+        try {
+          const persistedTranscript = await fetchPersistedTranscript();
+          if (persistedTranscript) {
+            const persistedQuestions = parseTranscriptQuestions(persistedTranscript);
+            let mergedCount = 0;
+            let mergedAttempts = 0;
+            persistedQuestions.forEach((entry, index) => {
+              if (!entry) return;
+              if (!transcriptQuestions[index]) {
+                transcriptQuestions[index] = entry;
+                mergedCount += 1;
+              } else {
+                const existing = transcriptQuestions[index];
+                if (!existing.questionText && entry.questionText) {
+                  existing.questionText = entry.questionText;
                   mergedCount += 1;
                 }
-              });
-              logAssessmentDebug("Transcript merge", `Merged ${mergedCount} questions from persisted transcript.`);
-            }
-          } catch (err) {
-            logAssessmentDebug("Transcript merge error", err?.message || String(err));
+                if (!existing.objective && entry.objective) existing.objective = entry.objective;
+                if (!existing.hint && entry.hint) existing.hint = entry.hint;
+                if (!existing.summary && entry.summary) existing.summary = entry.summary;
+                if (!existing.overallAssessment && entry.overallAssessment) existing.overallAssessment = entry.overallAssessment;
+                const existingAttemptCount = existing.attempts?.length || 0;
+                const persistedAttemptCount = entry.attempts?.length || 0;
+                if (persistedAttemptCount > existingAttemptCount) {
+                  for (let ai = existingAttemptCount; ai < persistedAttemptCount; ai += 1) {
+                    if (entry.attempts[ai]) {
+                      existing.attempts[ai] = entry.attempts[ai];
+                      mergedAttempts += 1;
+                    }
+                  }
+                }
+              }
+            });
+            logAssessmentDebug("Transcript merge", `Merged ${mergedCount} questions and ${mergedAttempts} attempts from persisted transcript.`);
           }
+        } catch (err) {
+          logAssessmentDebug("Transcript merge error", err?.message || String(err));
+          transcriptMergeAttempted = false;
         }
       };
 
@@ -2476,6 +2508,7 @@ Job Title: ${jobTitleValue || "N/A"}
         fullTranscript = buildFullTranscript();
         window.RPLFullTranscript = fullTranscript;
         logAssessmentDebug("Transcript snapshot", "Updated locally before moving question.");
+        transcriptMergeAttempted = false;
         return true;
       };
 
