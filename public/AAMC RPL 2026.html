@@ -1239,6 +1239,8 @@
       const extractResumeTranscript = (data) => {
         if (!data || typeof data !== "object") return "";
         return pickFirstResumeValue(
+          data["Full Transcription Text"],
+          data["Full Transcription JSON"],
           data["Full Transcription"],
           data["Full Transcript"],
           data.FullTranscript,
