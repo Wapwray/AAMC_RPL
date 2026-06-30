@@ -627,7 +627,10 @@
             <p>Initialising…</p>
           </div>
           <button id="welcomeContinueBtn" disabled>Continue</button>
-          <button id="welcomeQuestionsBtn" class="secondary" type="button" style="margin-top: 8px; font-size: 13px; padding: 6px 14px;">Questions</button>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
+            <button id="welcomeQuestionsBtn" class="secondary" type="button" style="font-size: 13px; padding: 6px 14px;">Questions</button>
+            <button id="welcomeTranscriptBtn" class="secondary" type="button" style="font-size: 13px; padding: 6px 14px;">Current Transcript</button>
+          </div>
           <div id="welcomeDebugSection" class="assessmentDebug welcomeDebugPanel hidden">
             <div class="assessmentDebugHeader">
               <div class="assessmentDebugTitle">Welcome Debug</div>
@@ -879,6 +882,7 @@
       const welcomeDebugLogEl = document.getElementById("welcomeDebugLog");
       const welcomeResetBtn = document.getElementById("welcomeResetBtn");
       const welcomeQuestionsBtn = document.getElementById("welcomeQuestionsBtn");
+      const welcomeTranscriptBtn = document.getElementById("welcomeTranscriptBtn");
       const postWelcomePageEl = document.getElementById("postWelcomePage");
       const postWelcomeTitleEl = document.getElementById("postWelcomeTitle");
       const appFooterDisclaimerEl = document.getElementById("appFooterDisclaimer");
@@ -3797,14 +3801,6 @@ Job Title: ${jobTitleValue || "N/A"}
         if (!Array.isArray(questionList) || !questionList.length) {
           return "<p>No questions available.</p>";
         }
-        const allKeys = questionList.reduce((keys, question) => {
-          if (!question || typeof question !== "object") return keys;
-          Object.keys(question).forEach((key) => keys.add(key));
-          return keys;
-        }, new Set());
-
-        const orderedKeys = Array.from(allKeys);
-        if (!orderedKeys.length) return "<p>No question fields available.</p>";
 
         const escapeHtml = (value) => String(value)
           .replace(/&/g, "&amp;")
@@ -3813,51 +3809,105 @@ Job Title: ${jobTitleValue || "N/A"}
           .replace(/\"/g, "&quot;")
           .replace(/'/g, "&#39;");
 
-        const headerRow = orderedKeys
-          .map((key) => `<th>${escapeHtml(key)}</th>`)
+        const stripHtml = (value) => {
+          const text = String(value || "");
+          if (!text) return "";
+          const temp = document.createElement("div");
+          temp.innerHTML = text
+            .replace(/<br\s*\/?>/gi, "\n")
+            .replace(/<\/(div|p|li|tr|h[1-6]|ul|ol)>/gi, "\n");
+          return (temp.textContent || "")
+            .replace(/\u00a0/g, " ")
+            .replace(/\n{3,}/g, "\n\n")
+            .trim();
+        };
+
+        const formatCell = (value) => {
+          if (value === null || value === undefined) return "";
+          if (typeof value === "object") {
+            if (Array.isArray(value)) {
+              return value.map((item) => {
+                if (item && typeof item === "object") return item.Value || item.value || item.Title || item.title || item.Name || item.name || "";
+                return String(item);
+              }).filter(Boolean).join(", ");
+            }
+            return value.Value || value.value || value.Title || value.title || value.Name || value.name || "";
+          }
+          const text = String(value);
+          if (text.includes("<") && text.includes(">")) return stripHtml(text);
+          return text;
+        };
+
+        const columnDefs = [
+          { key: "Title", label: "Q#" },
+          { key: "field_1", label: "Section" },
+          { key: "field_2", label: "Question Details" },
+          { key: "field_3", label: "Hints" },
+          { key: "field_4", label: "Objective" },
+          { key: "field_5", label: "CT Rule" },
+        ];
+
+        const headerRow = columnDefs
+          .map((col) => `<th>${escapeHtml(col.label)}</th>`)
           .join("");
 
         const bodyRows = questionList
           .map((question) => {
-            const cells = orderedKeys
-              .map((key) => {
-                const value = question?.[key];
-                const cellText =
-                  value === null || value === undefined
-                    ? ""
-                    : typeof value === "object"
-                      ? JSON.stringify(value)
-                      : String(value);
-                return `<td>${escapeHtml(cellText)}</td>`;
-              })
+            const cells = columnDefs
+              .map((col) => `<td>${escapeHtml(formatCell(question?.[col.key]))}</td>`)
               .join("");
             return `<tr>${cells}</tr>`;
           })
           .join("");
 
-        return `
-          <div style="font-family:Segoe UI, Tahoma, Geneva, Verdana, sans-serif; color:#0f172a;">
-            <h2 style="margin:0 0 12px; font-size:18px;">Question Table</h2>
-            <div style="overflow:auto; border:1px solid #e2e8f0; border-radius:10px;">
-              <table style="border-collapse:collapse; width:100%; min-width:700px;">
-                <thead>
-                  <tr style="background:#f8fafc; text-align:left;">
-                    ${headerRow}
-                  </tr>
-                </thead>
-                <tbody>
-                  ${bodyRows}
-                </tbody>
-              </table>
-            </div>
-            <style>
-              th, td { border: 1px solid #cbd5f5; padding: 8px 10px; vertical-align: top; }
-              th { font-weight: 700; font-size: 13px; }
-              td { font-size: 12px; }
-              tbody tr:nth-child(even) { background: #f9fbff; }
-            </style>
-          </div>
-        `;
+        return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RPL Questions</title>
+<style>
+  body { margin: 0; font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; color: #0f172a; background: #f8fafc; }
+  .question-table-container { padding: 20px; }
+  h2 { margin: 0 0 16px; font-size: 20px; font-weight: 700; }
+  .table-scroll-wrapper { overflow-x: auto; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 10px; max-height: 80vh; }
+  table { border-collapse: collapse; width: 100%; min-width: 1200px; table-layout: fixed; }
+  thead { position: sticky; top: 0; z-index: 1; }
+  th, td { border: 1px solid #cbd5e1; padding: 10px 12px; vertical-align: top; text-align: left; word-wrap: break-word; overflow-wrap: break-word; }
+  th { background: #e8eef6; font-weight: 700; font-size: 13px; color: #1e293b; }
+  td { font-size: 12px; color: #334155; white-space: pre-wrap; }
+  tbody tr:nth-child(even) { background: #f1f5f9; }
+  tbody tr:hover { background: #e0ecf7; }
+  .col-qnum { width: 60px; }
+  .col-section { width: 140px; }
+  .col-question { width: 350px; }
+  .col-hints { width: 250px; }
+  .col-objective { width: 200px; }
+  .col-ctrule { width: 200px; }
+</style>
+</head>
+<body>
+  <div class="question-table-container">
+    <h2>RPL Questions (${questionList.length} loaded)</h2>
+    <div class="table-scroll-wrapper">
+      <table>
+        <colgroup>
+          <col class="col-qnum">
+          <col class="col-section">
+          <col class="col-question">
+          <col class="col-hints">
+          <col class="col-objective">
+          <col class="col-ctrule">
+        </colgroup>
+        <thead>
+          <tr>${headerRow}</tr>
+        </thead>
+        <tbody>${bodyRows}</tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>`;
       };
 
       const renderQuestion = () => {
@@ -3910,6 +3960,19 @@ Job Title: ${jobTitleValue || "N/A"}
           logAssessmentDebug("Auto-advance", `Question ${number} has ${restoredAttemptCount} responses, auto-advancing to Next Question.`);
           nextBtn.disabled = false;
           nextBtn.click();
+        }
+        if (!nextQuestionInFlight && restoredAttemptCount < MAX_ATTEMPTS) {
+          const guidanceEntriesForAutoAdvance = resumeCurrentQuestionNumber === number
+            ? parseGuidanceWindowSnapshot(resumeGuidanceWindowText)
+            : [];
+          const hasContinueSignal = guidanceEntriesForAutoAdvance.some((e) =>
+            e.role === "ai" && e.text.toLowerCase().includes(NEXT_QUESTION_DISPLAY_SIGNAL)
+          );
+          if (hasContinueSignal) {
+            logAssessmentDebug("Auto-advance", `Question ${number} guidance window contains continue signal, auto-advancing to Next Question.`);
+            nextBtn.disabled = false;
+            nextBtn.click();
+          }
         }
       };
 
@@ -4232,6 +4295,41 @@ END_REVIEW>>>`;
         }
         reportWindow.document.open();
         reportWindow.document.write(html);
+        reportWindow.document.close();
+      });
+
+      welcomeTranscriptBtn?.addEventListener("click", async () => {
+        let transcriptText = "";
+        if (resumeTranscriptText) {
+          transcriptText = resumeTranscriptText;
+        } else {
+          try {
+            const persistedTranscript = await fetchPersistedTranscript();
+            if (persistedTranscript) {
+              transcriptText = persistedTranscript;
+            }
+          } catch (err) {
+            logWelcomeDebug("Transcript fetch error", err?.message || String(err));
+          }
+        }
+        if (!transcriptText) {
+          transcriptText = buildFullTranscript();
+        }
+        if (!transcriptText || transcriptText.trim().length < 50) {
+          setStatus("No transcript available yet.");
+          return;
+        }
+        const reportWindow = window.open("", "RPLTranscript", "width=900,height=700,scrollbars=yes");
+        if (!reportWindow) {
+          setStatus("Popup blocked. Please allow pop-ups to view the transcript.");
+          return;
+        }
+        const escaped = transcriptText
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+        reportWindow.document.open();
+        reportWindow.document.write(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>RPL Current Transcript</title><style>body{margin:0;font-family:"Segoe UI",Tahoma,Geneva,Verdana,sans-serif;background:#f8fafc;color:#0f172a;}pre{white-space:pre-wrap;word-wrap:break-word;padding:20px;font-size:13px;line-height:1.5;}</style></head><body><pre>${escaped}</pre></body></html>`);
         reportWindow.document.close();
       });
 
