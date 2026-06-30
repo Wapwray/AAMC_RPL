@@ -12,9 +12,11 @@
   const SHORT_LIKELY_SUFFICIENT = SOURCE_LIKELY_SUFFICIENT;
   const SHORT_ADDITIONAL_EVIDENCE = SOURCE_ADDITIONAL_EVIDENCE;
   const SHORT_NOT_AVAILABLE = "Not available in transcript";
+  const SHORT_QUESTION_NOT_ASKED = "Question Not Asked";
   const FULL_LIKELY_SUFFICIENT = SOURCE_LIKELY_SUFFICIENT;
   const FULL_ADDITIONAL_EVIDENCE = SOURCE_ADDITIONAL_EVIDENCE;
   const FULL_NOT_AVAILABLE = "Not available in transcript";
+  const FULL_QUESTION_NOT_ASKED = "Question Not Asked";
   const REPORT_TYPE = "AI-generated preliminary interview review (not a final competency decision)";
   const DEFAULT_QUALIFICATION = "FNS50322 Diploma of Finance and Mortgage Broking Management";
   const LEGACY_QUALIFICATION_PATTERNS = [
@@ -206,6 +208,7 @@
   const shortStatusFromAnyValue = (value) => {
     const text = normalizeWhitespace(value).toLowerCase();
     if (!text) return "";
+    if (text.includes("question not asked")) return SHORT_QUESTION_NOT_ASKED;
     if (text.includes("not available in transcript")) return SHORT_NOT_AVAILABLE;
     if (text.includes("additional evidence") || text.includes("needs more info") || text.includes("needs more information")) {
       return SHORT_ADDITIONAL_EVIDENCE;
@@ -217,6 +220,7 @@
   const fullStatusFromShortStatus = (shortStatus) => {
     if (shortStatus === SHORT_LIKELY_SUFFICIENT) return FULL_LIKELY_SUFFICIENT;
     if (shortStatus === SHORT_ADDITIONAL_EVIDENCE) return FULL_ADDITIONAL_EVIDENCE;
+    if (shortStatus === SHORT_QUESTION_NOT_ASKED) return FULL_QUESTION_NOT_ASKED;
     return FULL_NOT_AVAILABLE;
   };
 
@@ -228,9 +232,11 @@
 
   const statusSortOrder = (shortStatus) => {
     if (shortStatus === SHORT_ADDITIONAL_EVIDENCE) return 1;
-    if (shortStatus === SHORT_NOT_AVAILABLE) return 2;
+    if (shortStatus === SHORT_NOT_AVAILABLE || shortStatus === SHORT_QUESTION_NOT_ASKED) return 2;
     return 0;
   };
+
+  const isMissingTranscriptStatus = (shortStatus) => shortStatus === SHORT_NOT_AVAILABLE || shortStatus === SHORT_QUESTION_NOT_ASKED;
 
   const stripStructuralNewlines = (value) => String(value || "")
     .replace(/^\r?\n/, "")
@@ -756,6 +762,9 @@ Rules:
     const objective = cleanMetadataValue(item.officialQuestionSpec?.objective || block?.transcriptObjective);
     const summary = rewriteAssessorSummaryForReport(block?.assessorSummary || "");
     if (summary) return summary;
+    if (shortStatus === SHORT_QUESTION_NOT_ASKED) {
+      return `Question ${questionNumber} was not asked in the transcript. Assessor review is required before any competency judgement can be made.`;
+    }
     if (shortStatus === SHORT_NOT_AVAILABLE) {
       return `No candidate response for Question ${questionNumber} was located in the transcript. Assessor review is required before any competency judgement can be made.`;
     }
@@ -785,6 +794,9 @@ Rules:
   };
 
   const buildDefaultAssessorAction = (item, shortStatus) => {
+    if (shortStatus === SHORT_QUESTION_NOT_ASKED) {
+      return "Confirm whether this question should have been asked or whether it was intentionally skipped before making a final determination.";
+    }
     if (shortStatus === SHORT_NOT_AVAILABLE) {
       return "Locate the missing transcript evidence or seek a candidate response for this question before making a final determination.";
     }
@@ -901,7 +913,7 @@ Rules:
     const questionList = Array.isArray(questions) ? questions : [];
     const sections = Array.from(new Set(questionList.map((question) => cleanMetadataValue(question.section)).filter(Boolean)));
     const gaps = questionList.filter((question) => question.shortStatus === SHORT_ADDITIONAL_EVIDENCE);
-    const missing = questionList.filter((question) => question.shortStatus === SHORT_NOT_AVAILABLE);
+    const missing = questionList.filter((question) => isMissingTranscriptStatus(question.shortStatus));
     const sectionText = sections.length
       ? ` across ${sections.join(", ")}`
       : "";
@@ -1308,11 +1320,126 @@ Rules:
     const parsed = typeof jsonTranscript === "string" ? JSON.parse(jsonTranscript) : jsonTranscript;
     if (!parsed || typeof parsed !== "object") throw new Error("Invalid JSON transcript");
     const candidate = parsed.candidate || {};
-    const questions = Array.isArray(parsed.questions) ? parsed.questions : [];
-    const bankByNumber = new Map();
-    (Array.isArray(questionBank) ? questionBank : []).forEach((q) => {
-      const num = q?.questionNumber;
-      if (num !== undefined && num !== null) bankByNumber.set(String(num), q);
+    const transcriptQuestions = Array.isArray(parsed.questions) ? parsed.questions : [];
+    const bankQuestions = Array.isArray(questionBank) ? questionBank : [];
+    const transcriptByNumber = new Map();
+    const transcriptByText = new Map();
+    transcriptQuestions.forEach((question, index) => {
+      const numberKey = normalizeQuestionNumberForKey(question?.questionNumber);
+      if (numberKey && !transcriptByNumber.has(numberKey)) transcriptByNumber.set(numberKey, { question, index });
+      const textKey = normalizeQuestionTextForMatch(question?.questionText || question?.transcriptQuestionText || "");
+      if (textKey && !transcriptByText.has(textKey)) transcriptByText.set(textKey, { question, index });
+    });
+    const usedTranscriptIndexes = new Set();
+
+    const resolveTranscriptQuestion = (bankEntry, index) => {
+      const questionNumber = bankEntry?.questionNumber !== undefined && bankEntry?.questionNumber !== null && bankEntry?.questionNumber !== ""
+        ? bankEntry.questionNumber
+        : index + 1;
+      const numberKey = normalizeQuestionNumberForKey(questionNumber);
+      const bankTextKey = normalizeQuestionTextForMatch(bankEntry?.questionText || "");
+      let matched = numberKey ? transcriptByNumber.get(numberKey) || null : null;
+      if (!matched && bankTextKey) {
+        const byText = transcriptByText.get(bankTextKey) || null;
+        if (byText && !usedTranscriptIndexes.has(byText.index)) matched = byText;
+      }
+      if (!matched && transcriptQuestions.length === bankQuestions.length) {
+        const candidateQuestion = transcriptQuestions[index];
+        if (candidateQuestion && !usedTranscriptIndexes.has(index)) matched = { question: candidateQuestion, index };
+      }
+      if (matched) usedTranscriptIndexes.add(matched.index);
+      return { questionNumber, transcriptQuestion: matched ? matched.question : null };
+    };
+
+    const reportQuestions = bankQuestions.map((bankEntry, index) => {
+      const { questionNumber, transcriptQuestion } = resolveTranscriptQuestion(bankEntry, index);
+      const hasTranscript = Boolean(transcriptQuestion);
+      const attempts = Array.isArray(transcriptQuestion?.attempts) ? transcriptQuestion.attempts : [];
+      const shortStatusSource = cleanMetadataValue(transcriptQuestion?.preliminaryStatus || transcriptQuestion?.overallAssessment || transcriptQuestion?.rawOverallAssessment || "");
+      const shortStatus = hasTranscript
+        ? (shortStatusFromAnyValue(shortStatusSource) || SHORT_NOT_AVAILABLE)
+        : SHORT_QUESTION_NOT_ASKED;
+      const section = cleanMetadataValue(bankEntry?.section || transcriptQuestion?.section) || MISSING_VALUE;
+      const unitCode = cleanMetadataValue(bankEntry?.unitCode || transcriptQuestion?.unitCode) || "";
+      const unitTitle = cleanMetadataValue(bankEntry?.unitTitle || transcriptQuestion?.unitTitle) || "";
+      const questionAsked = cleanMetadataValue(bankEntry?.questionText || transcriptQuestion?.questionText || transcriptQuestion?.transcriptQuestionText) || MISSING_VALUE;
+      const hintsProvided = cleanMetadataValue(bankEntry?.hints || transcriptQuestion?.hint || transcriptQuestion?.transcriptHint) || ACTIVE_DATA_MISSING;
+      const assessmentObjective = cleanMetadataValue(bankEntry?.objective || transcriptQuestion?.objective || transcriptQuestion?.transcriptObjective) || ACTIVE_DATA_MISSING;
+      const aiInterviewSummary = cleanMetadataValue(transcriptQuestion?.aiInterviewerSummary || transcriptQuestion?.summary || transcriptQuestion?.assessorSummary) || "";
+      const assessorBotMessages = Array.isArray(transcriptQuestion?.assessorBotMessages) ? transcriptQuestion.assessorBotMessages : attempts
+        .filter((attempt) => cleanMetadataValue(attempt.feedback))
+        .map((attempt) => ({
+          messageText: cleanMetadataValue(attempt.feedback),
+          followsAttemptNumber: Number(attempt.attemptNumber) || 0,
+        }));
+
+      return {
+        questionNumber,
+        section,
+        unitCode,
+        unitTitle,
+        questionAsked,
+        hintsProvided,
+        assessmentObjective,
+        preliminaryStatus: hasTranscript ? fullStatusFromShortStatus(shortStatus) : FULL_QUESTION_NOT_ASKED,
+        shortStatus,
+        aiInterviewSummary,
+        aiFollowUpExchange: hasTranscript ? "" : `Question ${questionNumber} was not asked in the transcript.`,
+        aiPreliminaryObservation: hasTranscript
+          ? aiInterviewSummary
+          : buildFallbackObservation({ questionNumber, officialQuestionSpec: bankEntry, parsedQuestionBlock: null }, shortStatus),
+        assessorActionSuggested: hasTranscript
+          ? ""
+          : buildDefaultAssessorAction({ questionNumber, officialQuestionSpec: bankEntry, parsedQuestionBlock: null }, shortStatus),
+        attempts: attempts.map((attempt, attemptIndex) => ({
+          attemptNumber: Number.isFinite(Number(attempt.attemptNumber)) ? Number(attempt.attemptNumber) : attemptIndex + 1,
+          speakerLabel: cleanMetadataValue(attempt.speakerLabel || attempt.candidateName) || "Student",
+          responseText: cleanMetadataValue(attempt.responseText || attempt.answer) || "",
+          submittedAt: cleanMetadataValue(attempt.submittedAt) || "",
+        })),
+        assessorBotMessages,
+        rawBlockText: cleanMetadataValue(transcriptQuestion?.rawBlockText) || "",
+      };
+    });
+
+    transcriptQuestions.forEach((question, index) => {
+      if (usedTranscriptIndexes.has(index)) return;
+      const questionText = cleanMetadataValue(question?.questionText || question?.transcriptQuestionText);
+      const duplicateOfficial = reportQuestions.some((item) => normalizeQuestionTextForMatch(item.questionAsked || "") === normalizeQuestionTextForMatch(questionText));
+      if (duplicateOfficial) return;
+      const questionNumber = question?.questionNumber !== undefined && question?.questionNumber !== null && question?.questionNumber !== ""
+        ? question.questionNumber
+        : bankQuestions.length + index + 1;
+      const attempts = Array.isArray(question?.attempts) ? question.attempts : [];
+      const shortStatus = shortStatusFromAnyValue(question?.preliminaryStatus || question?.overallAssessment || question?.rawOverallAssessment || "") || SHORT_NOT_AVAILABLE;
+      reportQuestions.push({
+        questionNumber,
+        section: cleanMetadataValue(question?.section) || inferSectionFromQuestion({ questionText, objective: question?.objective || question?.transcriptObjective }) || "Additional transcript question",
+        unitCode: cleanMetadataValue(question?.unitCode) || "",
+        unitTitle: cleanMetadataValue(question?.unitTitle) || "",
+        questionAsked: questionText || MISSING_VALUE,
+        hintsProvided: cleanMetadataValue(question?.hint || question?.transcriptHint) || ACTIVE_DATA_MISSING,
+        assessmentObjective: cleanMetadataValue(question?.objective || question?.transcriptObjective) || ACTIVE_DATA_MISSING,
+        preliminaryStatus: fullStatusFromShortStatus(shortStatus),
+        shortStatus,
+        aiInterviewSummary: cleanMetadataValue(question?.aiInterviewerSummary || question?.summary || question?.assessorSummary) || "",
+        aiFollowUpExchange: "",
+        aiPreliminaryObservation: buildFallbackObservation({ questionNumber, officialQuestionSpec: null, parsedQuestionBlock: question }, shortStatus),
+        assessorActionSuggested: buildDefaultAssessorAction({ questionNumber, officialQuestionSpec: null, parsedQuestionBlock: question }, shortStatus),
+        attempts: attempts.map((attempt, attemptIndex) => ({
+          attemptNumber: Number.isFinite(Number(attempt.attemptNumber)) ? Number(attempt.attemptNumber) : attemptIndex + 1,
+          speakerLabel: cleanMetadataValue(attempt.candidateName || attempt.speakerLabel) || "Student",
+          responseText: cleanMetadataValue(attempt.answer || attempt.responseText) || "",
+          submittedAt: cleanMetadataValue(attempt.submittedAt) || "",
+        })),
+        assessorBotMessages: attempts
+          .filter((attempt) => cleanMetadataValue(attempt.feedback))
+          .map((attempt) => ({
+            messageText: cleanMetadataValue(attempt.feedback),
+            followsAttemptNumber: Number(attempt.attemptNumber) || 0,
+          })),
+        rawBlockText: cleanMetadataValue(question?.rawBlockText) || "",
+      });
     });
 
     const metadata = {
@@ -1323,56 +1450,11 @@ Rules:
       industry: cleanMetadataValue(candidate.industry) || MISSING_VALUE,
       jobTitle: cleanMetadataValue(candidate.jobTitle) || MISSING_VALUE,
       assessmentName: cleanMetadataValue(candidate.assessmentName) || "RPL",
-      questionCountReviewed: questions.length,
-      transcriptQuestionCount: questions.length,
+      questionCountReviewed: reportQuestions.length,
+      transcriptQuestionCount: transcriptQuestions.length,
+      questionBankCount: bankQuestions.length || undefined,
       reportType: REPORT_TYPE,
     };
-
-    const reportQuestions = questions.map((q) => {
-      const attempts = Array.isArray(q.attempts) ? q.attempts : [];
-      const shortStatus = q.preliminaryStatus === SOURCE_LIKELY_SUFFICIENT
-        ? SHORT_LIKELY_SUFFICIENT
-        : q.preliminaryStatus === SOURCE_ADDITIONAL_EVIDENCE
-          ? SHORT_ADDITIONAL_EVIDENCE
-          : SHORT_NOT_AVAILABLE;
-      const bankEntry = bankByNumber.get(String(q.questionNumber)) || {};
-      const section = cleanMetadataValue(bankEntry.section || bankEntry.Section) || "";
-      const unitCode = cleanMetadataValue(bankEntry.unitCode || bankEntry.UnitCode) || "";
-      const unitTitle = cleanMetadataValue(bankEntry.unitTitle || bankEntry.UnitTitle) || "";
-      const assessorBotMessages = attempts
-        .filter((a) => cleanMetadataValue(a.feedback))
-        .map((a) => ({
-          messageText: cleanMetadataValue(a.feedback),
-          followsAttemptNumber: Number(a.attemptNumber) || 0,
-        }));
-      return {
-        questionNumber: q.questionNumber || 0,
-        section: section || "Not stated in transcript",
-        unitCode,
-        unitTitle,
-        questionAsked: cleanMetadataValue(q.questionText) || "",
-        hintsProvided: cleanMetadataValue(q.hint) || "",
-        assessmentObjective: cleanMetadataValue(q.objective) || "",
-        preliminaryStatus: shortStatus === SHORT_LIKELY_SUFFICIENT
-          ? "Likely sufficient (pending assessor verification)"
-          : shortStatus === SHORT_ADDITIONAL_EVIDENCE
-            ? "Additional evidence may be needed (assessor follow-up suggested)"
-            : SHORT_NOT_AVAILABLE,
-        shortStatus,
-        aiInterviewSummary: cleanMetadataValue(q.aiInterviewerSummary) || "",
-        aiFollowUpExchange: "",
-        aiPreliminaryObservation: "",
-        assessorActionSuggested: "",
-        attempts: attempts.map((a) => ({
-          attemptNumber: a.attemptNumber || 0,
-          speakerLabel: cleanMetadataValue(a.candidateName) || "Student",
-          responseText: cleanMetadataValue(a.answer) || "",
-          submittedAt: cleanMetadataValue(a.submittedAt) || "",
-        })),
-        assessorBotMessages,
-        rawBlockText: "",
-      };
-    });
 
     return {
       metadata,
@@ -1696,9 +1778,11 @@ Rules:
       SHORT_LIKELY_SUFFICIENT,
       SHORT_ADDITIONAL_EVIDENCE,
       SHORT_NOT_AVAILABLE,
+      SHORT_QUESTION_NOT_ASKED,
       FULL_LIKELY_SUFFICIENT,
       FULL_ADDITIONAL_EVIDENCE,
       FULL_NOT_AVAILABLE,
+      FULL_QUESTION_NOT_ASKED,
       REPORT_TYPE,
       DEFAULT_QUALIFICATION,
       DISCLAIMER_TEXT,

@@ -1889,6 +1889,7 @@
       const ensureTranscriptQuestion = (index, questionText, details = {}) => {
         if (!transcriptQuestions[index]) {
           transcriptQuestions[index] = {
+            questionNumber: details.questionNumber || "",
             questionText: questionText || "",
             objective: details.objective || "",
             hint: details.hint || "",
@@ -1898,6 +1899,7 @@
             overallAssessment: "",
           };
         }
+        if (details.questionNumber) transcriptQuestions[index].questionNumber = details.questionNumber;
         if (questionText) transcriptQuestions[index].questionText = questionText;
         if (details.objective) transcriptQuestions[index].objective = details.objective;
         if (details.hint) transcriptQuestions[index].hint = details.hint;
@@ -2434,13 +2436,14 @@ Job Title: ${jobTitleValue || "N/A"}
         }
         transcriptQuestions.forEach((entry, index) => {
           if (!entry) return;
+          const questionNumber = entry.questionNumber || index + 1;
           const summaryText = entry.summary || "";
           const summaryOutputText = getAssessorSummaryText(summaryText);
           const sectionText = entry.section || "Not stated in transcript";
           const objectiveText = entry.objective || "N/A";
           const hintText = entry.hint || "N/A";
           const overallAssessment = entry.overallAssessment || getTranscriptOverallAssessment(summaryText, entry.attempts?.length || 0);
-          output += `Question ${index + 1}: ${entry.questionText}\n\n`;
+          output += `Question ${questionNumber}: ${entry.questionText}\n\n`;
           output += `Section: ${sectionText}\n\n`;
           output += `Objective: ${objectiveText}\n\n`;
           output += `Hint: ${hintText}\n\n`;
@@ -2489,11 +2492,12 @@ Job Title: ${jobTitleValue || "N/A"}
           },
           questions: transcriptQuestions.map((entry, index) => {
             if (!entry) return null;
+            const questionNumber = entry.questionNumber || index + 1;
             const summaryText = entry.summary || "";
             const summaryOutputText = getAssessorSummaryText(summaryText);
             const overallAssessment = entry.overallAssessment || getTranscriptOverallAssessment(summaryText, entry.attempts?.length || 0);
             return {
-              questionNumber: index + 1,
+              questionNumber,
               questionText: entry.questionText || "",
               objective: entry.objective || "N/A",
               hint: entry.hint || "N/A",
@@ -2639,11 +2643,13 @@ Job Title: ${jobTitleValue || "N/A"}
 
       const sendTranscriptOnNext = async () => {
         const currentQuestion = questions[currentIndex] || {};
+        const currentQuestionNumber = getQuestionNumber(currentQuestion, currentIndex);
         const currentQuestionText = getQuestionText(currentQuestion);
         const currentObjectiveText = getQuestionObjective(currentQuestion);
         const currentHintText = getQuestionHint(currentQuestion);
         const currentSectionText = getQuestionSection(currentQuestion);
         ensureTranscriptQuestion(currentIndex, currentQuestionText, {
+          questionNumber: currentQuestionNumber,
           objective: currentObjectiveText,
           hint: currentHintText,
           section: currentSectionText,
