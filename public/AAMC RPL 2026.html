@@ -555,6 +555,41 @@
         color: #e2e8f0;
         border-color: #334155;
       }
+      .nextDebugPanel {
+        position: fixed;
+        left: 20px;
+        top: 20px;
+        z-index: 80;
+        width: 500px;
+        max-height: 320px;
+        background: rgba(255, 255, 255, 0.96);
+        border: 1px solid rgba(148, 163, 184, 0.85);
+        border-radius: 10px;
+        box-shadow: 0 14px 34px rgba(15, 23, 42, 0.18);
+        padding: 10px;
+        -webkit-backdrop-filter: blur(6px);
+        backdrop-filter: blur(6px);
+        display: flex;
+        flex-direction: column;
+      }
+      .nextDebugPanel.collapsed { max-height: 38px; overflow: hidden; }
+      .nextDebugHeader { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+      .nextDebugTitle { font-size: 13px; font-weight: 700; color: var(--text); }
+      .nextDebugControls { display: flex; gap: 6px; }
+      .nextDebugControls button { font-size: 11px; padding: 2px 8px; }
+      .nextDebugLog {
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        font-size: 11px;
+        line-height: 1.4;
+        white-space: pre-wrap;
+        max-height: 260px;
+        overflow: auto;
+        background: #0f172a;
+        color: #e2e8f0;
+        border: 1px solid #334155;
+        border-radius: 6px;
+        padding: 8px;
+      }
       .initTitle {
         font-weight: 700;
         margin-bottom: 6px;
@@ -827,6 +862,17 @@
       <div class="thinkingModal">Thinking<br>Please Wait</div>
     </div>
 
+    <div id="nextDebugPanel" class="nextDebugPanel">
+      <div class="nextDebugHeader">
+        <span class="nextDebugTitle">Next Question Debug</span>
+        <div class="nextDebugControls">
+          <button id="nextDebugToggle" class="secondary" type="button">Hide</button>
+          <button id="nextDebugClear" class="secondary" type="button">Clear</button>
+        </div>
+      </div>
+      <div id="nextDebugLog" class="nextDebugLog">Waiting for activity...</div>
+    </div>
+
     <script src="rpl-preliminary-review.js"></script>
     <script src="rpl-assessor-decision.js"></script>
     <script>
@@ -924,6 +970,10 @@
       const thinkingOverlayEl = document.getElementById("thinkingOverlay");
       const liveDebugClearBtn = document.getElementById("liveDebugClearBtn");
       const answerWrapEl = document.querySelector(".answerWrap");
+      const nextDebugPanelEl = document.getElementById("nextDebugPanel");
+      const nextDebugLogEl = document.getElementById("nextDebugLog");
+      const nextDebugToggleBtn = document.getElementById("nextDebugToggle");
+      const nextDebugClearBtn = document.getElementById("nextDebugClear");
       // const modeToggleEl = document.getElementById("modeToggle");
       // const modeLabelEl = document.getElementById("modeLabel");
 
@@ -2580,6 +2630,26 @@ Job Title: ${jobTitleValue || "N/A"}
         }
       });
 
+      const logNextDebug = (label, detail) => {
+        if (!nextDebugLogEl) return;
+        const timestamp = new Date().toLocaleTimeString();
+        const formattedDetail = detail === undefined || detail === null ? "" : formatDebugPayload(detail);
+        const message = formattedDetail ? `${label}: ${formattedDetail}` : label;
+        if (nextDebugLogEl.textContent === "Waiting for activity...") {
+          nextDebugLogEl.textContent = "";
+        }
+        nextDebugLogEl.textContent = `[${timestamp}] ${message}\n` + nextDebugLogEl.textContent;
+      };
+
+      nextDebugToggleBtn?.addEventListener("click", () => {
+        if (nextDebugPanelEl) nextDebugPanelEl.classList.toggle("collapsed");
+        if (nextDebugToggleBtn) nextDebugToggleBtn.textContent = nextDebugPanelEl?.classList.contains("collapsed") ? "Show" : "Hide";
+      });
+
+      nextDebugClearBtn?.addEventListener("click", () => {
+        if (nextDebugLogEl) nextDebugLogEl.textContent = "Waiting for activity...";
+      });
+
       window.addEventListener("error", (event) => {
         logAssessmentDebug("Window error", event?.error?.stack || event?.message || "Unknown error");
       });
@@ -2945,6 +3015,7 @@ Job Title: ${jobTitleValue || "N/A"}
 
       const setAttemptLockState = (locked) => {
         attemptLocked = locked;
+        logNextDebug("setAttemptLockState", { locked, nextBtnDisabled: nextBtn?.disabled, evaluateBtnDisabled: evaluateBtn?.disabled });
         if (answerInputEl) {
           answerInputEl.disabled = locked;
         }
@@ -2999,6 +3070,7 @@ Job Title: ${jobTitleValue || "N/A"}
 
       const setUiLockedState = (locked) => {
         isUiLocked = locked;
+        logNextDebug("setUiLockedState", { locked, attemptLocked, currentAttempts, nextBtnDisabled: nextBtn?.disabled });
         if (locked) {
           setButtonsDisabled(true, []);
         } else {
@@ -3953,6 +4025,7 @@ Job Title: ${jobTitleValue || "N/A"}
           setStatus("Maximum attempts reached. Please move to the next question.");
           setAttemptLockState(true);
         }
+        logNextDebug("renderQuestion complete", { currentIndex, currentAttempts, restoredAttemptCount, nextBtnDisabled: nextBtn?.disabled, evaluateBtnDisabled: evaluateBtn?.disabled, attemptLocked });
       };
 
       const buildPrompt = (question, answers) => {
@@ -4401,6 +4474,14 @@ END_REVIEW>>>`;
 
       evaluateBtn.addEventListener("click", async () => {
         const answer = answerInputEl.value.trim();
+        logNextDebug("Check Response clicked", {
+          currentAttempts,
+          currentIndex,
+          attemptLocked,
+          isUiLocked,
+          nextBtnDisabled: nextBtn?.disabled,
+          evaluateBtnDisabled: evaluateBtn?.disabled
+        });
         if (!answer) {
           setStatus("Please enter an answer before evaluating.");
           return;
@@ -4455,33 +4536,41 @@ END_REVIEW>>>`;
             attemptNumber,
             questionNumber,
           });
-          const attemptAndTranscriptSaved = await sendCurrentAttemptOnEvaluate(attemptNumber, questionNumber);
+          const nextAttemptForWebhook = Math.min(MAX_ATTEMPTS, attemptNumber + 1);
+          logNextDebug("Check Response - sending attempt to webhook", { attemptNumber, nextAttemptForWebhook, currentAttempts });
+          const attemptAndTranscriptSaved = await sendCurrentAttemptOnEvaluate(nextAttemptForWebhook, questionNumber);
           const saveWarning = !attemptAndTranscriptSaved
             ? "the attempt/transcript update did not complete"
             : !backupSaved
               ? "the transcript backup did not complete"
               : "";
           if (showNextQuestionOnly) {
+            logNextDebug("Check Response - showNextQuestionOnly path", { showNextQuestionOnly, saveWarning, currentAttempts });
             setStatus(!saveWarning
               ? "Feedback ready. Press Next to continue."
               : `Feedback ready, but ${saveWarning}. Please check the debug panel before continuing.`);
             setAttemptLockState(true);
+            logNextDebug("After setAttemptLockState(true) in showNextQuestionOnly", { attemptLocked, nextBtnDisabled: nextBtn?.disabled });
             return;
           }
+          logNextDebug("Check Response - feedback shown path", { showNextQuestionOnly: false, currentAttempts, saveWarning });
           answerInputEl.value = "";
           updateEvaluateButtonState();
           nextBtn.disabled = false;
+          logNextDebug("nextBtn disabled=false (feedback path)", { nextBtnDisabled: nextBtn?.disabled });
           if (currentAttempts >= MAX_ATTEMPTS) {
             evaluateBtn.disabled = true;
             setStatus(!saveWarning
               ? "Feedback ready. Maximum attempts reached."
               : `Feedback ready, but ${saveWarning}. Please check the debug panel.`);
             setAttemptLockState(true);
+            logNextDebug("Max attempts - after setAttemptLockState(true)", { attemptLocked, nextBtnDisabled: nextBtn?.disabled });
           } else {
             evaluateBtn.disabled = false;
             setStatus(!saveWarning
               ? `Feedback ready. You have ${MAX_ATTEMPTS - currentAttempts} attempt(s) left.`
               : `Feedback ready, but ${saveWarning}. Please check the debug panel.`);
+            logNextDebug("Attempts remaining - nextBtn state", { nextBtnDisabled: nextBtn?.disabled, evaluateBtnDisabled: evaluateBtn?.disabled });
           }
         } catch (err) {
           hideThinkingOverlay();
@@ -4491,6 +4580,13 @@ END_REVIEW>>>`;
         } finally {
           hideThinkingOverlay();
           setUiLockedState(false);
+          logNextDebug("Check Response finally block", {
+            isUiLocked,
+            attemptLocked,
+            currentAttempts,
+            nextBtnDisabled: nextBtn?.disabled,
+            evaluateBtnDisabled: evaluateBtn?.disabled
+          });
           updateEvaluateButtonState();
           if (currentAttempts >= MAX_ATTEMPTS) {
             evaluateBtn.disabled = true;
@@ -4500,14 +4596,26 @@ END_REVIEW>>>`;
       });
 
       nextBtn.addEventListener("click", async () => {
+        logNextDebug("Next Question clicked", {
+          nextQuestionInFlight,
+          isUiLocked,
+          attemptLocked,
+          currentAttempts,
+          currentIndex,
+          questionsLength: questions.length,
+          nextBtnDisabled: nextBtn?.disabled
+        });
         if (nextQuestionInFlight) {
+          logNextDebug("Next Question ABORTED", "nextQuestionInFlight is true - click ignored");
           return;
         }
         if (isUiLocked) {
+          logNextDebug("Next Question ABORTED", "isUiLocked is true");
           setStatus("Please wait for the current evaluation to finish before continuing.");
           return;
         }
 
+        logNextDebug("Next Question proceeding", "Starting handler - setting nextQuestionInFlight=true");
         nextQuestionInFlight = true;
         nextBtn.disabled = true;
         setStatus("Saving transcript and moving to next question...");
@@ -4525,8 +4633,10 @@ END_REVIEW>>>`;
         };
         logAssessmentDebug("Next webhook", "Sending payload");
         logAssessmentDebug("Next payload", payload);
+        logNextDebug("Next Question payload", { isLastQuestion, nextQuestionValue, currentIndex });
         try {
           const transcriptSaved = await sendTranscriptOnNext();
+          logNextDebug("sendTranscriptOnNext result", { transcriptSaved });
           if (!transcriptSaved) {
             throw new Error("Transcript save did not complete. Please try Next again.");
           }
@@ -4554,6 +4664,7 @@ END_REVIEW>>>`;
           if (!transcriptResponse.ok) {
             throw new Error(`Transcript webhook failed (${transcriptResponse.status}) ${transcriptResponse.statusText}`.trim());
           }
+          logNextDebug("Transcript webhook sent", `${transcriptResponse.status} ${transcriptResponse.statusText}`);
 
           const postNextQuestionPayload = async (body) => {
             const response = await fetch(NEXT_QUESTION_WEBHOOK_URL, {
@@ -4588,25 +4699,31 @@ END_REVIEW>>>`;
           if (!response.ok) {
             throw new Error(`Next webhook failed (${response.status}) ${response.statusText}`.trim());
           }
+          logNextDebug("Next webhook succeeded", `${response.status} ${response.statusText}`);
         } catch (error) {
           logDebugDetail("Next question error", error?.message || String(error));
           logAssessmentDebug("Next error", error?.message || String(error));
+          logNextDebug("Next Question ERROR", error?.message || String(error));
           setStatus(error?.message || "Next webhook failed.");
           hideThinkingOverlay();
           nextQuestionInFlight = false;
           nextBtn.disabled = false;
+          logNextDebug("Next Question error recovery", { nextQuestionInFlight, nextBtnDisabled: nextBtn?.disabled });
           return;
         }
         hideThinkingOverlay();
+        logNextDebug("Next Question webhooks complete", { isLastQuestion, nextQuestionValue, currentIndex });
         if (!isLastQuestion) {
           sendCurrentAttemptOnEvaluate(1, nextQuestionValue, "Attempt reset webhook")
             .then((saved) => {
               logAssessmentDebug("Attempt reset", saved ? "CurrentAttempt reset to 1." : "Reset request did not complete.");
+              logNextDebug("Attempt reset webhook result", saved ? "succeeded" : "failed");
             });
         }
         if (isLastQuestion) {
           nextQuestionInFlight = false;
           setCompletedState();
+          logNextDebug("Last question - completing", "calling runFinalReview");
           try {
             await runFinalReview({ sendWebhook: true, showCompletion: true });
           } catch {
@@ -4616,7 +4733,9 @@ END_REVIEW>>>`;
         }
         nextQuestionInFlight = false;
         currentIndex += 1;
+        logNextDebug("Advancing to next question", { newIndex: currentIndex, oldIndex: currentIndex - 1 });
         renderQuestion();
+        logNextDebug("After renderQuestion (Next Question handler end)", { currentIndex, currentAttempts, nextBtnDisabled: nextBtn?.disabled, nextQuestionInFlight });
         setStatus("Ready.");
       });
 
