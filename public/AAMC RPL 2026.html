@@ -726,10 +726,6 @@
             <p>Initialising…</p>
           </div>
           <button id="welcomeContinueBtn" disabled>Continue</button>
-          <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
-            <button id="welcomeQuestionsBtn" class="secondary" type="button" style="font-size: 13px; padding: 6px 14px;">Questions</button>
-            <button id="welcomeTranscriptBtn" class="secondary" type="button" style="font-size: 13px; padding: 6px 14px;">Current Transcript</button>
-          </div>
           <div id="managedStaffSection" class="managedStaffSection hidden">
             <div class="managedStaffMessage" id="managedStaffMessage"></div>
             <div class="managedStaffToggleRow">
@@ -740,13 +736,6 @@
               </label>
               <span class="managedStaffValue" id="managedStaffValue">No</span>
             </div>
-          </div>
-          <div id="welcomeDebugSection" class="assessmentDebug welcomeDebugPanel hidden">
-            <div class="assessmentDebugHeader">
-              <div class="assessmentDebugTitle">Welcome Debug</div>
-              <button id="welcomeResetBtn" class="secondary" type="button">RESET</button>
-            </div>
-            <div id="welcomeDebugLog" class="assessmentDebugLog">Waiting for welcome activity…</div>
           </div>
         </div>
       </div>
@@ -937,17 +926,6 @@
 
     <div id="thinkingOverlay" class="thinkingOverlay hidden" role="alertdialog" aria-live="assertive" aria-label="Thinking Please Wait">
       <div class="thinkingModal">Thinking<br>Please Wait</div>
-    </div>
-
-    <div id="nextDebugPanel" class="nextDebugPanel">
-      <div class="nextDebugHeader">
-        <span class="nextDebugTitle">Next Question Debug</span>
-        <div class="nextDebugControls">
-          <button id="nextDebugToggle" class="secondary" type="button">Hide</button>
-          <button id="nextDebugClear" class="secondary" type="button">Clear</button>
-        </div>
-      </div>
-      <div id="nextDebugLog" class="nextDebugLog">Waiting for activity...</div>
     </div>
 
     <script src="rpl-preliminary-review.js"></script>
@@ -2519,6 +2497,7 @@ Job Title: ${jobTitleValue || "N/A"}
               questionText: entry.questionText || "",
               objective: entry.objective || "N/A",
               hint: entry.hint || "N/A",
+              section: entry.section || "",
               aiInterviewerSummary: summaryOutputText || "",
               preliminaryStatus: overallAssessment || "",
               attempts: (entry.attempts || []).map((attempt, attemptIndex) => ({
