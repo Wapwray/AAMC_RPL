@@ -3840,23 +3840,21 @@ Job Title: ${jobTitleValue || "N/A"}
           return text;
         };
 
-        const columnDefs = [
-          { key: "Title", label: "Q#" },
-          { key: "field_1", label: "Section" },
-          { key: "field_2", label: "Question Details" },
-          { key: "field_3", label: "Hints" },
-          { key: "field_4", label: "Objective" },
-          { key: "field_5", label: "CT Rule" },
-        ];
+        const allKeys = questionList.reduce((keys, question) => {
+          if (!question || typeof question !== "object") return keys;
+          Object.keys(question).forEach((key) => keys.add(key));
+          return keys;
+        }, new Set());
+        const orderedKeys = Array.from(allKeys).filter((k) => !k.includes("@odata") && !k.includes("#") && !k.startsWith("{") && k !== "ItemInternalId" && k !== "Modified" && k !== "Created" && k !== "Author" && k !== "Editor" && k !== "field_6" && k !== "field_7" && k !== "field_8");
 
-        const headerRow = columnDefs
-          .map((col) => `<th>${escapeHtml(col.label)}</th>`)
+        const headerRow = orderedKeys
+          .map((key) => `<th>${escapeHtml(key)}</th>`)
           .join("");
 
         const bodyRows = questionList
           .map((question) => {
-            const cells = columnDefs
-              .map((col) => `<td>${escapeHtml(formatCell(question?.[col.key]))}</td>`)
+            const cells = orderedKeys
+              .map((key) => `<td>${escapeHtml(formatCell(question?.[key]))}</td>`)
               .join("");
             return `<tr>${cells}</tr>`;
           })
@@ -3873,34 +3871,20 @@ Job Title: ${jobTitleValue || "N/A"}
   .question-table-container { padding: 20px; }
   h2 { margin: 0 0 16px; font-size: 20px; font-weight: 700; }
   .table-scroll-wrapper { overflow-x: auto; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 10px; max-height: 80vh; }
-  table { border-collapse: collapse; width: 100%; min-width: 1200px; table-layout: fixed; }
+  table { border-collapse: collapse; width: 100%; min-width: 1800px; table-layout: auto; }
   thead { position: sticky; top: 0; z-index: 1; }
-  th, td { border: 1px solid #cbd5e1; padding: 10px 12px; vertical-align: top; text-align: left; word-wrap: break-word; overflow-wrap: break-word; }
-  th { background: #e8eef6; font-weight: 700; font-size: 13px; color: #1e293b; }
-  td { font-size: 12px; color: #334155; white-space: pre-wrap; }
+  th, td { border: 1px solid #cbd5e1; padding: 8px 10px; vertical-align: top; text-align: left; word-wrap: break-word; overflow-wrap: break-word; max-width: 300px; }
+  th { background: #e8eef6; font-weight: 700; font-size: 12px; color: #1e293b; white-space: nowrap; }
+  td { font-size: 11px; color: #334155; white-space: pre-wrap; }
   tbody tr:nth-child(even) { background: #f1f5f9; }
   tbody tr:hover { background: #e0ecf7; }
-  .col-qnum { width: 60px; }
-  .col-section { width: 140px; }
-  .col-question { width: 350px; }
-  .col-hints { width: 250px; }
-  .col-objective { width: 200px; }
-  .col-ctrule { width: 200px; }
 </style>
 </head>
 <body>
   <div class="question-table-container">
-    <h2>RPL Questions (${questionList.length} loaded)</h2>
+    <h2>RPL Questions (${questionList.length} loaded, ${orderedKeys.length} columns)</h2>
     <div class="table-scroll-wrapper">
       <table>
-        <colgroup>
-          <col class="col-qnum">
-          <col class="col-section">
-          <col class="col-question">
-          <col class="col-hints">
-          <col class="col-objective">
-          <col class="col-ctrule">
-        </colgroup>
         <thead>
           <tr>${headerRow}</tr>
         </thead>
@@ -3964,9 +3948,7 @@ Job Title: ${jobTitleValue || "N/A"}
           nextBtn.click();
         }
         if (!nextQuestionInFlight && restoredAttemptCount < MAX_ATTEMPTS) {
-          const guidanceEntriesForAutoAdvance = resumeCurrentQuestionNumber === number
-            ? parseGuidanceWindowSnapshot(resumeGuidanceWindowText)
-            : [];
+          const guidanceEntriesForAutoAdvance = parseGuidanceWindowSnapshot(resumeGuidanceWindowText);
           const hasContinueSignal = guidanceEntriesForAutoAdvance.some((e) =>
             e.role === "ai" && e.text.toLowerCase().includes(NEXT_QUESTION_DISPLAY_SIGNAL)
           );
