@@ -3883,9 +3883,31 @@ Job Title: ${jobTitleValue || "N/A"}
         return items;
       };
 
+      const parseManagedStaffValue = (value) => {
+        if (value === null || value === undefined) return "";
+        const raw = String(value).trim().toLowerCase();
+        if (!raw) return "";
+
+        if (["yes", "y", "true", "1"].includes(raw)) return "yes";
+        if (["no", "n", "false", "0"].includes(raw)) return "no";
+
+        if (/(^|\W)yes(\W|$)/i.test(raw)) return "yes";
+        if (/(^|\W)no(\W|$)/i.test(raw)) return "no";
+
+        return "";
+      };
+
       const getQuestionManagedStaffValue = (question) => {
-        const raw = String(question?.field_8 ?? "").trim().toLowerCase();
-        return raw === "yes" ? "yes" : raw === "no" ? "no" : "";
+        const source = getQuestionFieldSource(question, [
+          "field_8",
+          "Managed Staff",
+          "ManagedStaff",
+          "managedStaff",
+          "managed staff",
+          "Managed_x0020_Staff",
+          "Group1",
+        ]);
+        return parseManagedStaffValue(source);
       };
 
       const getManagedStaffQuestionNumbers = (questionList) => {
