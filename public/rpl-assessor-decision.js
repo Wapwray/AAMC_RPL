@@ -230,6 +230,7 @@ Critical consistency rule:
 - Treat all attempts as one combined response.
 - The same evidence must receive the same overallAssessment whether it appears in one long answer or is split across multiple attempts.
 - Do not ask for repetition or extra detail just because the response is a single long answer.
+- A later attempt may add evidence that was missing from an earlier attempt. The learner has up to ${maxAttempts} attempts to build their complete response. If the combined evidence across all attempts answers the question requirements, mark LIKELY SUFFICIENT even if earlier attempts only partially addressed the objective. Do not ask the learner to repeat evidence they have already provided in a previous attempt.
 
 Assessment rules:
 - Give primary weight to the question text and objective.
