@@ -645,6 +645,70 @@
           max-height: 110px;
         }
       }
+      .managedStaffSection {
+        margin-top: 14px;
+        padding: 12px 16px;
+        background: rgba(255, 255, 255, 0.85);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        text-align: center;
+        max-width: 600px;
+      }
+      .managedStaffMessage {
+        font-size: 14px;
+        line-height: 1.5;
+        color: var(--text);
+        margin-bottom: 10px;
+      }
+      .managedStaffToggleRow {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .managedStaffToggleLabel {
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .managedStaffToggle {
+        position: relative;
+        width: 52px;
+        height: 28px;
+        background: #dbe7f2;
+        border-radius: 999px;
+        cursor: pointer;
+        border: 1px solid #c7d9e8;
+        display: inline-block;
+      }
+      .managedStaffToggle input {
+        position: absolute;
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+      .managedStaffToggleKnob {
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 22px;
+        height: 22px;
+        background: #ffffff;
+        border-radius: 50%;
+        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.2);
+        transition: transform 0.2s ease;
+      }
+      .managedStaffToggle input:checked + .managedStaffToggleKnob {
+        transform: translateX(24px);
+      }
+      .managedStaffToggle:has(input:checked) {
+        background: #0b6ea9;
+      }
+      .managedStaffValue {
+        font-weight: 600;
+        font-size: 13px;
+        color: var(--text);
+      }
     </style>
   </head>
   <body>
@@ -902,6 +966,8 @@
         "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/5403405d1b2543a48ccd83c2d5f703ee/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=vNYYnuckqabWJ9uC_CH0kGTymUyBIutten9INl_-f-s";
       const CURRENT_ATTEMPT_WEBHOOK_URL =
         "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/f86d96def8d44f09b52f2ffc28bd006f/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=5aZztyGRO7_9LfZKZGMAHkSwJeWOZtXSdi_5hk4adLY";
+      const TRANSCRIPT_BACKUP_WEBHOOK_URL =
+        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/10470ca8d6ed4b798ab177f6d85d32a9/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=jRCLd7-E4enyYUV8H6pnQlKE_7b7MOt8L4H6o62gqaM";
       const TRANSCRIPT_VERIFY_DELAYS_MS = [500, 1000, 1500, 2500, 4000, 6000];
 
       const statusEl = document.getElementById("status");
