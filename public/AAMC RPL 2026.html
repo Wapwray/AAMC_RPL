@@ -4651,15 +4651,29 @@ END_REVIEW>>>`;
           };
           logAssessmentDebug("Transcript webhook", "Sending payload");
           logAssessmentDebug("Transcript webhook payload", transcriptWebhookPayload);
-          const transcriptResponse = await fetch(TRANSCRIPT_WEBHOOK_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(transcriptWebhookPayload),
-          });
-          const transcriptResponseText = await transcriptResponse.text();
-          logAssessmentDebug("Transcript webhook", `${transcriptResponse.status} ${transcriptResponse.statusText}`);
-          if (transcriptResponseText) {
-            logAssessmentDebug("Transcript webhook response", transcriptResponseText);
+          const TRANSCRIPT_RETRY_DELAYS_MS = [2000, 4000];
+          let transcriptResponse = null;
+          let transcriptResponseText = "";
+          for (let attempt = 0; attempt <= TRANSCRIPT_RETRY_DELAYS_MS.length; attempt += 1) {
+            transcriptResponse = await fetch(TRANSCRIPT_WEBHOOK_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(transcriptWebhookPayload),
+            });
+            transcriptResponseText = await transcriptResponse.text();
+            logAssessmentDebug("Transcript webhook", `attempt ${attempt + 1}: ${transcriptResponse.status} ${transcriptResponse.statusText}`);
+            logNextDebug("Transcript webhook attempt", { attempt: attempt + 1, status: transcriptResponse.status, statusText: transcriptResponse.statusText });
+            if (transcriptResponseText) {
+              logAssessmentDebug("Transcript webhook response", transcriptResponseText);
+            }
+            if (transcriptResponse.ok) {
+              break;
+            }
+            if (attempt < TRANSCRIPT_RETRY_DELAYS_MS.length) {
+              logNextDebug("Transcript webhook retrying", { nextDelayMs: TRANSCRIPT_RETRY_DELAYS_MS[attempt] });
+              setStatus(`Transcript save returned ${transcriptResponse.status}. Retrying (${attempt + 1}/${TRANSCRIPT_RETRY_DELAYS_MS.length})...`);
+              await wait(TRANSCRIPT_RETRY_DELAYS_MS[attempt]);
+            }
           }
           if (!transcriptResponse.ok) {
             throw new Error(`Transcript webhook failed (${transcriptResponse.status}) ${transcriptResponse.statusText}`.trim());
