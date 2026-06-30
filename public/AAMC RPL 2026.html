@@ -2204,22 +2204,22 @@
         if (thinkingOverlayEl) thinkingOverlayEl.classList.add("hidden");
       };
 
+      const ASSESSOR_SUBMIT_WEBHOOK_URL = "";
+
       const runFinalReview = async ({ openWindow = false, sendWebhook = false, showCompletion = false } = {}) => {
         const ctx = getStudentContext();
-        const reviewText = buildFullTranscript();
-        const candidateMetadata = getReportCandidateMetadata();
-        const officialQuestionBank = buildOfficialQuestionBankForReport(questions);
-        const reportOptions = getReportOptions();
+        const reportModule = getPreliminaryReviewModule();
         setStatus("Generating preliminary review report...");
         if (finalBtn) finalBtn.disabled = true;
         showFinalisingOverlay();
         try {
-          const { html } = await buildPreliminaryReviewReport({
-            fullTranscriptText: reviewText,
-            candidateMetadata,
-            officialQuestionBank,
-            reportOptions,
+          const jsonTranscript = buildFullTranscriptJson();
+          const reportModel = reportModule.buildReportModelFromJsonTranscript(jsonTranscript);
+          const html = reportModule.renderInteractiveReportHtml(reportModel, {
+            submitUrl: ASSESSOR_SUBMIT_WEBHOOK_URL,
           });
+          window.RPLLastPreliminaryReportModel = reportModel;
+          window.RPLLastPreliminaryReportHtml = html;
           if (openWindow) {
             const reportWindow = window.open("", "RPLFinalReview", "width=900,height=700,scrollbars=yes");
             if (!reportWindow) {

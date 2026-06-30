@@ -1304,6 +1304,376 @@ Rules:
     };
   };
 
+  const buildReportModelFromJsonTranscript = (jsonTranscript) => {
+    const parsed = typeof jsonTranscript === "string" ? JSON.parse(jsonTranscript) : jsonTranscript;
+    if (!parsed || typeof parsed !== "object") throw new Error("Invalid JSON transcript");
+    const candidate = parsed.candidate || {};
+    const questions = Array.isArray(parsed.questions) ? parsed.questions : [];
+
+    const metadata = {
+      candidateName: cleanMetadataValue(candidate.fullName) || MISSING_VALUE,
+      contactId: cleanMetadataValue(candidate.contactId) || MISSING_VALUE,
+      qualification: normalizeQualificationValue(candidate.qualification) || DEFAULT_QUALIFICATION,
+      interviewDate: cleanMetadataValue(candidate.interviewDate) || MISSING_VALUE,
+      industry: cleanMetadataValue(candidate.industry) || MISSING_VALUE,
+      jobTitle: cleanMetadataValue(candidate.jobTitle) || MISSING_VALUE,
+      assessmentName: cleanMetadataValue(candidate.assessmentName) || "RPL",
+      questionCountReviewed: questions.length,
+      transcriptQuestionCount: questions.length,
+      reportType: REPORT_TYPE,
+    };
+
+    const reportQuestions = questions.map((q) => {
+      const attempts = Array.isArray(q.attempts) ? q.attempts : [];
+      const shortStatus = q.preliminaryStatus === SOURCE_LIKELY_SUFFICIENT
+        ? SHORT_LIKELY_SUFFICIENT
+        : q.preliminaryStatus === SOURCE_ADDITIONAL_EVIDENCE
+          ? SHORT_ADDITIONAL_EVIDENCE
+          : SHORT_NOT_AVAILABLE;
+      return {
+        questionNumber: q.questionNumber || 0,
+        section: "",
+        unitCode: "",
+        unitTitle: "",
+        questionAsked: cleanMetadataValue(q.questionText) || "",
+        hintsProvided: cleanMetadataValue(q.hint) || "",
+        assessmentObjective: cleanMetadataValue(q.objective) || "",
+        preliminaryStatus: shortStatus === SHORT_LIKELY_SUFFICIENT
+          ? "Likely sufficient (pending assessor verification)"
+          : shortStatus === SHORT_ADDITIONAL_EVIDENCE
+            ? "Additional evidence may be needed (assessor follow-up suggested)"
+            : SHORT_NOT_AVAILABLE,
+        shortStatus,
+        aiInterviewSummary: cleanMetadataValue(q.aiInterviewerSummary) || "",
+        aiFollowUpExchange: "",
+        aiPreliminaryObservation: "",
+        assessorActionSuggested: "",
+        attempts: attempts.map((a) => ({
+          attemptNumber: a.attemptNumber || 0,
+          speakerLabel: cleanMetadataValue(a.candidateName) || "Student",
+          responseText: cleanMetadataValue(a.answer) || "",
+          submittedAt: cleanMetadataValue(a.submittedAt) || "",
+        })),
+        assessorBotMessages: [],
+        rawBlockText: "",
+      };
+    });
+
+    return {
+      metadata,
+      warnings: [],
+      executiveSummary: SUMMARY_FINAL_SENTENCE,
+      executiveSummaryItems: buildExecutiveSummaryItems(reportQuestions),
+      questions: reportQuestions,
+      parsedQuestionBlocks: [],
+      questionManifest: [],
+    };
+  };
+
+  const renderInteractiveReportHtml = (reportModel, options = {}) => {
+    const submitUrl = options.submitUrl || "";
+    const questions = Array.isArray(reportModel?.questions) ? reportModel.questions : [];
+    const metadata = reportModel?.metadata || {};
+    const hasFollowUp = questions.some((question) => question.shortStatus !== SHORT_LIKELY_SUFFICIENT);
+    const executiveHeading = hasFollowUp
+      ? "Executive Summary - Preliminary Findings (assessor follow-up suggested)"
+      : "Executive Summary - Preliminary Findings";
+
+    const renderEditableField = (id, label, placeholder = "", minHeight = "80px") => {
+      return `<textarea id="${escapeAttribute(id)}" name="${escapeAttribute(id)}" class="assessor-input" placeholder="${escapeAttribute(placeholder)}" style="width:100%;min-height:${minHeight};border:1px solid #999;border-radius:4px;padding:7px 9px;box-sizing:border-box;font-family:Calibri,Arial,Helvetica,sans-serif;font-size:11pt;line-height:1.35;background:#fff;"></textarea>`;
+    };
+
+    const renderEditableSignoff = (id, placeholder = "") => {
+      return `<input type="text" id="${escapeAttribute(id)}" name="${escapeAttribute(id)}" class="assessor-signoff-input" placeholder="${escapeAttribute(placeholder)}" style="width:100%;min-height:30px;border:1px solid #999;border-radius:4px;padding:7px 9px;box-sizing:border-box;font-family:Calibri,Arial,Helvetica,sans-serif;font-size:11pt;background:#fff;" />`;
+    };
+
+    const renderQuestionArticlesInteractive = (questions) => questions.map((question) => {
+      return `
+          <!-- BEGIN QUESTION_REVIEW q="${escapeAttribute(question.questionNumber)}" -->
+          <article class="question-card" data-question-number="${escapeAttribute(question.questionNumber)}">
+            <h3>Question ${escapeHtml(question.questionNumber)} - ${escapeHtml(valueOrMissing(question.section))}</h3>
+            <p><span class="status-badge ${statusClassName(question.shortStatus)}">${escapeHtml(question.preliminaryStatus)}</span></p>
+            <section>
+              <h4>Question asked</h4>
+              <p>${escapeHtml(valueOrMissing(question.questionAsked))}</p>
+            </section>
+            <section>
+              <h4>Hints provided to candidate</h4>
+              <p>${escapeHtml(valueOrMissing(question.hintsProvided))}</p>
+            </section>
+            <section>
+              <h4>Objective</h4>
+              <p>${escapeHtml(valueOrMissing(question.assessmentObjective))}</p>
+            </section>
+            <section>
+              <h4>AI Interview Summary</h4>
+              <p>${escapeHtml(valueOrMissing(question.aiInterviewSummary))}</p>
+            </section>
+            <section>
+              <h4>Student and AI Interview conversation</h4>
+              ${renderConversation(question)}
+            </section>
+            <section class="assessor-evaluation">
+              <h4>Assessor Evaluation - Objective Met / Not Met</h4>
+              ${renderEditableField(`assessor-eval-${question.questionNumber}`, "Assessor evaluation", "Enter your evaluation here...", "42px")}
+              <h4>Assessor Notes</h4>
+              ${renderEditableField(`assessor-notes-${question.questionNumber}`, "Assessor notes", "Enter your notes here...", "80px")}
+              <button type="button" class="question-submit-btn" data-question-number="${escapeAttribute(question.questionNumber)}" style="margin-top:10px;background:#0b6ea9;color:#fff;border:none;border-radius:999px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;">Submit Question ${escapeHtml(question.questionNumber)}</button>
+              <span class="submit-status" id="submit-status-${question.questionNumber}" style="margin-left:10px;font-size:12px;color:#64748b;"></span>
+            </section>
+          </article>
+          <!-- END QUESTION_REVIEW q="${escapeAttribute(question.questionNumber)}" -->`;
+    }).join("\n");
+
+    return `<!doctype html>
+<html lang="en-AU">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>RPL Preliminary Interview Review - Assessor</title>
+    <style>
+      :root { color-scheme: light; }
+      body { margin: 0; background: #f4f6f9; color: #000000; font-family: Calibri, Arial, Helvetica, sans-serif; font-size: 11pt; line-height: 1.35; }
+      .report { width: 100%; max-width: 180mm; margin: 0 auto; box-sizing: border-box; padding: 20px; }
+      h1, h2, h3, h4 { color: #0f172a; line-height: 1.25; }
+      h1 { margin: 0; font-size: 30px; }
+      h2 { margin-top: 32px; border-bottom: 2px solid #d8dee9; padding-bottom: 8px; font-size: 20px; }
+      h3 { margin-top: 0; font-size: 18px; }
+      h4 { margin: 18px 0 8px; font-size: 14px; text-transform: uppercase; letter-spacing: .02em; color: #334155; }
+      .subtitle, .muted { color: #64748b; }
+      table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+      th, td { word-wrap: break-word; overflow-wrap: break-word; word-break: normal; vertical-align: top; }
+      .metadata-table, .status-table, .signoff-table { background: #fff; }
+      .metadata-table th, .metadata-table td, .status-table th, .status-table td, .signoff-table th, .signoff-table td { border: 1px solid #cbd5e1; padding: 10px 12px; vertical-align: top; text-align: left; }
+      .metadata-table th { width: 30%; background: #eef2f7; }
+      .status-table { font-size: 9pt; line-height: 1.25; }
+      .status-table th { background: #e8eef6; }
+      .warning-box, .coverage-warning, .summary, .question-card, .limitations, .confirmation, .signoff { background: #fff; border: 1px solid #d8dee9; border-radius: 8px; padding: 18px; margin-top: 18px; }
+      .warning-box { border-left: 6px solid #9a3412; background: #fff7ed; }
+      .coverage-warning { border-left: 6px solid #b45309; background: #fffbeb; }
+      .disclaimer-list, .summary-list { margin: 10px 0 0 20px; padding: 0; }
+      .disclaimer-list li, .summary-list li { margin: 6px 0; }
+      .status-badge { display: inline-block; max-width: 100%; border-radius: 999px; padding: 3px 8px; font-size: 8.5pt; line-height: 1.2; font-weight: 700; white-space: normal; overflow-wrap: anywhere; box-sizing: border-box; }
+      .status-likely { background: #dcfce7; color: #166534; }
+      .status-gap { background: #fef3c7; color: #92400e; }
+      .status-missing { background: #fee2e2; color: #991b1b; }
+      .question-card { page-break-inside: avoid; break-inside: avoid; }
+      .question-card section { margin-top: 12px; }
+      .candidate-attempt { border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin: 10px 0; background: #f8fafc; }
+      .ai-interview-response { border: 1px solid #c7d2fe; border-left: 4px solid #4338ca; border-radius: 6px; padding: 12px; margin: 10px 0 14px; background: #eef2ff; }
+      .verbatim, .response-box { white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word; max-width: 100%; margin: 0; padding: 8px; border: 1px solid #999; border-radius: 4px; background: #fff; font-family: Calibri, Arial, Helvetica, sans-serif; font-size: 11pt; line-height: 1.35; box-sizing: border-box; }
+      .response-box { min-height: 80px; }
+      .assessor-evaluation { border: 1px solid #cbd5e1; border-radius: 6px; padding: 12px; background: #f8fafc; margin-top: 12px; }
+      .assessor-input:focus, .assessor-signoff-input:focus { outline: 2px solid #0b6ea9; border-color: #0b6ea9; }
+      .question-submit-btn:hover { background: #095c8b !important; }
+      .submit-status.success { color: #166534; }
+      .submit-status.error { color: #991b1b; }
+      .global-submit-bar { position: sticky; bottom: 0; left: 0; right: 0; background: #fff; border-top: 2px solid #d8dee9; padding: 14px 20px; display: flex; justify-content: flex-end; gap: 12px; align-items: center; z-index: 100; box-shadow: 0 -4px 12px rgba(0,0,0,0.08); }
+      .global-submit-btn { background: #0b6ea9; color: #fff; border: none; border-radius: 999px; padding: 12px 24px; font-size: 15px; font-weight: 700; cursor: pointer; }
+      .global-submit-btn:hover { background: #095c8b; }
+      .global-submit-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+      .global-status { font-size: 13px; color: #64748b; }
+      .global-status.success { color: #166534; }
+      .global-status.error { color: #991b1b; }
+      @media print {
+        body { background: #fff; }
+        .report { width: 100%; max-width: 180mm; padding: 0; }
+        .question-card, .summary, .warning-box, .coverage-warning, .limitations, .confirmation, .signoff { border-color: #999; }
+        .global-submit-bar { display: none; }
+        .question-submit-btn { display: none; }
+        .assessor-input, .assessor-signoff-input { border: 1px solid #999; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="report">
+      <header>
+        <h1>RPL Preliminary Interview Review</h1>
+        <p class="subtitle">AI-generated preliminary review for assessor validation.</p>
+      </header>
+
+      <section aria-labelledby="candidateMetadataTitle">
+        <h2 id="candidateMetadataTitle">Candidate Metadata</h2>
+        <table class="metadata-table">
+          <tbody>
+            ${renderMetadataRows(metadata)}
+          </tbody>
+        </table>
+      </section>
+
+      <section class="warning-box" aria-labelledby="preliminaryDisclaimerTitle">
+        <h2 id="preliminaryDisclaimerTitle">IMPORTANT — PRELIMINARY AI REVIEW ONLY</h2>
+        <p>${escapeHtml(DISCLAIMER_INTRO)}</p>
+        <ul class="disclaimer-list">
+          ${DISCLAIMER_BULLETS.map((item) => `<li>${escapeHtml(item)}</li>`).join("\n          ")}
+        </ul>
+      </section>
+
+      <section class="summary" aria-labelledby="executiveSummaryTitle">
+        <h2 id="executiveSummaryTitle">${escapeHtml(executiveHeading)}</h2>
+        ${renderExecutiveSummary(reportModel)}
+      </section>
+
+      <section aria-labelledby="statusTableTitle">
+        <h2 id="statusTableTitle">Preliminary Status by Question</h2>
+        <table class="status-table">
+          <colgroup>
+            <col style="width: 10mm;">
+            <col style="width: 28mm;">
+            <col>
+            <col style="width: 38mm;">
+          </colgroup>
+          <thead>
+            <tr>
+              <th scope="col">Q#</th>
+              <th scope="col">Section</th>
+              <th scope="col">Question (short)</th>
+              <th scope="col">Preliminary status</th>
+            </tr>
+          </thead>
+          <tbody>${renderStatusTableRows(questions)}
+          </tbody>
+        </table>
+      </section>
+
+      <section class="question-review-section" aria-labelledby="questionReviewTitle">
+        <h2 id="questionReviewTitle">Question-by-Question Review</h2>
+        ${renderQuestionArticlesInteractive(questions)}
+      </section>
+
+      <section class="limitations" aria-labelledby="limitationsTitle">
+        <h2 id="limitationsTitle">Limitations of this AI preliminary review</h2>
+        <p>${escapeHtml(LIMITATIONS_TEXT)}</p>
+      </section>
+
+      <section class="confirmation" aria-labelledby="confirmationTitle">
+        <h2 id="confirmationTitle">Assessor confirmation required</h2>
+        <p>${escapeHtml(ASSESSOR_CONFIRMATION_TEXT)}</p>
+      </section>
+
+      <section class="signoff" aria-labelledby="signoffTitle">
+        <h2 id="signoffTitle">Assessor sign-off</h2>
+        <table class="signoff-table">
+          <tbody>
+            <tr><th scope="row">Assessor name</th><td>${renderEditableSignoff("assessor-name", "Enter assessor name")}</td></tr>
+            <tr><th scope="row">Assessor credential / TAE qualification</th><td>${renderEditableSignoff("assessor-credential", "Enter TAE qualification")}</td></tr>
+            <tr><th scope="row">Interview Outcome</th><td>${renderEditableSignoff("interview-outcome", "to be completed by assessor")}</td></tr>
+            <tr><th scope="row">Signature &amp; date</th><td>${renderEditableSignoff("assessor-signature", "Enter signature & date")}</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+
+    <div class="global-submit-bar">
+      <span class="global-status" id="globalSubmitStatus"></span>
+      <button type="button" class="global-submit-btn" id="globalSubmitBtn">Submit All Assessor Comments</button>
+    </div>
+
+    <script>
+      (function() {
+        var SUBMIT_URL = ${submitUrl ? JSON.stringify(submitUrl) : '""'};
+        var candidateName = ${JSON.stringify(metadata.candidateName || "")};
+        var contactId = ${JSON.stringify(metadata.contactId || "")};
+
+        function setQuestionStatus(qNum, text, className) {
+          var el = document.getElementById("submit-status-" + qNum);
+          if (el) {
+            el.textContent = text;
+            el.className = "submit-status " + (className || "");
+          }
+        }
+
+        function collectQuestionData(qNum) {
+          var evalEl = document.getElementById("assessor-eval-" + qNum);
+          var notesEl = document.getElementById("assessor-notes-" + qNum);
+          return {
+            questionNumber: qNum,
+            assessorEvaluation: evalEl ? evalEl.value : "",
+            assessorNotes: notesEl ? notesEl.value : ""
+          };
+        }
+
+        function collectAllData() {
+          var articles = document.querySelectorAll("article.question-card[data-question-number]");
+          var questions = [];
+          articles.forEach(function(article) {
+            var qNum = article.getAttribute("data-question-number");
+            questions.push(collectQuestionData(qNum));
+          });
+          return {
+            candidateName: candidateName,
+            contactId: contactId,
+            questions: questions,
+            assessorName: (document.getElementById("assessor-name") || {}).value || "",
+            assessorCredential: (document.getElementById("assessor-credential") || {}).value || "",
+            interviewOutcome: (document.getElementById("interview-outcome") || {}).value || "",
+            assessorSignature: (document.getElementById("assessor-signature") || {}).value || ""
+          };
+        }
+
+        function submitQuestion(qNum) {
+          if (!SUBMIT_URL) { setQuestionStatus(qNum, "No submit URL configured", "error"); return; }
+          setQuestionStatus(qNum, "Submitting...", "");
+          var data = collectQuestionData(qNum);
+          data.candidateName = candidateName;
+          data.contactId = contactId;
+          fetch(SUBMIT_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data)
+          }).then(function(resp) {
+            if (resp.ok) {
+              setQuestionStatus(qNum, "Saved", "success");
+            } else {
+              setQuestionStatus(qNum, "Error " + resp.status, "error");
+            }
+          }).catch(function(err) {
+            setQuestionStatus(qNum, "Error: " + (err.message || "failed"), "error");
+          });
+        }
+
+        function submitAll() {
+          var statusEl = document.getElementById("globalSubmitStatus");
+          var btn = document.getElementById("globalSubmitBtn");
+          if (!SUBMIT_URL) {
+            if (statusEl) { statusEl.textContent = "No submit URL configured"; statusEl.className = "global-status error"; }
+            return;
+          }
+          if (btn) btn.disabled = true;
+          if (statusEl) { statusEl.textContent = "Submitting all comments..."; statusEl.className = "global-status"; }
+          var data = collectAllData();
+          fetch(SUBMIT_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data)
+          }).then(function(resp) {
+            if (btn) btn.disabled = false;
+            if (resp.ok) {
+              if (statusEl) { statusEl.textContent = "All comments submitted successfully."; statusEl.className = "global-status success"; }
+            } else {
+              if (statusEl) { statusEl.textContent = "Error " + resp.status; statusEl.className = "global-status error"; }
+            }
+          }).catch(function(err) {
+            if (btn) btn.disabled = false;
+            if (statusEl) { statusEl.textContent = "Error: " + (err.message || "failed"); statusEl.className = "global-status error"; }
+          });
+        }
+
+        document.querySelectorAll(".question-submit-btn").forEach(function(btn) {
+          btn.addEventListener("click", function() {
+            var qNum = btn.getAttribute("data-question-number");
+            submitQuestion(qNum);
+          });
+        });
+
+        var globalBtn = document.getElementById("globalSubmitBtn");
+        if (globalBtn) globalBtn.addEventListener("click", submitAll);
+      })();
+    </script>
+  </body>
+</html>`;
+  };
+
   return {
     constants: {
       SOURCE_LIKELY_SUFFICIENT,
@@ -1328,7 +1698,9 @@ Rules:
     buildQuestionAnalysisPrompt,
     parseQuestionAnalysisResponse,
     buildReportModel,
+    buildReportModelFromJsonTranscript,
     renderReportHtml,
+    renderInteractiveReportHtml,
     validateReportHtmlCoverage,
   };
 });
