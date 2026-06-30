@@ -627,7 +627,7 @@
             <p>Initialising…</p>
           </div>
           <button id="welcomeContinueBtn" disabled>Continue</button>
-          <button id="welcomeDebugBtn" class="secondary" type="button" style="margin-top: 8px; font-size: 13px; padding: 6px 14px;">Show Debug</button>
+          <button id="welcomeQuestionsBtn" class="secondary" type="button" style="margin-top: 8px; font-size: 13px; padding: 6px 14px;">Questions</button>
           <div id="welcomeDebugSection" class="assessmentDebug welcomeDebugPanel hidden">
             <div class="assessmentDebugHeader">
               <div class="assessmentDebugTitle">Welcome Debug</div>
@@ -797,13 +797,6 @@
             </div>
             <button id="nextBtn" class="secondary nextFloating" disabled>Next Question</button>
           </div>
-          <div id="liveDebugPanel" class="assessmentDebug liveDebugPanel">
-            <div class="assessmentDebugHeader">
-              <div class="assessmentDebugTitle">Next Question Debug</div>
-              <button id="liveDebugClearBtn" class="secondary" type="button">Clear</button>
-            </div>
-            <div id="assessmentDebugLog" class="assessmentDebugLog liveDebugLog">Waiting for activity...</div>
-          </div>
         </div>
       </div>
     </div>
@@ -885,7 +878,7 @@
       const welcomeDebugSectionEl = document.getElementById("welcomeDebugSection");
       const welcomeDebugLogEl = document.getElementById("welcomeDebugLog");
       const welcomeResetBtn = document.getElementById("welcomeResetBtn");
-      const welcomeDebugBtn = document.getElementById("welcomeDebugBtn");
+      const welcomeQuestionsBtn = document.getElementById("welcomeQuestionsBtn");
       const postWelcomePageEl = document.getElementById("postWelcomePage");
       const postWelcomeTitleEl = document.getElementById("postWelcomeTitle");
       const appFooterDisclaimerEl = document.getElementById("appFooterDisclaimer");
@@ -2214,7 +2207,8 @@
         showFinalisingOverlay();
         try {
           const jsonTranscript = buildFullTranscriptJson();
-          const reportModel = reportModule.buildReportModelFromJsonTranscript(jsonTranscript);
+          const officialQuestionBank = buildOfficialQuestionBankForReport(questions);
+          const reportModel = reportModule.buildReportModelFromJsonTranscript(jsonTranscript, officialQuestionBank);
           const html = reportModule.renderInteractiveReportHtml(reportModel, {
             submitUrl: ASSESSOR_SUBMIT_WEBHOOK_URL,
           });
@@ -4219,32 +4213,26 @@ END_REVIEW>>>`;
         await runWelcomeReset();
       });
 
-      welcomeDebugBtn?.addEventListener("click", () => {
-        if (!welcomeDebugSectionEl) return;
-        const isHidden = welcomeDebugSectionEl.classList.contains("hidden");
-        welcomeDebugSectionEl.classList.toggle("hidden", !isHidden);
-        if (welcomeDebugBtn) {
-          welcomeDebugBtn.textContent = isHidden ? "Hide Debug" : "Show Debug";
+      welcomeQuestionsBtn?.addEventListener("click", async () => {
+        if (!questions.length) {
+          setStatus("Questions not loaded yet.");
+          try {
+            const items = await fetchQuestionsFromWebhook();
+            questions = items;
+          } catch (err) {
+            setStatus(err?.message || "Unable to load questions.");
+            return;
+          }
         }
-        if (isHidden) {
-          logWelcomeDebug("Debug panel", "Manually opened by user");
-          logWelcomeDebug("Student context", formatDebugPayload(getStudentContext()));
-          logWelcomeDebug("Welcome mode", welcomeMode);
-          logWelcomeDebug("Welcome webhook URL", WELCOME_WEBHOOK_URL);
-          logWelcomeDebug("Resume webhook URL", RESUME_WEBHOOK_URL);
-          logWelcomeDebug("Questions URL", questionsUrl);
-          logWelcomeDebug("Prompts URL", PROMPTS_URL);
-          logWelcomeDebug("Speech SDK loaded", typeof window.SpeechSDK !== "undefined");
-          logWelcomeDebug("RplPreliminaryReview loaded", typeof window.RplPreliminaryReview !== "undefined");
-          logWelcomeDebug("RplAssessorDecision loaded", typeof window.RplAssessorDecision !== "undefined");
-          logWelcomeDebug("resumeLoadPromise", resumeLoadPromise ? "pending" : "null");
-          logWelcomeDebug("resumeTranscriptText length", resumeTranscriptText?.length || 0);
-          logWelcomeDebug("resumeCurrentQuestionNumber", resumeCurrentQuestionNumber);
-          logWelcomeDebug("resumeCurrentAttemptNumber", resumeCurrentAttemptNumber);
-          logWelcomeDebug("welcomeContinueBtn disabled", welcomeContinueBtn?.disabled);
-          logWelcomeDebug("welcomeContinueBtn text", welcomeContinueBtn?.textContent);
-          logWelcomeDebug("welcomeContinueBtn hidden", welcomeContinueBtn?.classList.contains("hidden"));
+        const html = buildQuestionsTableHtml(questions);
+        const reportWindow = window.open("", "RPLQuestionTable", "width=1100,height=700,scrollbars=yes");
+        if (!reportWindow) {
+          setStatus("Popup blocked. Please allow pop-ups to view the questions.");
+          return;
         }
+        reportWindow.document.open();
+        reportWindow.document.write(html);
+        reportWindow.document.close();
       });
 
       welcomeContinueBtn?.addEventListener("click", async () => {

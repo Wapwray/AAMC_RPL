@@ -1304,11 +1304,16 @@ Rules:
     };
   };
 
-  const buildReportModelFromJsonTranscript = (jsonTranscript) => {
+  const buildReportModelFromJsonTranscript = (jsonTranscript, questionBank = []) => {
     const parsed = typeof jsonTranscript === "string" ? JSON.parse(jsonTranscript) : jsonTranscript;
     if (!parsed || typeof parsed !== "object") throw new Error("Invalid JSON transcript");
     const candidate = parsed.candidate || {};
     const questions = Array.isArray(parsed.questions) ? parsed.questions : [];
+    const bankByNumber = new Map();
+    (Array.isArray(questionBank) ? questionBank : []).forEach((q) => {
+      const num = q?.questionNumber;
+      if (num !== undefined && num !== null) bankByNumber.set(String(num), q);
+    });
 
     const metadata = {
       candidateName: cleanMetadataValue(candidate.fullName) || MISSING_VALUE,
@@ -1330,11 +1335,21 @@ Rules:
         : q.preliminaryStatus === SOURCE_ADDITIONAL_EVIDENCE
           ? SHORT_ADDITIONAL_EVIDENCE
           : SHORT_NOT_AVAILABLE;
+      const bankEntry = bankByNumber.get(String(q.questionNumber)) || {};
+      const section = cleanMetadataValue(bankEntry.section || bankEntry.Section) || "";
+      const unitCode = cleanMetadataValue(bankEntry.unitCode || bankEntry.UnitCode) || "";
+      const unitTitle = cleanMetadataValue(bankEntry.unitTitle || bankEntry.UnitTitle) || "";
+      const assessorBotMessages = attempts
+        .filter((a) => cleanMetadataValue(a.feedback))
+        .map((a) => ({
+          messageText: cleanMetadataValue(a.feedback),
+          followsAttemptNumber: Number(a.attemptNumber) || 0,
+        }));
       return {
         questionNumber: q.questionNumber || 0,
-        section: "",
-        unitCode: "",
-        unitTitle: "",
+        section: section || "Not stated in transcript",
+        unitCode,
+        unitTitle,
         questionAsked: cleanMetadataValue(q.questionText) || "",
         hintsProvided: cleanMetadataValue(q.hint) || "",
         assessmentObjective: cleanMetadataValue(q.objective) || "",
@@ -1354,7 +1369,7 @@ Rules:
           responseText: cleanMetadataValue(a.answer) || "",
           submittedAt: cleanMetadataValue(a.submittedAt) || "",
         })),
-        assessorBotMessages: [],
+        assessorBotMessages,
         rawBlockText: "",
       };
     });
