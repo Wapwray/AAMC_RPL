@@ -902,8 +902,6 @@
         "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/5403405d1b2543a48ccd83c2d5f703ee/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=vNYYnuckqabWJ9uC_CH0kGTymUyBIutten9INl_-f-s";
       const CURRENT_ATTEMPT_WEBHOOK_URL =
         "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/f86d96def8d44f09b52f2ffc28bd006f/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=5aZztyGRO7_9LfZKZGMAHkSwJeWOZtXSdi_5hk4adLY";
-      const TRANSCRIPT_BACKUP_WEBHOOK_URL =
-        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/10470ca8d6ed4b798ab177f6d85d32a9/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=jRCLd7-E4enyYUV8H6pnQlKE_7b7MOt8L4H6o62gqaM";
       const TRANSCRIPT_VERIFY_DELAYS_MS = [500, 1000, 1500, 2500, 4000, 6000];
 
       const statusEl = document.getElementById("status");
@@ -3451,6 +3449,7 @@ Job Title: ${jobTitleValue || "N/A"}
           ContactID: String(ctx.contactId),
           GivenName: ctx.givenName,
           FullTranscript: fullTranscript,
+          FullTranscriptJSON: buildFullTranscriptJson(),
           CurrentQuestion: String(questionNumber),
           CurrentAttempt: String(attemptNumber),
         };
@@ -3473,41 +3472,6 @@ Job Title: ${jobTitleValue || "N/A"}
           return true;
         } catch (error) {
           logAssessmentDebug(`${label} error`, error?.message || String(error));
-          return false;
-        }
-      };
-
-      const sendTranscriptBackupOnEvaluate = async ({ attemptNumber, questionNumber }) => {
-        const ctx = getStudentContext();
-        const fileName = `${ctx.fullName} - ${ctx.contactId} - ${questionNumber} - ${attemptNumber}.txt`;
-        const payload = {
-          FullName: ctx.fullName,
-          ContactID: String(ctx.contactId),
-          GivenName: ctx.givenName,
-          CurrentQuestion: String(questionNumber),
-          CurrentAttempt: String(attemptNumber),
-          FileName: fileName,
-          ConversationPartTranscript: buildGuidanceWindowSnapshot({ questionNumber, attemptNumber }),
-        };
-        logAssessmentDebug("Transcript backup webhook", "Sending payload");
-        logAssessmentDebug("Transcript backup payload", payload);
-        try {
-          const response = await fetch(TRANSCRIPT_BACKUP_WEBHOOK_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          });
-          logAssessmentDebug("Transcript backup webhook", `${response.status} ${response.statusText}`);
-          const text = await response.text();
-          if (text) {
-            logAssessmentDebug("Transcript backup response", text);
-          }
-          if (!response.ok) {
-            throw new Error(`Transcript backup webhook failed (${response.status}) ${response.statusText}`.trim());
-          }
-          return true;
-        } catch (error) {
-          logAssessmentDebug("Transcript backup error", error?.message || String(error));
           return false;
         }
       };
@@ -4618,30 +4582,21 @@ END_REVIEW>>>`;
           fullTranscript = buildFullTranscript();
           window.RPLFullTranscript = fullTranscript;
           const nextAttemptForWebhook = Math.min(MAX_ATTEMPTS, attemptNumber + 1);
-          logNextDebug("Check Response - sending webhooks in parallel", { attemptNumber, nextAttemptForWebhook, currentAttempts });
-          // Run backup and attempt webhooks in parallel — they are independent.
-          const [backupSaved, attemptAndTranscriptSaved] = await Promise.all([
-            sendTranscriptBackupOnEvaluate({ attemptNumber, questionNumber }),
-            (async () => {
-              let saved = false;
-              const ATTEMPT_RETRY_DELAYS_MS = [2000, 4000];
-              for (let attemptIdx = 0; attemptIdx <= ATTEMPT_RETRY_DELAYS_MS.length; attemptIdx += 1) {
-                saved = await sendCurrentAttemptOnEvaluate(nextAttemptForWebhook, questionNumber, `Attempt webhook (try ${attemptIdx + 1})`);
-                logNextDebug("Attempt webhook result", { try: attemptIdx + 1, saved });
-                if (saved) break;
-                if (attemptIdx < ATTEMPT_RETRY_DELAYS_MS.length) {
-                  logNextDebug("Attempt webhook retrying", { nextDelayMs: ATTEMPT_RETRY_DELAYS_MS[attemptIdx] });
-                  await wait(ATTEMPT_RETRY_DELAYS_MS[attemptIdx]);
-                }
-              }
-              return saved;
-            })(),
-          ]);
+          logNextDebug("Check Response - sending attempt webhook", { attemptNumber, nextAttemptForWebhook, currentAttempts });
+          let attemptAndTranscriptSaved = false;
+          const ATTEMPT_RETRY_DELAYS_MS = [2000, 4000];
+          for (let attemptIdx = 0; attemptIdx <= ATTEMPT_RETRY_DELAYS_MS.length; attemptIdx += 1) {
+            attemptAndTranscriptSaved = await sendCurrentAttemptOnEvaluate(nextAttemptForWebhook, questionNumber, `Attempt webhook (try ${attemptIdx + 1})`);
+            logNextDebug("Attempt webhook result", { try: attemptIdx + 1, saved: attemptAndTranscriptSaved });
+            if (attemptAndTranscriptSaved) break;
+            if (attemptIdx < ATTEMPT_RETRY_DELAYS_MS.length) {
+              logNextDebug("Attempt webhook retrying", { nextDelayMs: ATTEMPT_RETRY_DELAYS_MS[attemptIdx] });
+              await wait(ATTEMPT_RETRY_DELAYS_MS[attemptIdx]);
+            }
+          }
           const saveWarning = !attemptAndTranscriptSaved
             ? "the attempt/transcript update did not complete"
-            : !backupSaved
-              ? "the transcript backup did not complete"
-              : "";
+            : "";
           if (showNextQuestionOnly) {
             logNextDebug("Check Response - showNextQuestionOnly path", { showNextQuestionOnly, saveWarning, currentAttempts });
             setStatus(!saveWarning
