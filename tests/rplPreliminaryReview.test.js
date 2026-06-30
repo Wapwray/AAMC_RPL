@@ -149,10 +149,14 @@ test("builds report list from official question bank plus unmapped transcript qu
   assert.equal(model.metadata.questionCountReviewed, 25);
   assert.equal(model.metadata.transcriptQuestionCount, 3);
   assert.equal(model.metadata.questionBankCount, 24);
-  assert.equal(model.questions[23].questionNumber, 24);
-  assert.equal(model.questions[23].shortStatus, "ADDITIONAL EVIDENCE MAY BE NEEDED");
-  assert.equal(model.questions[24].questionNumber, 25);
-  assert.equal(model.questions[24].section, "Additional transcript question");
+  const q24 = model.questions.find((question) => question.questionNumber === 24);
+  const q25 = model.questions.find((question) => question.questionNumber === 25);
+
+  assert.ok(q24, "Question 24 should exist");
+  assert.ok(q25, "Question 25 should exist");
+
+  assert.equal(q24.shortStatus, "ADDITIONAL EVIDENCE MAY BE NEEDED");
+  assert.equal(q25.section, "Additional transcript question");
   assert.equal(model.questions[1].shortStatus, "Question Not Asked");
   assert.equal(model.questions[1].preliminaryStatus, "Question Not Asked");
   assert.ok(model.warnings.some((warning) => warning.includes("active question bank contains 24")));

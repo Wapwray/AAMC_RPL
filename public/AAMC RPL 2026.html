@@ -2437,9 +2437,10 @@ Job Title: ${jobTitleValue || "N/A"}
         transcriptQuestions.forEach((entry, index) => {
           if (!entry) return;
           const questionNumber = entry.questionNumber || index + 1;
+          const currentQuestion = questions[index] || {};
           const summaryText = entry.summary || "";
           const summaryOutputText = getAssessorSummaryText(summaryText);
-          const sectionText = entry.section || "Not stated in transcript";
+          const sectionText = entry.section || getQuestionSection(currentQuestion) || "Not stated in transcript";
           const objectiveText = entry.objective || "N/A";
           const hintText = entry.hint || "N/A";
           const overallAssessment = entry.overallAssessment || getTranscriptOverallAssessment(summaryText, entry.attempts?.length || 0);
@@ -2493,6 +2494,7 @@ Job Title: ${jobTitleValue || "N/A"}
           questions: transcriptQuestions.map((entry, index) => {
             if (!entry) return null;
             const questionNumber = entry.questionNumber || index + 1;
+            const currentQuestion = questions[index] || {};
             const summaryText = entry.summary || "";
             const summaryOutputText = getAssessorSummaryText(summaryText);
             const overallAssessment = entry.overallAssessment || getTranscriptOverallAssessment(summaryText, entry.attempts?.length || 0);
@@ -2501,7 +2503,7 @@ Job Title: ${jobTitleValue || "N/A"}
               questionText: entry.questionText || "",
               objective: entry.objective || "N/A",
               hint: entry.hint || "N/A",
-              section: entry.section || "",
+              section: entry.section || getQuestionSection(currentQuestion) || "",
               aiInterviewerSummary: summaryOutputText || "",
               preliminaryStatus: overallAssessment || "",
               attempts: (entry.attempts || []).map((attempt, attemptIndex) => ({
@@ -3104,7 +3106,7 @@ Job Title: ${jobTitleValue || "N/A"}
       const getQuestionTextHtml = (question) => normalizeRichTextHtml(getQuestionTextSource(question));
 
       const getQuestionObjective = (question) => richTextToPlainText(getQuestionFieldSource(question, ["Objective", "field_4"]));
-      const getQuestionSection = (question) => getQuestionFieldSource(question, ["section", "Section", "category", "Category", "reportSection", "ReportSection", "assessmentArea", "AssessmentArea", "Topic", "Capability"]);
+      const getQuestionSection = (question) => getQuestionFieldSource(question, ["section", "Section", "field_1", "category", "Category", "reportSection", "ReportSection", "assessmentArea", "AssessmentArea", "Topic", "Capability"]);
 
       const updateEvaluateButtonState = () => {
         if (!evaluateBtn) return;
