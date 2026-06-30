@@ -2646,6 +2646,14 @@ Job Title: ${jobTitleValue || "N/A"}
           return parsed;
         } catch (err) {
           logWelcomeDebug("Resume error", err?.message || String(err));
+          logWelcomeDebug("Resume fallback", "Showing RESUME button despite resume webhook failure");
+          if (welcomeBodyEl) {
+            welcomeBodyEl.innerHTML = "<p>Unable to load your previous session, but you can continue.</p>";
+          }
+          if (welcomeContinueBtn) {
+            welcomeContinueBtn.classList.remove("hidden");
+            welcomeContinueBtn.textContent = "RESUME";
+          }
           return null;
         }
       };
