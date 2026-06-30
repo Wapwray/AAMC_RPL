@@ -4516,9 +4516,12 @@ END_REVIEW>>>`;
         showThinkingOverlay();
 
         try {
-          await sendRecordingOnEvaluate(attemptNumber, questionNumber);
+          // Run recording upload and AI evaluation in parallel — they are independent.
           const prompt = buildPrompt(questions[currentIndex], currentResponses);
-          const responseText = await callTextModel(prompt, { mode: "assessor", temperature: 0, max_tokens: 900 });
+          const [, responseText] = await Promise.all([
+            sendRecordingOnEvaluate(attemptNumber, questionNumber),
+            callTextModel(prompt, { mode: "assessor", temperature: 0, max_tokens: 900 }),
+          ]);
           const assessorFeedback = buildAssessorFeedbackFromResponse(responseText, currentAttempts);
           const showNextQuestionOnly = assessorFeedback.shouldContinue;
           addChatEntry(assessorFeedback.displayText, "ai", assessorFeedback.transcriptAttemptText);
@@ -4531,23 +4534,26 @@ END_REVIEW>>>`;
           await ensureCompleteTranscriptQuestions();
           fullTranscript = buildFullTranscript();
           window.RPLFullTranscript = fullTranscript;
-          const backupSaved = await sendTranscriptBackupOnEvaluate({
-            attemptNumber,
-            questionNumber,
-          });
           const nextAttemptForWebhook = Math.min(MAX_ATTEMPTS, attemptNumber + 1);
-          logNextDebug("Check Response - sending attempt to webhook", { attemptNumber, nextAttemptForWebhook, currentAttempts });
-          let attemptAndTranscriptSaved = false;
-          const ATTEMPT_RETRY_DELAYS_MS = [2000, 4000];
-          for (let attemptIdx = 0; attemptIdx <= ATTEMPT_RETRY_DELAYS_MS.length; attemptIdx += 1) {
-            attemptAndTranscriptSaved = await sendCurrentAttemptOnEvaluate(nextAttemptForWebhook, questionNumber, `Attempt webhook (try ${attemptIdx + 1})`);
-            logNextDebug("Attempt webhook result", { try: attemptIdx + 1, saved: attemptAndTranscriptSaved });
-            if (attemptAndTranscriptSaved) break;
-            if (attemptIdx < ATTEMPT_RETRY_DELAYS_MS.length) {
-              logNextDebug("Attempt webhook retrying", { nextDelayMs: ATTEMPT_RETRY_DELAYS_MS[attemptIdx] });
-              await wait(ATTEMPT_RETRY_DELAYS_MS[attemptIdx]);
-            }
-          }
+          logNextDebug("Check Response - sending webhooks in parallel", { attemptNumber, nextAttemptForWebhook, currentAttempts });
+          // Run backup and attempt webhooks in parallel — they are independent.
+          const [backupSaved, attemptAndTranscriptSaved] = await Promise.all([
+            sendTranscriptBackupOnEvaluate({ attemptNumber, questionNumber }),
+            (async () => {
+              let saved = false;
+              const ATTEMPT_RETRY_DELAYS_MS = [2000, 4000];
+              for (let attemptIdx = 0; attemptIdx <= ATTEMPT_RETRY_DELAYS_MS.length; attemptIdx += 1) {
+                saved = await sendCurrentAttemptOnEvaluate(nextAttemptForWebhook, questionNumber, `Attempt webhook (try ${attemptIdx + 1})`);
+                logNextDebug("Attempt webhook result", { try: attemptIdx + 1, saved });
+                if (saved) break;
+                if (attemptIdx < ATTEMPT_RETRY_DELAYS_MS.length) {
+                  logNextDebug("Attempt webhook retrying", { nextDelayMs: ATTEMPT_RETRY_DELAYS_MS[attemptIdx] });
+                  await wait(ATTEMPT_RETRY_DELAYS_MS[attemptIdx]);
+                }
+              }
+              return saved;
+            })(),
+          ]);
           const saveWarning = !attemptAndTranscriptSaved
             ? "the attempt/transcript update did not complete"
             : !backupSaved
