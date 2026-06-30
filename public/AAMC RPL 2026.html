@@ -2440,6 +2440,29 @@ Job Title: ${jobTitleValue || "N/A"}
         return false;
       };
 
+      const ensureCompleteTranscriptQuestions = async () => {
+        const hasPreviousQuestionsData = currentIndex > 0 && transcriptQuestions.slice(0, currentIndex).some(Boolean);
+        if (!hasPreviousQuestionsData && currentIndex > 0) {
+          logAssessmentDebug("Transcript merge", "Previous questions missing from transcriptQuestions, attempting to fetch persisted transcript.");
+          try {
+            const persistedTranscript = await fetchPersistedTranscript();
+            if (persistedTranscript) {
+              const persistedQuestions = parseTranscriptQuestions(persistedTranscript);
+              let mergedCount = 0;
+              persistedQuestions.forEach((entry, index) => {
+                if (entry && !transcriptQuestions[index]) {
+                  transcriptQuestions[index] = entry;
+                  mergedCount += 1;
+                }
+              });
+              logAssessmentDebug("Transcript merge", `Merged ${mergedCount} questions from persisted transcript.`);
+            }
+          } catch (err) {
+            logAssessmentDebug("Transcript merge error", err?.message || String(err));
+          }
+        }
+      };
+
       const sendTranscriptOnNext = async () => {
         const currentQuestion = questions[currentIndex] || {};
         const currentQuestionText = getQuestionText(currentQuestion);
@@ -2449,6 +2472,7 @@ Job Title: ${jobTitleValue || "N/A"}
           objective: currentObjectiveText,
           hint: currentHintText,
         });
+        await ensureCompleteTranscriptQuestions();
         fullTranscript = buildFullTranscript();
         window.RPLFullTranscript = fullTranscript;
         logAssessmentDebug("Transcript snapshot", "Updated locally before moving question.");
