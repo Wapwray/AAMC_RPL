@@ -4538,7 +4538,17 @@ END_REVIEW>>>`;
           });
           const nextAttemptForWebhook = Math.min(MAX_ATTEMPTS, attemptNumber + 1);
           logNextDebug("Check Response - sending attempt to webhook", { attemptNumber, nextAttemptForWebhook, currentAttempts });
-          const attemptAndTranscriptSaved = await sendCurrentAttemptOnEvaluate(nextAttemptForWebhook, questionNumber);
+          let attemptAndTranscriptSaved = false;
+          const ATTEMPT_RETRY_DELAYS_MS = [2000, 4000];
+          for (let attemptIdx = 0; attemptIdx <= ATTEMPT_RETRY_DELAYS_MS.length; attemptIdx += 1) {
+            attemptAndTranscriptSaved = await sendCurrentAttemptOnEvaluate(nextAttemptForWebhook, questionNumber, `Attempt webhook (try ${attemptIdx + 1})`);
+            logNextDebug("Attempt webhook result", { try: attemptIdx + 1, saved: attemptAndTranscriptSaved });
+            if (attemptAndTranscriptSaved) break;
+            if (attemptIdx < ATTEMPT_RETRY_DELAYS_MS.length) {
+              logNextDebug("Attempt webhook retrying", { nextDelayMs: ATTEMPT_RETRY_DELAYS_MS[attemptIdx] });
+              await wait(ATTEMPT_RETRY_DELAYS_MS[attemptIdx]);
+            }
+          }
           const saveWarning = !attemptAndTranscriptSaved
             ? "the attempt/transcript update did not complete"
             : !backupSaved
@@ -4651,7 +4661,7 @@ END_REVIEW>>>`;
           };
           logAssessmentDebug("Transcript webhook", "Sending payload");
           logAssessmentDebug("Transcript webhook payload", transcriptWebhookPayload);
-          const TRANSCRIPT_RETRY_DELAYS_MS = [2000, 4000];
+          const TRANSCRIPT_RETRY_DELAYS_MS = [3000, 6000, 10000];
           let transcriptResponse = null;
           let transcriptResponseText = "";
           for (let attempt = 0; attempt <= TRANSCRIPT_RETRY_DELAYS_MS.length; attempt += 1) {
