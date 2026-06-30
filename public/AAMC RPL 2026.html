@@ -2445,15 +2445,7 @@ Job Title: ${jobTitleValue || "N/A"}
       const ensureCompleteTranscriptQuestions = async () => {
         if (transcriptMergeAttempted) return;
         transcriptMergeAttempted = true;
-        const hasPreviousQuestionsData = currentIndex > 0 && transcriptQuestions.slice(0, currentIndex).some(Boolean);
-        if (!hasPreviousQuestionsData && currentIndex > 0) {
-          logAssessmentDebug("Transcript merge", "Previous questions missing from transcriptQuestions, attempting to fetch persisted transcript.");
-        } else if (currentIndex > 0) {
-          logAssessmentDebug("Transcript merge", "Verifying transcriptQuestions against persisted transcript to prevent overwrite on restart.");
-        } else {
-          transcriptMergeAttempted = false;
-          return;
-        }
+        logAssessmentDebug("Transcript merge", "Fetching persisted transcript to prevent overwrite on restart.");
         try {
           const persistedTranscript = await fetchPersistedTranscript();
           if (persistedTranscript) {
@@ -2487,7 +2479,9 @@ Job Title: ${jobTitleValue || "N/A"}
                 }
               }
             });
-            logAssessmentDebug("Transcript merge", `Merged ${mergedCount} questions and ${mergedAttempts} attempts from persisted transcript.`);
+            logAssessmentDebug("Transcript merge", `Merged ${mergedCount} questions and ${mergedAttempts} attempts from persisted transcript. transcriptQuestions now has ${transcriptQuestions.filter(Boolean).length} entries.`);
+          } else {
+            logAssessmentDebug("Transcript merge", "No persisted transcript returned from resume webhook.");
           }
         } catch (err) {
           logAssessmentDebug("Transcript merge error", err?.message || String(err));
