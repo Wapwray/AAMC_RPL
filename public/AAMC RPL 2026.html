@@ -801,6 +801,8 @@
                   happy with the result, continue to confirm your details below.
                 </div>
                 <button id="takePhotoBtn">Take Photo</button>
+                <input id="uploadPhotoInput" class="hidden" type="file" accept="image/*" />
+                <button id="uploadPhotoBtn" class="secondary">Upload Photo</button>
               </div>
             </div>
             <div class="collectPreview">
@@ -981,6 +983,8 @@
       const collectGreetingEl = document.getElementById("collectGreeting");
       const cameraSelectEl = document.getElementById("cameraSelect");
       const takePhotoBtn = document.getElementById("takePhotoBtn");
+      const uploadPhotoBtn = document.getElementById("uploadPhotoBtn");
+      const uploadPhotoInputEl = document.getElementById("uploadPhotoInput");
       const confirmIndustryBtn = document.getElementById("confirmIndustryBtn");
       const confirmJobTitleBtn = document.getElementById("confirmJobTitleBtn");
       const cameraPreviewEl = document.getElementById("cameraPreview");
@@ -1528,6 +1532,18 @@
         }
       };
 
+      const applyCapturedPhoto = (dataUrl, statusMessage = "Photo captured.") => {
+        if (!dataUrl) return;
+        lastPhotoDataUrl = dataUrl;
+        if (photoPreviewEl) {
+          photoPreviewEl.src = lastPhotoDataUrl;
+          photoPreviewEl.classList.remove("hidden");
+        }
+        if (photoPlaceholderEl) photoPlaceholderEl.classList.add("hidden");
+        setStatus(statusMessage);
+        setCollectStepsEnabled({ industry: true, jobTitle: false, begin: false });
+      };
+
       const capturePhoto = () => {
         if (!cameraStream || !cameraPreviewEl || !photoCanvasEl) return;
         const track = cameraStream.getVideoTracks()[0];
@@ -1538,14 +1554,27 @@
         photoCanvasEl.height = height;
         const context = photoCanvasEl.getContext("2d");
         context.drawImage(cameraPreviewEl, 0, 0, width, height);
-        lastPhotoDataUrl = photoCanvasEl.toDataURL("image/jpeg", 0.9);
-        if (photoPreviewEl) {
-          photoPreviewEl.src = lastPhotoDataUrl;
-          photoPreviewEl.classList.remove("hidden");
+        applyCapturedPhoto(photoCanvasEl.toDataURL("image/jpeg", 0.9));
+      };
+
+      const uploadPhoto = async (file) => {
+        if (!file) return;
+        if (!file.type || !file.type.startsWith("image/")) {
+          setStatus("Please choose an image file.");
+          return;
         }
-        if (photoPlaceholderEl) photoPlaceholderEl.classList.add("hidden");
-        setStatus("Photo captured.");
-        setCollectStepsEnabled({ industry: true, jobTitle: false, begin: false });
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (typeof reader.result === "string") {
+            applyCapturedPhoto(reader.result, "Photo uploaded.");
+          } else {
+            setStatus("Unable to read the selected image.");
+          }
+        };
+        reader.onerror = () => {
+          setStatus(reader.error?.message || "Unable to read the selected image.");
+        };
+        reader.readAsDataURL(file);
       };
 
       const isNoTranscriptResponse = (value) => {
@@ -3960,9 +3989,9 @@ Job Title: ${jobTitleValue || "N/A"}
         managedStaffSectionEl.classList.remove("hidden");
         const numbersText = msQuestionNumbers.join(", ");
         if (managedStaff) {
-          managedStaffMessageEl.innerHTML = `You have been flagged as managing staff, so will be asked the extra questions: <strong>${numbersText}</strong>`;
+          managedStaffMessageEl.innerHTML = `You have been flagged as managing staff, so will be asked the questions: <strong>${numbersText}</strong>`;
         } else {
-          managedStaffMessageEl.innerHTML = `You have not been flagged as managing staff, so will not be asked the extra questions: <strong>${numbersText}</strong>`;
+          managedStaffMessageEl.innerHTML = `You have not been flagged as managing staff, so will not be asked the questions: <strong>${numbersText}</strong>`;
         }
         if (managedStaffToggleEl) managedStaffToggleEl.checked = managedStaff;
         if (managedStaffValueEl) managedStaffValueEl.textContent = managedStaff ? "Yes" : "No";
@@ -4620,6 +4649,14 @@ END_REVIEW>>>`;
           return;
         }
         capturePhoto();
+      });
+      uploadPhotoBtn?.addEventListener("click", () => {
+        uploadPhotoInputEl?.click();
+      });
+      uploadPhotoInputEl?.addEventListener("change", (event) => {
+        const file = event.target?.files?.[0] || null;
+        uploadPhoto(file);
+        if (uploadPhotoInputEl) uploadPhotoInputEl.value = "";
       });
       confirmIndustryBtn?.addEventListener("click", () => {
         if (!industryEl?.value?.trim()) {
