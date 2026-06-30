@@ -2192,8 +2192,12 @@
         if (finalisingOverlayEl) finalisingOverlayEl.classList.add("hidden");
       };
 
-      const showThinkingOverlay = () => {
-        if (thinkingOverlayEl) thinkingOverlayEl.classList.remove("hidden");
+      const showThinkingOverlay = (label = "Thinking") => {
+        if (thinkingOverlayEl) {
+          const modal = thinkingOverlayEl.querySelector(".thinkingModal");
+          if (modal) modal.innerHTML = `${label}<br>Please Wait`;
+          thinkingOverlayEl.classList.remove("hidden");
+        }
       };
 
       const hideThinkingOverlay = () => {
@@ -3816,10 +3820,14 @@ Job Title: ${jobTitleValue || "N/A"}
         const total = questions.length;
         const number = currentIndex + 1;
         const transcriptAttemptCount = transcriptQuestions[currentIndex]?.attempts?.length || 0;
+        const guidanceEntries = resumeCurrentQuestionNumber === number
+          ? parseGuidanceWindowSnapshot(resumeGuidanceWindowText)
+          : [];
+        const guidanceResponseCount = guidanceEntries.filter((e) => e.role === "user" && /^Response\s+\d+/i.test(e.text.trim())).length;
         const resumeAttemptCount = resumeCurrentQuestionNumber === number && resumeCurrentAttemptNumber
-          ? Math.max(0, resumeCurrentAttemptNumber)
+          ? Math.max(0, resumeCurrentAttemptNumber - 1)
           : 0;
-        const restoredAttemptCount = Math.min(MAX_ATTEMPTS, Math.max(transcriptAttemptCount, resumeAttemptCount));
+        const restoredAttemptCount = Math.min(MAX_ATTEMPTS, Math.max(transcriptAttemptCount, resumeAttemptCount, guidanceResponseCount));
         updateQuestionAttemptHeader(restoredAttemptCount);
         questionTextEl.innerHTML = getQuestionTextHtml(question) || "No question available.";
         answerInputEl.value = "";
@@ -3852,6 +3860,11 @@ Job Title: ${jobTitleValue || "N/A"}
         if (hasCompletedMaxAttemptForCurrentQuestion()) {
           setStatus("Maximum attempts reached. Please move to the next question.");
           setAttemptLockState(true);
+        }
+        if (restoredAttemptCount >= MAX_ATTEMPTS && !nextQuestionInFlight) {
+          logAssessmentDebug("Auto-advance", `Question ${number} has ${restoredAttemptCount} responses, auto-advancing to Next Question.`);
+          nextBtn.disabled = false;
+          nextBtn.click();
         }
       };
 
@@ -4380,7 +4393,7 @@ END_REVIEW>>>`;
         nextQuestionInFlight = true;
         nextBtn.disabled = true;
         setStatus("Saving transcript and moving to next question...");
-        showThinkingOverlay();
+        showThinkingOverlay("Processing");
 
         const ctx = getStudentContext();
         const isLastQuestion = currentIndex + 1 >= questions.length;
