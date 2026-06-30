@@ -4519,7 +4519,6 @@ END_REVIEW>>>`;
           await sendRecordingOnEvaluate(attemptNumber, questionNumber);
           const prompt = buildPrompt(questions[currentIndex], currentResponses);
           const responseText = await callTextModel(prompt, { mode: "assessor", temperature: 0, max_tokens: 900 });
-          hideThinkingOverlay();
           const assessorFeedback = buildAssessorFeedbackFromResponse(responseText, currentAttempts);
           const showNextQuestionOnly = assessorFeedback.shouldContinue;
           addChatEntry(assessorFeedback.displayText, "ai", assessorFeedback.transcriptAttemptText);
