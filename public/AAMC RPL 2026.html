@@ -3932,13 +3932,20 @@ Job Title: ${jobTitleValue || "N/A"}
           .slice(0, currentAttempts)
           .map((attempt) => attempt.answer)
           .filter(Boolean);
-        evaluateBtn.disabled = true;
-        nextBtn.disabled = true;
+        // Unlock attempt state first — this restores saved button states from a
+        // previous question's lock.  We must do this BEFORE setting our own
+        // button states below, otherwise the restoration can override them.
+        setAttemptLockState(false);
         chatHistoryEl.textContent = "";
         renderGuidanceWindowSnapshot();
-        setAttemptLockState(false);
+        // Now explicitly set button states for the freshly displayed question.
+        evaluateBtn.disabled = true;
+        nextBtn.disabled = true;
         if (showHintBtn) showHintBtn.disabled = false;
         updateEvaluateButtonState();
+        // Next Question is enabled only when the student has already made at
+        // least one attempt (either restored from a resume or just evaluated).
+        // On a brand-new question with no attempts it stays disabled.
         if (restoredAttemptCount >= 1 && nextBtn) {
           nextBtn.disabled = false;
         }
