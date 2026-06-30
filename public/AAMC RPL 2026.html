@@ -3542,6 +3542,41 @@ Job Title: ${jobTitleValue || "N/A"}
         }
       };
 
+      const sendTranscriptBackupOnEvaluate = async ({ attemptNumber, questionNumber }) => {
+        const ctx = getStudentContext();
+        const fileName = `${ctx.fullName} - ${ctx.contactId} - ${questionNumber} - ${attemptNumber}.txt`;
+        const payload = {
+          FullName: ctx.fullName,
+          ContactID: String(ctx.contactId),
+          GivenName: ctx.givenName,
+          CurrentQuestion: String(questionNumber),
+          CurrentAttempt: String(attemptNumber),
+          FileName: fileName,
+          ConversationPartTranscript: buildGuidanceWindowSnapshot({ questionNumber, attemptNumber }),
+        };
+        logAssessmentDebug("Transcript backup webhook", "Sending payload");
+        logAssessmentDebug("Transcript backup payload", payload);
+        try {
+          const response = await fetch(TRANSCRIPT_BACKUP_WEBHOOK_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          logAssessmentDebug("Transcript backup webhook", `${response.status} ${response.statusText}`);
+          const text = await response.text();
+          if (text) {
+            logAssessmentDebug("Transcript backup response", text);
+          }
+          if (!response.ok) {
+            throw new Error(`Transcript backup webhook failed (${response.status}) ${response.statusText}`.trim());
+          }
+          return true;
+        } catch (error) {
+          logAssessmentDebug("Transcript backup error", error?.message || String(error));
+          return false;
+        }
+      };
+
       const fetchAzureSpeechToken = async () => {
         const now = Date.now();
         if (speechTokenInfo.token && speechTokenInfo.region && speechTokenInfo.expiresAt - 60000 > now) {
@@ -4648,12 +4683,17 @@ END_REVIEW>>>`;
           fullTranscript = buildFullTranscript();
           window.RPLFullTranscript = fullTranscript;
           const nextAttemptForWebhook = Math.min(MAX_ATTEMPTS, attemptNumber + 1);
-          logNextDebug("Check Response - sending attempt webhook", { attemptNumber, nextAttemptForWebhook, currentAttempts });
-          const attemptAndTranscriptSaved = await sendCurrentAttemptOnEvaluate(nextAttemptForWebhook, questionNumber);
-          logNextDebug("Attempt webhook result", { saved: attemptAndTranscriptSaved });
+          logNextDebug("Check Response - sending webhooks", { attemptNumber, nextAttemptForWebhook, currentAttempts });
+          const [backupSaved, attemptAndTranscriptSaved] = await Promise.all([
+            sendTranscriptBackupOnEvaluate({ attemptNumber, questionNumber }),
+            sendCurrentAttemptOnEvaluate(nextAttemptForWebhook, questionNumber),
+          ]);
+          logNextDebug("Webhook results", { backupSaved, attemptAndTranscriptSaved });
           const saveWarning = !attemptAndTranscriptSaved
             ? "the attempt/transcript update did not complete"
-            : "";
+            : !backupSaved
+              ? "the transcript backup did not complete"
+              : "";
           if (showNextQuestionOnly) {
             logNextDebug("Check Response - showNextQuestionOnly path", { showNextQuestionOnly, saveWarning, currentAttempts });
             setStatus(!saveWarning
