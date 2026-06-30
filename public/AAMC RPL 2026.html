@@ -4383,6 +4383,7 @@ END_REVIEW>>>`;
           entry.attempts.push(attemptRecord);
           entry.summary = assessorFeedback.assessorSummary;
           entry.overallAssessment = assessorFeedback.overallAssessment;
+          await ensureCompleteTranscriptQuestions();
           fullTranscript = buildFullTranscript();
           window.RPLFullTranscript = fullTranscript;
           const backupSaved = await sendTranscriptBackupOnEvaluate({
@@ -4429,6 +4430,7 @@ END_REVIEW>>>`;
           if (currentAttempts >= MAX_ATTEMPTS) {
             evaluateBtn.disabled = true;
           }
+          transcriptMergeAttempted = false;
         }
       });
 
