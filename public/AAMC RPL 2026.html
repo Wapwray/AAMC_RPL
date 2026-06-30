@@ -3845,10 +3845,14 @@ Job Title: ${jobTitleValue || "N/A"}
           Object.keys(question).forEach((key) => keys.add(key));
           return keys;
         }, new Set());
-        const orderedKeys = Array.from(allKeys).filter((k) => !k.includes("@odata") && !k.includes("#") && !k.startsWith("{") && k !== "ItemInternalId" && k !== "Modified" && k !== "Created" && k !== "Author" && k !== "Editor" && k !== "field_6" && k !== "field_7" && k !== "field_8");
+        const orderedKeys = Array.from(allKeys).filter((k) => !k.includes("@odata") && !k.includes("#") && !k.startsWith("{") && k !== "ItemInternalId" && k !== "Modified" && k !== "Created" && k !== "Author" && k !== "Editor" && k !== "field_6" && k !== "field_7");
+
+        const friendlyLabels = {
+          "field_8": "Managed Staff",
+        };
 
         const headerRow = orderedKeys
-          .map((key) => `<th>${escapeHtml(key)}</th>`)
+          .map((key) => `<th>${escapeHtml(friendlyLabels[key] || key)}</th>`)
           .join("");
 
         const bodyRows = questionList
@@ -3935,28 +3939,12 @@ Job Title: ${jobTitleValue || "N/A"}
         setAttemptLockState(false);
         if (showHintBtn) showHintBtn.disabled = false;
         updateEvaluateButtonState();
-        if (resumeCurrentQuestionNumber === number && resumeAttemptCount > 1 && nextBtn) {
+        if (restoredAttemptCount >= 1 && nextBtn) {
           nextBtn.disabled = false;
         }
         if (hasCompletedMaxAttemptForCurrentQuestion()) {
           setStatus("Maximum attempts reached. Please move to the next question.");
           setAttemptLockState(true);
-        }
-        if (restoredAttemptCount >= MAX_ATTEMPTS && !nextQuestionInFlight) {
-          logAssessmentDebug("Auto-advance", `Question ${number} has ${restoredAttemptCount} responses, auto-advancing to Next Question.`);
-          nextBtn.disabled = false;
-          nextBtn.click();
-        }
-        if (!nextQuestionInFlight && restoredAttemptCount < MAX_ATTEMPTS) {
-          const guidanceEntriesForAutoAdvance = parseGuidanceWindowSnapshot(resumeGuidanceWindowText);
-          const hasContinueSignal = guidanceEntriesForAutoAdvance.some((e) =>
-            e.role === "ai" && e.text.toLowerCase().includes(NEXT_QUESTION_DISPLAY_SIGNAL)
-          );
-          if (hasContinueSignal) {
-            logAssessmentDebug("Auto-advance", `Question ${number} guidance window contains continue signal, auto-advancing to Next Question.`);
-            nextBtn.disabled = false;
-            nextBtn.click();
-          }
         }
       };
 
