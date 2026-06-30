@@ -4380,6 +4380,7 @@ END_REVIEW>>>`;
         nextQuestionInFlight = true;
         nextBtn.disabled = true;
         setStatus("Saving transcript and moving to next question...");
+        showThinkingOverlay();
 
         const ctx = getStudentContext();
         const isLastQuestion = currentIndex + 1 >= questions.length;
@@ -4460,10 +4461,12 @@ END_REVIEW>>>`;
           logDebugDetail("Next question error", error?.message || String(error));
           logAssessmentDebug("Next error", error?.message || String(error));
           setStatus(error?.message || "Next webhook failed.");
+          hideThinkingOverlay();
           nextQuestionInFlight = false;
           nextBtn.disabled = false;
           return;
         }
+        hideThinkingOverlay();
         if (!isLastQuestion) {
           sendCurrentAttemptOnEvaluate(1, nextQuestionValue, "Attempt reset webhook")
             .then((saved) => {
