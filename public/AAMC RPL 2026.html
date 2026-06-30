@@ -666,6 +666,17 @@
             <button id="welcomeQuestionsBtn" class="secondary" type="button" style="font-size: 13px; padding: 6px 14px;">Questions</button>
             <button id="welcomeTranscriptBtn" class="secondary" type="button" style="font-size: 13px; padding: 6px 14px;">Current Transcript</button>
           </div>
+          <div id="managedStaffSection" class="managedStaffSection hidden">
+            <div class="managedStaffMessage" id="managedStaffMessage"></div>
+            <div class="managedStaffToggleRow">
+              <span class="managedStaffToggleLabel">If this is incorrect, change this setting:</span>
+              <label class="managedStaffToggle">
+                <input type="checkbox" id="managedStaffToggle" />
+                <span class="managedStaffToggleKnob"></span>
+              </label>
+              <span class="managedStaffValue" id="managedStaffValue">No</span>
+            </div>
+          </div>
           <div id="welcomeDebugSection" class="assessmentDebug welcomeDebugPanel hidden">
             <div class="assessmentDebugHeader">
               <div class="assessmentDebugTitle">Welcome Debug</div>
@@ -974,10 +985,16 @@
       const nextDebugLogEl = document.getElementById("nextDebugLog");
       const nextDebugToggleBtn = document.getElementById("nextDebugToggle");
       const nextDebugClearBtn = document.getElementById("nextDebugClear");
+      const managedStaffSectionEl = document.getElementById("managedStaffSection");
+      const managedStaffMessageEl = document.getElementById("managedStaffMessage");
+      const managedStaffToggleEl = document.getElementById("managedStaffToggle");
+      const managedStaffValueEl = document.getElementById("managedStaffValue");
       // const modeToggleEl = document.getElementById("modeToggle");
       // const modeLabelEl = document.getElementById("modeLabel");
 
+      let allQuestions = [];
       let questions = [];
+      let managedStaff = false;
       let currentIndex = 0;
       let fullName = "";
       let firstName = "";
@@ -1556,6 +1573,11 @@
           if (contactId && contactId.trim()) {
             nextInfo.contactId = contactId.trim();
             mutated = true;
+          }
+
+          const managedStaffParam = params.get("managedStaff") ?? params.get("ManagedStaff") ?? params.get("managedstaff");
+          if (managedStaffParam) {
+            managedStaff = managedStaffParam.trim().toLowerCase() === "yes";
           }
 
           if (mutated) {
@@ -3796,6 +3818,44 @@ Job Title: ${jobTitleValue || "N/A"}
         return items;
       };
 
+      const getQuestionManagedStaffValue = (question) => {
+        const raw = String(question?.field_8 ?? "").trim().toLowerCase();
+        return raw === "yes" ? "yes" : raw === "no" ? "no" : "";
+      };
+
+      const getManagedStaffQuestionNumbers = (questionList) => {
+        const numbers = [];
+        questionList.forEach((question, index) => {
+          if (getQuestionManagedStaffValue(question) === "yes") {
+            numbers.push(index + 1);
+          }
+        });
+        return numbers;
+      };
+
+      const filterQuestionsByManagedStaff = (questionList, isManagedStaff) => {
+        if (isManagedStaff) return questionList;
+        return questionList.filter((question) => getQuestionManagedStaffValue(question) !== "yes");
+      };
+
+      const updateManagedStaffMessage = () => {
+        if (!managedStaffSectionEl || !managedStaffMessageEl) return;
+        const msQuestionNumbers = getManagedStaffQuestionNumbers(allQuestions);
+        if (!msQuestionNumbers.length) {
+          managedStaffSectionEl.classList.add("hidden");
+          return;
+        }
+        managedStaffSectionEl.classList.remove("hidden");
+        const numbersText = msQuestionNumbers.join(", ");
+        if (managedStaff) {
+          managedStaffMessageEl.innerHTML = `You have been flagged as managing staff, so will be asked the extra questions: <strong>${numbersText}</strong>`;
+        } else {
+          managedStaffMessageEl.innerHTML = `You have not been flagged as managing staff, so will not be asked the extra questions: <strong>${numbersText}</strong>`;
+        }
+        if (managedStaffToggleEl) managedStaffToggleEl.checked = managedStaff;
+        if (managedStaffValueEl) managedStaffValueEl.textContent = managedStaff ? "Yes" : "No";
+      };
+
       const refreshQuestionsFromWebhook = async () => {
         if (questionsRefreshInFlight) return;
         questionsRefreshInFlight = true;
@@ -3809,7 +3869,8 @@ Job Title: ${jobTitleValue || "N/A"}
         try {
           const targetQuestionNumber = Math.max(1, currentIndex + 1);
           const items = await fetchQuestionsFromWebhook();
-          questions = items;
+          allQuestions = items;
+          questions = filterQuestionsByManagedStaff(allQuestions, managedStaff);
           if (tableBtn) tableBtn.disabled = false;
 
           if (questions.length) {
@@ -4252,7 +4313,8 @@ END_REVIEW>>>`;
 
         try {
           const items = await fetchQuestionsFromWebhook();
-          questions = items;
+          allQuestions = items;
+          questions = filterQuestionsByManagedStaff(allQuestions, managedStaff);
           if (tableBtn) tableBtn.disabled = false;
           setupCard.classList.add("hidden");
           quizCard.classList.remove("hidden");
@@ -4324,22 +4386,43 @@ END_REVIEW>>>`;
       setCollectStepsEnabled({ industry: false, jobTitle: false, begin: false });
       loadWelcomeWebhook();
 
+      // Pre-load questions so the managed staff message can show question numbers.
+      (async () => {
+        try {
+          const items = await fetchQuestionsFromWebhook();
+          allQuestions = items;
+          questions = filterQuestionsByManagedStaff(allQuestions, managedStaff);
+          updateManagedStaffMessage();
+        } catch (err) {
+          logWelcomeDebug("Pre-load questions error", err?.message || String(err));
+        }
+      })();
+
+      managedStaffToggleEl?.addEventListener("change", () => {
+        managedStaff = managedStaffToggleEl.checked;
+        if (managedStaffValueEl) managedStaffValueEl.textContent = managedStaff ? "Yes" : "No";
+        questions = filterQuestionsByManagedStaff(allQuestions, managedStaff);
+        updateManagedStaffMessage();
+      });
+
       welcomeResetBtn?.addEventListener("click", async () => {
         await runWelcomeReset();
       });
 
       welcomeQuestionsBtn?.addEventListener("click", async () => {
-        if (!questions.length) {
+        if (!allQuestions.length) {
           setStatus("Questions not loaded yet.");
           try {
             const items = await fetchQuestionsFromWebhook();
-            questions = items;
+            allQuestions = items;
+            questions = filterQuestionsByManagedStaff(allQuestions, managedStaff);
+            updateManagedStaffMessage();
           } catch (err) {
             setStatus(err?.message || "Unable to load questions.");
             return;
           }
         }
-        const html = buildQuestionsTableHtml(questions);
+        const html = buildQuestionsTableHtml(allQuestions);
         const reportWindow = window.open("", "RPLQuestionTable", "width=1100,height=700,scrollbars=yes");
         if (!reportWindow) {
           setStatus("Popup blocked. Please allow pop-ups to view the questions.");
