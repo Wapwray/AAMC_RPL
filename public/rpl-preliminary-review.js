@@ -844,9 +844,13 @@ Rules:
   const createQuestionReview = (item, analysis, index) => {
     const spec = item.officialQuestionSpec || {};
     const block = item.parsedQuestionBlock || null;
+    const hasBlock = Boolean(block);
     const attempts = block && Array.isArray(block.attempts) ? block.attempts : [];
     const transcriptStatus = shortStatusFromAnyValue(block?.normalisedOverallAssessment || block?.rawOverallAssessment || "");
-    const shortStatus = transcriptStatus || SHORT_NOT_AVAILABLE;
+    const analysisStatus = shortStatusFromAnyValue(analysis?.shortStatus || analysis?.preliminaryStatus || "");
+    const shortStatus = hasBlock
+      ? (transcriptStatus || analysisStatus || SHORT_NOT_AVAILABLE)
+      : (analysisStatus || SHORT_QUESTION_NOT_ASKED);
 
     const section = getDisplaySection({ ...spec, section: spec.section || analysis?.section || item.section });
     const questionNumber = item.questionNumber !== undefined && item.questionNumber !== null && item.questionNumber !== ""
