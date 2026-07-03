@@ -3,6 +3,14 @@ const crypto = require("crypto");
 const fs = require("fs/promises");
 const path = require("path");
 
+// Load environment variables from .env file (if present).
+try {
+  const dotenv = require("dotenv");
+  dotenv.config({ path: path.join(__dirname, ".env") });
+} catch {
+  // dotenv not installed — env vars must come from shell/system.
+}
+
 const INDUSTRY_API_URL =
   "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/cdaf89af8b5349478d4801c5d3bc1587/triggers/manual/paths/invoke?api-version=1";
 const LIVE_ASSESSMENT_QUESTIONS_URL =
@@ -440,17 +448,15 @@ app.post("/api/analysis/chat", async (req, res) => {
     deployment = getModelEnv("DEPLOYMENT");
     modelName = getModelEnv("MODEL_NAME");
     
-    // Default to OpenAI v1 format for non-Deepseek modes (restored from original working state).
-    let apiStyleOverride = getModelEnv("API_STYLE").toLowerCase();
-    useOpenAiV1 = !isDeepseek;  // Always true for Azure OpenAI unless explicitly overridden
+    // Default to OpenAI v1 format for non-Deepseek modes (matches original working behavior).
+    useOpenAiV1 = true;  // Always true unless explicitly overridden
     
     // Allow override via API_STYLE env var or endpoint pattern
-    if (apiStyleOverride === "v1" || apiStyleOverride === "openai-v1") {
-      useOpenAiV1 = true;
-    } else if (apiStyleOverride === "" || apiStyleOverride === "legacy" || apiStyleOverride === "azure-native") {
-      // Use legacy Azure OpenAI format: /openai/deployments/{deployment}/chat/completions?api-version=...
+    const apiStyleOverride = getModelEnv("API_STYLE").toLowerCase();
+    if (apiStyleOverride === "legacy" || apiStyleOverride === "azure-native") {
       useOpenAiV1 = false;
     } else if (/\/openai\/v\d$/i.test(String(endpoint || "").replace(/\/+$/, ""))) {
+      // Endpoint already ends with /openai/vN — no need to append again.
       useOpenAiV1 = true;
     }
 
@@ -459,7 +465,7 @@ app.post("/api/analysis/chat", async (req, res) => {
     if (!apiKey) missingVars.push("API_KEY");
     if (!endpoint) missingVars.push("AZURE_ENDPOINT");
     if (!deployment) missingVars.push("DEPLOYMENT");
-    if (!useOpenAiV1 && !apiVersion) missingVars.push("API_VERSION (required when API_STYLE is legacy/azure-native or empty)");
+    if (!useOpenAiV1 && !apiVersion) missingVars.push("API_VERSION (required when API_STYLE is legacy/azure-native)");
 
     if (missingVars.length > 0) {
       console.error(`[AI] Missing env vars for ${envPrefix}:`);
