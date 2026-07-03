@@ -410,6 +410,7 @@ app.post("/api/analysis/chat", async (req, res) => {
   }
 
   let apiKey, apiVersion, endpoint, deployment, modelName, useOpenAiV1;
+  let authHeader = "api-key";
 
   if (isDeepseek) {
     const deepEndpoint = String(process.env["RPL_DEEPSEEK_MODEL_ENDPOINT"] || "").replace(/\/+$/, "");
@@ -424,7 +425,8 @@ app.post("/api/analysis/chat", async (req, res) => {
     modelName = deepModelName;
     apiVersion = "";
     deployment = "";
-    useOpenAiV1 = false;
+    useOpenAiV1 = true; // Use standard OpenAI v1 format for Deepseek.
+    authHeader = "Authorization";
   } else {
     const isFinal = modeHeader === "final";
     const isAssessor = modeHeader === "assessor";
@@ -497,7 +499,7 @@ app.post("/api/analysis/chat", async (req, res) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "api-key": apiKey,
+        [authHeader]: isDeepseek ? `Bearer ${apiKey}` : apiKey,
       },
       body: JSON.stringify(body),
     });
