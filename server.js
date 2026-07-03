@@ -439,14 +439,29 @@ app.post("/api/analysis/chat", async (req, res) => {
     endpoint = getModelEnv("AZURE_ENDPOINT");
     deployment = getModelEnv("DEPLOYMENT");
     modelName = getModelEnv("MODEL_NAME");
-    const apiStyle = getModelEnv("API_STYLE").toLowerCase();
-    const endpointBase = String(endpoint || "").replace(/\/+$/, "");
-    useOpenAiV1 = apiStyle === "v1" ||
-      apiStyle === "openai-v1" ||
-      /\/openai\/v\d$/i.test(endpointBase) ||
-      (isAssessor && !apiVersion);
+    
+    // Default to OpenAI v1 format for non-Deepseek modes (restored from original working state).
+    let apiStyleOverride = getModelEnv("API_STYLE").toLowerCase();
+    useOpenAiV1 = !isDeepseek;  // Always true for Azure OpenAI unless explicitly overridden
+    
+    // Allow override via API_STYLE env var or endpoint pattern
+    if (apiStyleOverride === "v1" || apiStyleOverride === "openai-v1") {
+      useOpenAiV1 = true;
+    } else if (apiStyleOverride === "" || apiStyleOverride === "legacy" || apiStyleOverride === "azure-native") {
+      // Use legacy Azure OpenAI format: /openai/deployments/{deployment}/chat/completions?api-version=...
+      useOpenAiV1 = false;
+    } else if (/\/openai\/v\d$/i.test(String(endpoint || "").replace(/\/+$/, ""))) {
+      useOpenAiV1 = true;
+    }
 
-    if (!apiKey || !endpoint || !deployment || (!useOpenAiV1 && !apiVersion)) {
+    // Validate required env vars based on mode
+    const missingVars = [];
+    if (!apiKey) missingVars.push("API_KEY");
+    if (!endpoint) missingVars.push("AZURE_ENDPOINT");
+    if (!deployment) missingVars.push("DEPLOYMENT");
+    if (!useOpenAiV1 && !apiVersion) missingVars.push("API_VERSION (required when API_STYLE is legacy/azure-native or empty)");
+
+    if (missingVars.length > 0) {
       console.error(`[AI] Missing env vars for ${envPrefix}:`);
       console.error(`  API_KEY: ${!!apiKey}`);
       console.error(`  AZURE_ENDPOINT: ${!!endpoint}`);
