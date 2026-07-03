@@ -1912,21 +1912,28 @@
       const ensureTranscriptQuestion = (index, questionText, details = {}) => {
         if (!transcriptQuestions[index]) {
           transcriptQuestions[index] = {
-            questionNumber: details.questionNumber || "",
-            questionText: questionText || "",
-            objective: details.objective || "",
-            hint: details.hint || "",
-            section: details.section || "",
-            attempts: [],
-            summary: "",
-            overallAssessment: "",
+            questionNumber: "",
+            questionText, objective: details.objective || "", hint: details.hint || "", section: details.section || "", attempts: [], summary: "", overallAssessment: "", systemResponses: [],
           };
+        } else {
+          const existing = transcriptQuestions[index];
+          if (!existing.questionText && questionText) {
+            existing.questionText = questionText;
+          }
+          if (!existing.objective && details.objective) existing.objective = details.objective;
+          if (!existing.hint && details.hint) existing.hint = details.hint;
+          if (!existing.summary && details.summary) existing.summary = details.summary;
+          if (!existing.overallAssessment && details.overallAssessment) existing.overallAssessment = details.overallAssessment;
+          const existingAttemptCount = existing.attempts?.length || 0;
+          const persistedAttemptCount = details.attempts?.length || 0;
+          if (persistedAttemptCount > existingAttemptCount) {
+            for (let ai = existingAttemptCount; ai < persistedAttemptCount; ai += 1) {
+              if (details.attempts[ai]) {
+                existing.attempts[ai] = details.attempts[ai];
+              }
+            }
+          }
         }
-        if (details.questionNumber) transcriptQuestions[index].questionNumber = details.questionNumber;
-        if (questionText) transcriptQuestions[index].questionText = questionText;
-        if (details.objective) transcriptQuestions[index].objective = details.objective;
-        if (details.hint) transcriptQuestions[index].hint = details.hint;
-        if (details.section) transcriptQuestions[index].section = details.section;
         return transcriptQuestions[index];
       };
 
@@ -2481,6 +2488,13 @@ Job Title: ${jobTitleValue || "N/A"}
             const feedbackText = getTranscriptAttemptFeedbackText(attempt.feedback);
             if (feedbackText) {
               output += `AI Interviewer:\n${feedbackText}\n`;
+            }
+            // Emit captured system responses for this attempt
+            if (entry.systemResponses?.length > 0 && attemptIndex < entry.systemResponses.length) {
+              const sysResp = entry.systemResponses[attemptIndex];
+              if (sysResp?.response && sysResp.response.trim()) {
+                output += `AI Interviewer:\n${sysResp.response}\n`;
+              }
             }
             if (attempt.submittedAt) {
               output += `Submitted: ${formatDateTime(attempt.submittedAt)}\n`;
@@ -4516,10 +4530,8 @@ END_REVIEW>>>`;
         updateDebugVisibility();
         window.addEventListener("hashchange", updateDebugVisibility);
         await loadPromptTemplates();
-        await sendStudentContextOnLoad();
-        await populateMicrophones();
+        await populateCameras();
         if (!resume) {
-          await populateCameras();
           await startCamera();
           setCollectStepsEnabled({ industry: false, jobTitle: false, begin: false });
         }
@@ -4617,7 +4629,7 @@ END_REVIEW>>>`;
           .replace(/</g, "&lt;")
           .replace(/>/g, "&gt;");
         reportWindow.document.open();
-        reportWindow.document.write(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>RPL Current Transcript</title><style>body{margin:0;font-family:"Segoe UI",Tahoma,Geneva,Verdana,sans-serif;background:#f8fafc;color:#0f172a;}pre{white-space:pre-wrap;word-wrap:break-word;padding:20px;font-size:13px;line-height:1.5;}</style></head><body><pre>${escaped}</pre></body></html>`);
+        reportWindow.document.write(`<pre style="font-family:Segoe UI, Tahoma, Geneva, Verdana, sans-serif; white-space:pre-wrap;">${escaped}</pre>`);
         reportWindow.document.close();
       });
 
@@ -4773,6 +4785,15 @@ END_REVIEW>>>`;
           attemptRecord.feedback = assessorFeedback.transcriptAttemptText;
           const entry = ensureTranscriptQuestion(currentIndex, questionText, { objective: objectiveText, hint: hintText, section: sectionText });
           entry.questionText = questionText;
+          // Capture AI/system responses in transcript for complete conversation recording
+          if (assessorFeedback.displayText && assessorFeedback.displayText.trim()) {
+            if (!entry.systemResponses) entry.systemResponses = [];
+            entry.systemResponses.push({
+              turn: `AI Follow-up ${attemptNumber}`,
+              response: assessorFeedback.displayText,
+              timestamp: new Date().toISOString(),
+            });
+          }
           entry.attempts.push(attemptRecord);
           entry.summary = assessorFeedback.assessorSummary;
           entry.overallAssessment = assessorFeedback.overallAssessment;
