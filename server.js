@@ -402,15 +402,18 @@ app.get("/api/debug/models", (_req, res) => {
 
 app.post("/api/analysis/chat", async (req, res) => {
   const modeHeader = String(req.headers["x-rpl-mode"] || "").toLowerCase();
-
-  // Deepseek V4:Flash via dedicated env vars when x-rpl-mode=deepleake.
-  let isDeepseek = false;
-  if (modeHeader === "deepleake") {
-    isDeepseek = true;
-  }
+  
+  console.log(`[AI] ========== /api/analysis/chat called ==========`);
+  console.log(`[AI] x-rpl-mode header: "${modeHeader}"`);
 
   let apiKey, apiVersion, endpoint, deployment, modelName, useOpenAiV1;
   let authHeader = "api-key";
+
+  const isDeepseek = modeHeader === "deepleake";
+  
+  console.log(`[AI] isDeepseek=${isDeepseek}`);
+  const isFinal = !isDeepseek && modeHeader === "final";
+  const isAssessor = !isDeepseek && modeHeader === "assessor";
 
   if (isDeepseek) {
     const deepEndpoint = String(process.env["RPL_DEEPSEEK_MODEL_ENDPOINT"] || "").replace(/\/+$/, "");
@@ -428,8 +431,6 @@ app.post("/api/analysis/chat", async (req, res) => {
     useOpenAiV1 = true; // Use standard OpenAI v1 format for Deepseek.
     authHeader = "Authorization";
   } else {
-    const isFinal = modeHeader === "final";
-    const isAssessor = modeHeader === "assessor";
     const envPrefix = isFinal ? "RPL_FINAL" : isAssessor ? "RPL_ASSESSOR" : "RPL_ROUTER";
     const getModelEnv = (suffix) => process.env[`${envPrefix}_${suffix}`] || "";
 
@@ -446,6 +447,11 @@ app.post("/api/analysis/chat", async (req, res) => {
       (isAssessor && !apiVersion);
 
     if (!apiKey || !endpoint || !deployment || (!useOpenAiV1 && !apiVersion)) {
+      console.error(`[AI] Missing env vars for ${envPrefix}:`);
+      console.error(`  API_KEY: ${!!apiKey}`);
+      console.error(`  AZURE_ENDPOINT: ${!!endpoint}`);
+      console.error(`  DEPLOYMENT: ${!!deployment}`);
+      console.error(`  useOpenAiV1: ${useOpenAiV1}, API_VERSION: ${!!apiVersion}`);
       res.status(500).json({
         error: `Missing required ${envPrefix}_* environment variables.`,
       });
@@ -459,15 +465,26 @@ app.post("/api/analysis/chat", async (req, res) => {
     return;
   }
 
-  const normalizedBase = endpointBase
-    .replace(/\/api\/projects\/[^/]+$/i, "")
-    .replace(/\/+$/, "")
-    .replace(/\/openai(\/v\d+)?$/i, "");
-  const url = useOpenAiV1
-    ? `${normalizedBase}/openai/v1/chat/completions`
-    : `${normalizedBase}/openai/deployments/${encodeURIComponent(
-        deployment
-      )}/chat/completions?api-version=${encodeURIComponent(apiVersion)}`;
+  // Build URL based on mode (Deepseek vs Azure OpenAI)
+  const endpointBase = String(endpoint || "").replace(/\/+$/, "");
+  
+  let url;
+  if (isDeepseek) {
+    // Deepseek uses standard OpenAI v1 format — no /openai/ prefix, no api-key header
+    url = `${endpointBase}/v1/chat/completions`;
+  } else {
+    const normalizedBase = endpointBase
+      .replace(/\/api\/projects\/[^/]+$/i, "")
+      .replace(/\/openai(\/v\d+)?$/i, "");
+    
+    if (useOpenAiV1) {
+      url = `${normalizedBase}/openai/v1/chat/completions`;
+    } else {
+      url = `${normalizedBase}/openai/deployments/${encodeURIComponent(deployment)}/chat/completions?api-version=${encodeURIComponent(apiVersion)}`;
+    }
+  }
+
+  console.log(`[AI] Mode: ${modeHeader} | Deepseek: ${isDeepseek} | URL: ${url} | Model: ${modelName}`);
 
   const messages = [
     { role: "system", content: "You are a helpful assistant." },
@@ -495,6 +512,7 @@ app.post("/api/analysis/chat", async (req, res) => {
   }
 
   try {
+    console.log(`[AI] Auth header: ${authHeader} | Model: ${modelName}`);
     const response = await fetch(url, {
       method: "POST",
       headers: {
@@ -504,8 +522,10 @@ app.post("/api/analysis/chat", async (req, res) => {
       body: JSON.stringify(body),
     });
 
+    console.log(`[AI] Upstream status: ${response.status} | URL: ${url}`);
     if (!response.ok) {
       const text = await response.text();
+      console.error(`[AI] Upstream error (${response.status}):`, text.substring(0, 500));
       res.status(response.status).send(text || "Azure OpenAI error");
       return;
     }

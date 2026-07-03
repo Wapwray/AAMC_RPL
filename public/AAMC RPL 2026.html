@@ -4418,8 +4418,8 @@ END_REVIEW>>>`;
       const callTextModel = async (prompt, options = {}) => {
         let mode = options.mode || aiMode;
         
-        // If Deepseek mode is enabled and we're in assessor context, use Deepseek.
-        if (useDeepseekMode && !options.mode) {
+        // If Deepseek toggle is enabled and we're using an Azure OpenAI mode, switch to Deepseek.
+        if (useDeepseekMode) {
           mode = "deepleake";
         }
         
@@ -4428,17 +4428,25 @@ END_REVIEW>>>`;
         logDebug("Calling /api/analysis/chat");
         logDebugDetail("AI mode", mode);
         logDebugDetail("Prompt length", prompt?.length ?? 0);
+        
+        // Capture request details for debug panel
+        const requestBody = {
+          prompt,
+          temperature,
+          max_tokens: maxTokens,
+        };
+        const requestHeaders = {
+          "Content-Type": "application/json",
+          "x-rpl-mode": mode,
+        };
+        
+        logDebugDetail("Request headers", JSON.stringify(requestHeaders));
+        logDebugDetail("Request body (truncated)", JSON.stringify(requestBody).substring(0, 200) + "...");
+        
         const response = await fetch("/api/analysis/chat", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-rpl-mode": mode,
-          },
-          body: JSON.stringify({
-            prompt,
-            temperature,
-            max_tokens: maxTokens,
-          }),
+          headers: requestHeaders,
+          body: JSON.stringify(requestBody),
         });
 
         logDebugDetail("HTTP status", `${response.status} ${response.statusText}`);
@@ -4447,6 +4455,16 @@ END_REVIEW>>>`;
         if (!response.ok) {
           const text = await response.text();
           logDebug(`AI error ${response.status}: ${response.statusText} ${text}`);
+          
+          // Enhanced debug info for 502 errors
+          if (response.status === 502) {
+            logDebugDetail("=== 502 BAD GATEWAY DIAGNOSTIC INFO ===");
+            logDebugDetail("Mode header sent", mode);
+            logDebugDetail("useDeepseekMode flag", useDeepseekMode);
+            logDebugDetail("Server response text (truncated)", text.substring(0, 300));
+            logDebugDetail("=== END DIAGNOSTIC INFO ===");
+          }
+          
           throw new Error(`Azure OpenAI error: ${response.status} ${response.statusText} ${text}`);
         }
 
