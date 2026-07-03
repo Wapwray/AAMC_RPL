@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>AAMC RPL Quiz - V1.0</title>
+    <title>AAMC RPL Quiz - V3.0-Ornith</title>
     <script src="https://cdn.jsdelivr.net/npm/microsoft-cognitiveservices-speech-sdk@1.41.0/distrib/browser/microsoft.cognitiveservices.speech.sdk.bundle-min.js"></script>
     <style>
       :root {
@@ -101,9 +101,7 @@
         grid-row: 1;
       }
       .questionBox { grid-column: 1; grid-row: 2; }
-      .answerWrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: stretch; min-height: 140px; }
-      .answerWrap { grid-column: 1; grid-row: 4; }
-      .answerWrap { align-self: start; }
+      .answerWrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: stretch; min-height: 140px; grid-column: 1; grid-row: 4; align-self: start; }
       .answerStack { display: grid; gap: 6px; grid-template-rows: auto 1fr; min-height: 0; height: 100%; }
       .answerStack textarea { height: 112px; min-height: 112px; max-height: 112px; overflow-y: auto; resize: none; }
       .answerWrap.is-locked textarea { background: #e2e8f0; color: #64748b; }
@@ -918,7 +916,7 @@
       </div>
     </div>
 
-    <div id="appFooterDisclaimer" class="appDisclaimerFooter">AI-assisted evidence collection only. A qualified assessor will review your responses and make the assessment decision. V2.1</div>
+    <div id="appFooterDisclaimer" class="appDisclaimerFooter">AI-assisted evidence collection only. A qualified assessor will review your responses and make the assessment decision. V3.0-Ornith</div>
 
     <div id="hintOverlay" class="hintOverlay hidden" role="dialog" aria-modal="true" aria-labelledby="hintTitle">
       <div class="hintModal">
@@ -944,23 +942,35 @@
     <script src="rpl-preliminary-review.js"></script>
     <script src="rpl-assessor-decision.js"></script>
     <script>
-      const questionsUrl =
-        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/4e73e4946e2f4d68a1c327ffd94ab86e/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=PL4kQafihKKASyjQ6277VCbFKpq76tRgecIcNrKuBps";
+      // Power Automate webhook URLs - centralized config for easier maintenance
+      const WEBHOOK_URLS = {
+        questions: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/4e73e4946e2f4d68a1c327ffd94ab86e/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=PL4kQafihKKASyjQ6277VCbFKpq76tRgecIcNrKuBps",
+        welcome: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/9a8d98d38d584b44bb47066b652aa24d/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=Ion44zyKyWxVDVJYUfe9iJPVM-0G5ZLEZ6LRQEvrvWQ",
+        resume: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/e227ea1f254a4fc885e0a6cbbed2a9ea/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=9wpXy_WL_FQZhqDZ18f2e6SwLneEIGN1QlGMMY7HnaI",
+        reset: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/918a6cdf1ad946c69343a1571dc227d3/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=DdLjvO3xkDt0cwCs3ApZNNSwhjQrXZ3_ebt79Oj1YdQ",
+        transcript: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/903538467bfb426fb4b074ef9cc3caa4/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=H7BkpCmAeGTUqrl4NPh94_bK4-3hX5r82Xh-sbwnWG4",
+        nextQuestion: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/5403405d1b2543a48ccd83c2d5f703ee/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=vNYYnuckqabWJ9uC_CH0kGTymUyBIutten9INl_-f-s",
+        currentAttempt: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/f86d96def8d44f09b52f2ffc28bd006f/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=5aZztyGRO7_9LfZKZGMAHkSwJeWOZtXSdi_5hk4adLY",
+        transcriptBackup: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/10470ca8d6ed4b798ab177f6d85d32a9/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=jRCLd7-E4enyYUV8H6pnQlKE_7b7MOt8L4H6o62gqaM",
+        recordingUpload: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/b1ff377a8f444df09e636aebeb258784/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=4pQKTsG4VbeKDS3UDU_3FDvE6WUItJxkJh7SZg1oOuc",
+        finalReport: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ad445c5a35534861933f60ee864eecfa/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=qiOM0ZtGoUf_75xUdMZJ6B5zVSzpc9qYVZJbEbYm6pM",
+        photoSaver: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/d39da5be329d41849dd8148dadc64016/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=cJzfjCDuTI3kVJNFpiiZT2S47B8zS5XvDwTBIQRX6XE",
+        checkAssessmentStarted: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/e4f5525ffa66441d927fd17bbaf5bd03/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=0h2Wg4ORGlkmrTtS7fw09cv8m4MTH74l68qwSmw3t4s",
+        createUserFolder: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/eed37019d13445dca3ed1328184834cd/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=5N4jQe1NiJqap973EL0-OkOSZOn4fiICPEMVBaqQEdY",
+        assessmentCompleted: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/b4b86e7b16654f45bd2b7308c92d239f/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=HNr3uiZ_XRh7ZeY4Z0cU6rKdXCC6G1bprVZj7K7hff0"
+      };
+
+      const getWebhookUrl = (key) => WEBHOOK_URLS[key] || "";
+
+      const questionsUrl = WEBHOOK_URLS.questions;
       const PROMPTS_URL = "/prompts.json";
-      const WELCOME_WEBHOOK_URL =
-        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/9a8d98d38d584b44bb47066b652aa24d/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=Ion44zyKyWxVDVJYUfe9iJPVM-0G5ZLEZ6LRQEvrvWQ";
-      const RESUME_WEBHOOK_URL =
-        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/e227ea1f254a4fc885e0a6cbbed2a9ea/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=9wpXy_WL_FQZhqDZ18f2e6SwLneEIGN1QlGMMY7HnaI";
-      const RESET_WEBHOOK_URL =
-        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/918a6cdf1ad946c69343a1571dc227d3/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=DdLjvO3xkDt0cwCs3ApZNNSwhjQrXZ3_ebt79Oj1YdQ";
-      const TRANSCRIPT_WEBHOOK_URL =
-        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/903538467bfb426fb4b074ef9cc3caa4/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=H7BkpCmAeGTUqrl4NPh94_bK4-3hX5r82Xh-sbwnWG4";
-      const NEXT_QUESTION_WEBHOOK_URL =
-        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/5403405d1b2543a48ccd83c2d5f703ee/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=vNYYnuckqabWJ9uC_CH0kGTymUyBIutten9INl_-f-s";
-      const CURRENT_ATTEMPT_WEBHOOK_URL =
-        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/f86d96def8d44f09b52f2ffc28bd006f/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=5aZztyGRO7_9LfZKZGMAHkSwJeWOZtXSdi_5hk4adLY";
-      const TRANSCRIPT_BACKUP_WEBHOOK_URL =
-        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/10470ca8d6ed4b798ab177f6d85d32a9/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=jRCLd7-E4enyYUV8H6pnQlKE_7b7MOt8L4H6o62gqaM";
+      const WELCOME_WEBHOOK_URL = WEBHOOK_URLS.welcome;
+      const RESUME_WEBHOOK_URL = WEBHOOK_URLS.resume;
+      const RESET_WEBHOOK_URL = WEBHOOK_URLS.reset;
+      const TRANSCRIPT_WEBHOOK_URL = WEBHOOK_URLS.transcript;
+      const NEXT_QUESTION_WEBHOOK_URL = WEBHOOK_URLS.nextQuestion;
+      const CURRENT_ATTEMPT_WEBHOOK_URL = WEBHOOK_URLS.currentAttempt;
+      const TRANSCRIPT_BACKUP_WEBHOOK_URL = WEBHOOK_URLS.transcriptBackup;
       const TRANSCRIPT_VERIFY_DELAYS_MS = [500, 1000, 1500, 2500, 4000, 6000];
 
       const statusEl = document.getElementById("status");
@@ -2056,8 +2066,7 @@
           ContactID: String(ctx.contactId),
           GivenName: ctx.givenName,
         };
-        const url =
-          "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/b1ff377a8f444df09e636aebeb258784/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=4pQKTsG4VbeKDS3UDU_3FDvE6WUItJxkJh7SZg1oOuc";
+        const url = getWebhookUrl("recordingUpload");
 
         logDebug("Fetching current question from webhook");
         logDebugDetail("Current question payload", payload);
@@ -2396,8 +2405,7 @@
               ContactID: String(ctx.contactId),
               FinalReport: html,
             };
-            const url =
-              "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ad445c5a35534861933f60ee864eecfa/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=qiOM0ZtGoUf_75xUdMZJ6B5zVSzpc9qYVZJbEbYm6pM";
+            const url = getWebhookUrl("finalReport");
             const response = await fetch(url, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -2957,8 +2965,7 @@ Job Title: ${jobTitleValue || "N/A"}
           ContactID: String(ctx.contactId),
           GivenName: ctx.givenName,
         };
-        const url =
-          "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/d39da5be329d41849dd8148dadc64016/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=cJzfjCDuTI3kVJNFpiiZT2S47B8zS5XvDwTBIQRX6XE";
+        const url = getWebhookUrl("photoSaver");
 
         logDebug("Sending student context on load");
         logDebugDetail("Student context payload", payload);
@@ -3521,8 +3528,7 @@ Job Title: ${jobTitleValue || "N/A"}
             }
           ]
         };
-        const url =
-          "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/e4f5525ffa66441d927fd17bbaf5bd03/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=0h2Wg4ORGlkmrTtS7fw09cv8m4MTH74l68qwSmw3t4s";
+        const url = getWebhookUrl("checkAssessmentStarted");
         try {
           const response = await fetch(url, {
             method: "POST",
@@ -4397,8 +4403,7 @@ END_REVIEW>>>`;
         }
 
         if (lastPhotoDataUrl) {
-          const photoWebhookUrl =
-            "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/eed37019d13445dca3ed1328184834cd/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=5N4jQe1NiJqap973EL0-OkOSZOn4fiICPEMVBaqQEdY";
+          const photoWebhookUrl = getWebhookUrl("createUserFolder");
           try {
             const contentType = "image/jpeg";
             const base64Data = lastPhotoDataUrl.includes(",")
@@ -4436,8 +4441,7 @@ END_REVIEW>>>`;
         }
 
         if (!skipCollect) {
-          const collectWebhookUrl =
-            "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/b4b86e7b16654f45bd2b7308c92d239f/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=HNr3uiZ_XRh7ZeY4Z0cU6rKdXCC6G1bprVZj7K7hff0";
+          const collectWebhookUrl = getWebhookUrl("assessmentCompleted");
           try {
             const payload = {
               FullName: ctx.fullName,
