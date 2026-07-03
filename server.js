@@ -402,28 +402,53 @@ app.get("/api/debug/models", (_req, res) => {
 
 app.post("/api/analysis/chat", async (req, res) => {
   const modeHeader = String(req.headers["x-rpl-mode"] || "").toLowerCase();
-  const isFinal = modeHeader === "final";
-  const isAssessor = modeHeader === "assessor";
-  const envPrefix = isFinal ? "RPL_FINAL" : isAssessor ? "RPL_ASSESSOR" : "RPL_ROUTER";
-  const getModelEnv = (suffix) => process.env[`${envPrefix}_${suffix}`] || "";
 
-  const apiKey = getModelEnv("API_KEY");
-  const apiVersion = getModelEnv("API_VERSION");
-  const endpoint = getModelEnv("AZURE_ENDPOINT");
-  const deployment = getModelEnv("DEPLOYMENT");
-  const modelName = getModelEnv("MODEL_NAME");
-  const apiStyle = getModelEnv("API_STYLE").toLowerCase();
-  const endpointBase = String(endpoint || "").replace(/\/+$/, "");
-  const useOpenAiV1 = apiStyle === "v1" ||
-    apiStyle === "openai-v1" ||
-    /\/openai\/v1$/i.test(endpointBase) ||
-    (isAssessor && !apiVersion);
+  // Deepseek V4:Flash via dedicated env vars when x-rpl-mode=deepleake.
+  let isDeepseek = false;
+  if (modeHeader === "deepleake") {
+    isDeepseek = true;
+  }
 
-  if (!apiKey || !endpoint || !deployment || (!useOpenAiV1 && !apiVersion)) {
-    res.status(500).json({
-      error: `Missing required ${envPrefix}_* environment variables.`,
-    });
-    return;
+  let apiKey, apiVersion, endpoint, deployment, modelName, useOpenAiV1;
+
+  if (isDeepseek) {
+    const deepEndpoint = String(process.env["RPL_DEEPSEEK_MODEL_ENDPOINT"] || "").replace(/\/+$/, "");
+    const deepModelName = process.env["RPL_DEEPSEEK_MODEL_NAME"] || "deepseek-chat";
+
+    if (!process.env["RPL_DEEPSEEK_MODEL_API_KEY"]) {
+      res.status(500).json({ error: "Missing RPL_DEEPSEEK_MODEL_API_KEY environment variable." });
+      return;
+    }
+    apiKey = process.env["RPL_DEEPSEEK_MODEL_API_KEY"];
+    endpoint = deepEndpoint;
+    modelName = deepModelName;
+    apiVersion = "";
+    deployment = "";
+    useOpenAiV1 = false;
+  } else {
+    const isFinal = modeHeader === "final";
+    const isAssessor = modeHeader === "assessor";
+    const envPrefix = isFinal ? "RPL_FINAL" : isAssessor ? "RPL_ASSESSOR" : "RPL_ROUTER";
+    const getModelEnv = (suffix) => process.env[`${envPrefix}_${suffix}`] || "";
+
+    apiKey = getModelEnv("API_KEY");
+    apiVersion = getModelEnv("API_VERSION");
+    endpoint = getModelEnv("AZURE_ENDPOINT");
+    deployment = getModelEnv("DEPLOYMENT");
+    modelName = getModelEnv("MODEL_NAME");
+    const apiStyle = getModelEnv("API_STYLE").toLowerCase();
+    const endpointBase = String(endpoint || "").replace(/\/+$/, "");
+    useOpenAiV1 = apiStyle === "v1" ||
+      apiStyle === "openai-v1" ||
+      /\/openai\/v\d$/i.test(endpointBase) ||
+      (isAssessor && !apiVersion);
+
+    if (!apiKey || !endpoint || !deployment || (!useOpenAiV1 && !apiVersion)) {
+      res.status(500).json({
+        error: `Missing required ${envPrefix}_* environment variables.`,
+      });
+      return;
+    }
   }
 
   const { prompt, temperature = 0.2, max_tokens = 300 } = req.body || {};
