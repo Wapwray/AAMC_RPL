@@ -301,6 +301,22 @@ app.post("/api/speech/token", async (_req, res) => {
   }
 });
 
+// DEBUG: dump current model config (remove after verifying)
+app.get("/api/debug/models", (_req, res) => {
+  const modes = ["ROUTER", "ASSESSOR", "FINAL"];
+  const result = {};
+  for (const mode of modes) {
+    const pfx = `RPL_${mode}`;
+    result[mode] = {
+      endpoint: process.env[`${pfx}_AZURE_ENDPOINT`] || "(not set)",
+      deployment: process.env[`${pfx}_DEPLOYMENT`] || "(not set)",
+      model_name: process.env[`${pfx}_MODEL_NAME`] || "(uses deployment)",
+      api_version: process.env[`${pfx}_API_VERSION`] || "(auto-detect)",
+    };
+  }
+  res.json(result);
+});
+
 app.post("/api/analysis/chat", async (req, res) => {
   const modeHeader = String(req.headers["x-rpl-mode"] || "").toLowerCase();
   const isFinal = modeHeader === "final";
