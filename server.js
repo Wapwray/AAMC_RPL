@@ -303,18 +303,101 @@ app.post("/api/speech/token", async (_req, res) => {
 
 // DEBUG: dump current model config (remove after verifying)
 app.get("/api/debug/models", (_req, res) => {
-  const modes = ["ROUTER", "ASSESSOR", "FINAL"];
-  const result = {};
-  for (const mode of modes) {
-    const pfx = `RPL_${mode}`;
-    result[mode] = {
-      endpoint: process.env[`${pfx}_AZURE_ENDPOINT`] || "(not set)",
-      deployment: process.env[`${pfx}_DEPLOYMENT`] || "(not set)",
-      model_name: process.env[`${pfx}_MODEL_NAME`] || "(uses deployment)",
-      api_version: process.env[`${pfx}_API_VERSION`] || "(auto-detect)",
+  try {
+    const modes = ["ROUTER", "ASSESSOR", "FINAL"];
+    const result = {};
+    let hasConfig = false;
+
+    for (const mode of modes) {
+      const pfx = `RPL_${mode}`;
+      const endpoint = process.env[`${pfx}_AZURE_ENDPOINT`] || "";
+      const deployment = process.env[`${pfx}_DEPLOYMENT`] || "";
+      const modelName = process.env[`${pfx}_MODEL_NAME`] || "";
+      const apiVersion = process.env[`${pfx}_API_VERSION`] || "";
+
+      result[mode] = {
+        endpoint: endpoint || "(not set)",
+        deployment: deployment || "(not set)",
+        model_name: modelName || "(uses deployment name)",
+        api_version: apiVersion || "auto-detect",
+        has_config: !!(endpoint && deployment),
+      };
+
+      if (endpoint && deployment) hasConfig = true;
+    }
+
+    // Check for API key presence (don't expose the actual key)
+    const assessorKey = process.env["RPL_ASSESSOR_API_KEY"];
+    result.api_key_status = {
+      assessor: assessorKey ? `Set (${assessorKey.length} chars)` : "(not set)",
     };
+
+    // Return HTML for easy browser viewing
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>RPL Model Config Debug</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 900px; margin: 40px auto; padding: 20px; background: #f5f5f5; }
+    h1 { color: #1a1a1a; }
+    .card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid #e5e5e5; }
+    th { background: #f9fafb; font-weight: 600; color: #374151; }
+    .status-ok { color: #059669; font-weight: 600; }
+    .status-missing { color: #dc2626; }
+    pre { background: #1e1e1e; color: #d4d4d4; padding: 16px; border-radius: 8px; overflow-x: auto; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <h1>RPL Model Configuration Debug</h1>
+  <p><strong>Timestamp:</strong> ${new Date().toISOString()}</p>
+
+  <div class="card">
+    <h2>Configuration Status</h2>
+    <table>
+      <tr><th>Mode</th><th>Status</th></tr>
+      ${modes.map(mode => `
+        <tr>
+          <td><strong>${mode}</strong></td>
+          <td class="${result[mode].has_config ? 'status-ok' : 'status-missing'}">
+            ${result[mode].has_config ? "✓ Configured" : "✗ Not configured"}
+          </td>
+        </tr>`).join("")}
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Detailed Settings</h2>
+    ${modes.map(mode => `
+      <div style="margin-bottom: 16px;">
+        <h3>${mode}</h3>
+        <pre>{
+  "endpoint": "${result[mode].endpoint}",
+  "deployment": "${result[mode].deployment}",
+  "model_name": "${result[mode].model_name}",
+  "api_version": "${result[mode].api_version}"
+}</pre>
+      </div>`).join("")}
+  </div>
+
+  <div class="card">
+    <h2>API Key Status</h2>
+    <pre>${JSON.stringify(result.api_key_status, null, 2)}</pre>
+  </div>
+
+  <details>
+    <summary>Show raw JSON response</summary>
+    <pre>${JSON.stringify(result, null, 2)}</pre>
+  </details>
+</body>
+</html>`;
+    res.send(html);
+  } catch (err) {
+    res.status(500).json({ error: err.message || String(err) });
   }
-  res.json(result);
 });
 
 app.post("/api/analysis/chat", async (req, res) => {
