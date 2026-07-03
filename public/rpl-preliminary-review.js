@@ -836,7 +836,7 @@ Rules:
     (Array.isArray(analyses) ? analyses : []).forEach((analysis, index) => {
       const key = normalizeQuestionNumberForKey(analysis?.questionNumber);
       if (key && !map.has(key)) map.set(key, analysis);
-      map.set(`index:${index}`, analysis);
+      if (!key) map.set(`index:${index}`, analysis);
     });
     return map;
   };
