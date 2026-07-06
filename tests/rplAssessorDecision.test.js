@@ -20,6 +20,7 @@ test("buildAssessmentPrompt requires combined-attempt consistency", () => {
   assert.match(prompt, /Return valid JSON only/);
   assert.match(prompt, /Never quote, paraphrase, list, or reveal hint content/);
   assert.match(prompt, /Use it only to decide whether pressing Show Hint would help/);
+  assert.match(prompt, /Privately compare the learner's attempts against the hint as a checklist/);
   assert.match(prompt, /Never copy hint facts, examples, terminology, suggested wording, or implied answers/);
 });
 
@@ -45,6 +46,7 @@ test("buildDeepseekAssessmentPrompt calibrates partial evidence feedback", () =>
   assert.match(prompt, /Warmth and answer-safety rules/);
   assert.match(prompt, /Do not provide example answers, suggested facts, model wording, or specific content the learner could copy/);
   assert.match(prompt, /never turn hint content into learner-facing missing detail/);
+  assert.match(prompt, /Covered must acknowledge only evidence the learner has already said/);
 });
 
 test("parseAssessmentResponse accepts fenced JSON and normalises legacy status words", () => {
@@ -97,7 +99,7 @@ test("additional evidence guidance is learner-facing and does not leak hint cont
   assert.equal(feedback.shouldContinue, false);
   assert.match(feedback.displayText, /^Bel, thanks for that\. You're on the right track, and a little more detail would help complete this response\./);
   assert.match(feedback.displayText, /So far, you've told us that:\n- You've identified the change/);
-  assert.match(feedback.displayText, /It would help to press the Show Hint button for additional help, then add any extra detail you can in your own words\./);
+  assert.match(feedback.displayText, /It would help to press the Show Hint button, compare it with what you've already said, then add any extra detail you can in your own words\./);
   assert.match(feedback.displayText, /Show Hint button/);
   assert.doesNotMatch(feedback.displayText, /Objective/i);
   assert.doesNotMatch(feedback.displayText, /how the work process changed|RG209|responsible lending obligations/i);

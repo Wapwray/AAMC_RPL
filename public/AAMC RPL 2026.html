@@ -4696,7 +4696,9 @@ END_REVIEW>>>`;
           const assessorFeedback = buildAssessorFeedbackFromResponse(responseText, currentAttempts);
           const showNextQuestionOnly = assessorFeedback.shouldContinue;
           addChatEntry(assessorFeedback.displayText, "ai", assessorFeedback.transcriptAttemptText);
-          hideThinkingOverlay();
+          if (!showNextQuestionOnly) {
+            hideThinkingOverlay();
+          }
           setStatus("Feedback ready. Saving transcript...");
           attemptRecord.feedback = assessorFeedback.transcriptAttemptText;
           const entry = ensureTranscriptQuestion(currentIndex, questionText, { objective: objectiveText, hint: hintText, section: sectionText });
@@ -4758,7 +4760,6 @@ END_REVIEW>>>`;
           finalButtonState = { nextDisabled: true, evaluateDisabled: false };
           evaluateBtn.disabled = false;
         } finally {
-          hideThinkingOverlay();
           setUiLockedState(false);
           if (answerInputEl && !attemptLocked) answerInputEl.disabled = false;
           logNextDebug("Check Response finally block", {
@@ -4776,6 +4777,7 @@ END_REVIEW>>>`;
           if (currentAttempts >= MAX_ATTEMPTS) {
             evaluateBtn.disabled = true;
           }
+          hideThinkingOverlay();
           transcriptMergeAttempted = false;
         }
       });
