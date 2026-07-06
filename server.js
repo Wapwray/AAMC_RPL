@@ -417,7 +417,7 @@ app.post("/api/analysis/chat", async (req, res) => {
   let apiKey, apiVersion, endpoint, deployment, modelName, useOpenAiV1;
   let authHeader = "api-key";
 
-  const isDeepseek = modeHeader === "deepleake";
+  const isDeepseek = modeHeader === "deepseek";
   
   console.log(`[AI] isDeepseek=${isDeepseek}`);
   const isFinal = !isDeepseek && modeHeader === "final";
@@ -426,18 +426,23 @@ app.post("/api/analysis/chat", async (req, res) => {
   if (isDeepseek) {
     const deepEndpoint = String(process.env["RPL_DEEPSEEK_MODEL_ENDPOINT"] || "").replace(/\/+$/, "");
     const deepModelName = process.env["RPL_DEEPSEEK_MODEL_NAME"] || "deepseek-chat";
+    const deepApiVersion = process.env["RPL_DEEPSEEK_MODEL_VERSION"] || "";
 
     if (!process.env["RPL_DEEPSEEK_MODEL_API_KEY"]) {
       res.status(500).json({ error: "Missing RPL_DEEPSEEK_MODEL_API_KEY environment variable." });
       return;
     }
+    if (!deepApiVersion) {
+      res.status(500).json({ error: "Missing RPL_DEEPSEEK_MODEL_VERSION environment variable." });
+      return;
+    }
     apiKey = process.env["RPL_DEEPSEEK_MODEL_API_KEY"];
     endpoint = deepEndpoint;
     modelName = deepModelName;
-    apiVersion = "";
-    deployment = "";
-    useOpenAiV1 = true; // Use standard OpenAI v1 format for Deepseek.
-    authHeader = "Authorization";
+    apiVersion = deepApiVersion;
+    deployment = deepModelName;
+    useOpenAiV1 = false;
+    authHeader = "api-key";
   } else {
     const envPrefix = isFinal ? "RPL_FINAL" : isAssessor ? "RPL_ASSESSOR" : "RPL_ROUTER";
     const getModelEnv = (suffix) => process.env[`${envPrefix}_${suffix}`] || "";
@@ -491,8 +496,7 @@ app.post("/api/analysis/chat", async (req, res) => {
   
   let url;
   if (isDeepseek) {
-    // Deepseek uses standard OpenAI v1 format — no /openai/ prefix, no api-key header
-    url = `${endpointBase}/v1/chat/completions`;
+    url = `${endpointBase}/openai/deployments/${encodeURIComponent(deployment)}/chat/completions?api-version=${encodeURIComponent(apiVersion)}`;
   } else {
     const normalizedBase = endpointBase
       .replace(/\/api\/projects\/[^/]+$/i, "")
