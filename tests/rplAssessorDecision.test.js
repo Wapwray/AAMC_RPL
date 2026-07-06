@@ -39,7 +39,7 @@ test("buildDeepseekAssessmentPrompt calibrates partial evidence feedback", () =>
   assert.match(prompt, /one internal stakeholder affected by the change/);
   assert.match(prompt, /one external stakeholder affected by the change/);
   assert.match(prompt, /mentions stakeholders received updates about impacts of the change/);
-  assert.match(prompt, /Legacy prompt kept for reference/);
+  assert.match(prompt, /Covered items must also be short neutral evidence points/);
 });
 
 test("parseAssessmentResponse accepts fenced JSON and normalises legacy status words", () => {
