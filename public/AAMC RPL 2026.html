@@ -2712,6 +2712,27 @@ Job Title: ${jobTitleValue || "N/A"}
         checkResponseDebugLogEl.scrollTop = checkResponseDebugLogEl.scrollHeight;
       };
 
+      const getElapsedMs = (startedAt) => Math.round(performance.now() - startedAt);
+
+      const withCheckResponseTiming = async (label, task) => {
+        const startedAt = performance.now();
+        appendCheckResponseDebug(`${label} started`);
+        try {
+          const result = await task();
+          appendCheckResponseDebug(`${label} completed`, {
+            durationMs: getElapsedMs(startedAt),
+            result: typeof result === "boolean" ? result : undefined,
+          });
+          return result;
+        } catch (error) {
+          appendCheckResponseDebug(`${label} failed`, {
+            durationMs: getElapsedMs(startedAt),
+            error: error?.message || String(error),
+          });
+          throw error;
+        }
+      };
+
       const logDebug = () => {};
       const logDebugDetail = () => {};
       const logAssessmentDebug = () => {};
@@ -4712,6 +4733,7 @@ END_REVIEW>>>`;
 
       evaluateBtn.addEventListener("click", async () => {
         const answer = answerInputEl.value.trim();
+        const checkResponseStartedAt = performance.now();
         clearCheckResponseDebug(`Starting Check Response debug for attempt ${currentAttempts + 1}...`);
         logNextDebug("Check Response clicked", {
           currentAttempts,
@@ -4759,12 +4781,19 @@ END_REVIEW>>>`;
 
         try {
           // Run transcript merge, recording upload, and AI evaluation in parallel where possible.
-          const transcriptMergePromise = ensureCompleteTranscriptQuestions();
+          const transcriptMergePromise = withCheckResponseTiming("Transcript merge", () => ensureCompleteTranscriptQuestions());
           const prompt = buildPrompt(questions[currentIndex], currentResponses);
+          appendCheckResponseDebug("Prompt built", {
+            characterCount: prompt.length,
+            attemptCount: currentResponses.length,
+          });
           const [recordingSaved, responseText] = await Promise.all([
-            sendRecordingOnEvaluate(attemptNumber, questionNumber),
-            callTextModel(prompt, { mode: "assessor", temperature: 0, max_tokens: 900, debugLabel: "Check Response" }),
+            withCheckResponseTiming("Recording upload", () => sendRecordingOnEvaluate(attemptNumber, questionNumber)),
+            withCheckResponseTiming("AI assessment", () => callTextModel(prompt, { mode: "assessor", temperature: 0, max_tokens: 450, debugLabel: "Check Response" })),
           ]);
+          appendCheckResponseDebug("AI response parsed", {
+            responseCharacterCount: responseText.length,
+          });
           const assessorFeedback = buildAssessorFeedbackFromResponse(responseText, currentAttempts);
           const showNextQuestionOnly = assessorFeedback.shouldContinue;
           addChatEntry(assessorFeedback.displayText, "ai", assessorFeedback.transcriptAttemptText);
@@ -4784,9 +4813,15 @@ END_REVIEW>>>`;
           const nextAttemptForWebhook = Math.min(MAX_ATTEMPTS, attemptNumber + 1);
           logNextDebug("Check Response - sending webhooks", { attemptNumber, nextAttemptForWebhook, currentAttempts, recordingSaved });
           const [backupSaved, attemptAndTranscriptSaved] = await Promise.all([
-            sendTranscriptBackupOnEvaluate({ attemptNumber, questionNumber }),
-            sendCurrentAttemptOnEvaluate(nextAttemptForWebhook, questionNumber),
+            withCheckResponseTiming("Transcript backup webhook", () => sendTranscriptBackupOnEvaluate({ attemptNumber, questionNumber })),
+            withCheckResponseTiming("Attempt transcript webhook", () => sendCurrentAttemptOnEvaluate(nextAttemptForWebhook, questionNumber)),
           ]);
+          appendCheckResponseDebug("Check Response save stage completed", {
+            durationMs: getElapsedMs(checkResponseStartedAt),
+            recordingSaved,
+            backupSaved,
+            attemptAndTranscriptSaved,
+          });
           logNextDebug("Webhook results", { recordingSaved, backupSaved, attemptAndTranscriptSaved });
           const saveWarning = !recordingSaved
             ? "the recording upload did not complete"
@@ -4826,6 +4861,10 @@ END_REVIEW>>>`;
             logNextDebug("Attempts remaining - nextBtn state", { nextBtnDisabled: nextBtn?.disabled, evaluateBtnDisabled: evaluateBtn?.disabled });
           }
         } catch (err) {
+          appendCheckResponseDebug("Check Response failed", {
+            durationMs: getElapsedMs(checkResponseStartedAt),
+            error: err?.message || String(err),
+          });
           hideThinkingOverlay();
           addChatEntry(err?.message || String(err), "ai");
           setStatus("Evaluation failed.");
@@ -4851,6 +4890,11 @@ END_REVIEW>>>`;
           }
           hideThinkingOverlay();
           transcriptMergeAttempted = false;
+          appendCheckResponseDebug("Check Response finished", {
+            totalDurationMs: getElapsedMs(checkResponseStartedAt),
+            nextDisabled: nextBtn?.disabled,
+            evaluateDisabled: evaluateBtn?.disabled,
+          });
         }
       });
 

@@ -526,9 +526,11 @@ app.post("/api/analysis/chat", async (req, res) => {
   const requestedMaxTokens = Number.isFinite(Number(max_tokens)) ? Number(max_tokens) : 300;
   const resolvedMaxTokens = isFinal
     ? Math.max(1200, requestedMaxTokens)
-    : isAssessor
-      ? Math.max(900, requestedMaxTokens)
-      : Math.max(800, requestedMaxTokens);
+    : isDeepseek
+      ? Math.max(450, requestedMaxTokens)
+      : isAssessor
+        ? Math.max(450, requestedMaxTokens)
+        : Math.max(800, requestedMaxTokens);
 
   const body = {
     messages,
