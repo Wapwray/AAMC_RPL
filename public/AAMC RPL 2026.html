@@ -956,6 +956,7 @@
       const NEXT_QUESTION_WEBHOOK_URL = WEBHOOK_URLS.nextQuestion;
       const CURRENT_ATTEMPT_WEBHOOK_URL = WEBHOOK_URLS.currentAttempt;
       const TRANSCRIPT_BACKUP_WEBHOOK_URL = WEBHOOK_URLS.transcriptBackup;
+      const STARTUP_WEBHOOK_TIMEOUT_MS = 12000;
       const TRANSCRIPT_VERIFY_DELAYS_MS = [500, 1000, 1500, 2500, 4000, 6000];
 
       const statusEl = document.getElementById("status");
@@ -1614,6 +1615,21 @@
         };
       };
 
+      const fetchWithTimeout = async (url, options = {}, timeoutMs = STARTUP_WEBHOOK_TIMEOUT_MS) => {
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+        try {
+          return await fetch(url, { ...options, signal: controller.signal });
+        } catch (error) {
+          if (error?.name === "AbortError") {
+            throw new Error(`Request timed out after ${Math.round(timeoutMs / 1000)} seconds.`);
+          }
+          throw error;
+        } finally {
+          window.clearTimeout(timeout);
+        }
+      };
+
       const fetchResumeData = async ({ log = false, label = "Resume webhook" } = {}) => {
         const ctx = getStudentContext();
         const payload = {
@@ -1621,7 +1637,7 @@
           ContactID: String(ctx.contactId),
           GivenName: ctx.givenName,
         };
-        const response = await fetch(RESUME_WEBHOOK_URL, {
+        const response = await fetchWithTimeout(RESUME_WEBHOOK_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -2622,88 +2638,23 @@ Job Title: ${jobTitleValue || "N/A"}
       //   modeLabelEl.textContent = aiMode === "router" ? "RPL Router" : "RPL Base";
       // };
 
-      const logDebug = (message) => {
-        const timestamp = new Date().toLocaleTimeString();
-        if (debugLogEl) {
-          debugLogEl.textContent = `[${timestamp}] ${message}\n` + debugLogEl.textContent;
-        }
-        if (initDebugLogEl) {
-          initDebugLogEl.textContent = `[${timestamp}] ${message}\n` + initDebugLogEl.textContent;
-        }
-      };
-
-      const logDebugDetail = (label, detail) => {
+      const formatDebugPayload = (payload) => {
         try {
-          const formatted =
-            typeof detail === "string"
-              ? detail
-              : JSON.stringify(detail, null, 2);
-          logDebug(`${label}: ${formatted}`);
-        } catch (err) {
-          logDebug(`${label}: ${String(detail)}`);
+          return typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
+        } catch {
+          return String(payload || "");
         }
       };
 
-      const logAssessmentDebug = (label, detail) => {
-        if (!assessmentDebugLogEl) return;
-        const timestamp = new Date().toLocaleTimeString();
-        const formattedDetail = detail === undefined || detail === null ? "" : formatDebugPayload(detail);
-        const message = formattedDetail ? `${label}: ${formattedDetail}` : label;
-        if (assessmentDebugLogEl.textContent === "Waiting for activity…" || assessmentDebugLogEl.textContent === "Waiting for activity...") {
-          assessmentDebugLogEl.textContent = "";
-        }
-        assessmentDebugLogEl.textContent = `[${timestamp}] ${message}\n` + assessmentDebugLogEl.textContent;
-      };
-
-      liveDebugClearBtn?.addEventListener("click", () => {
-        if (assessmentDebugLogEl) {
-          assessmentDebugLogEl.textContent = "Waiting for activity...";
-        }
-      });
-
-      const logNextDebug = (label, detail) => {
-        if (!nextDebugLogEl) return;
-        const timestamp = new Date().toLocaleTimeString();
-        const formattedDetail = detail === undefined || detail === null ? "" : formatDebugPayload(detail);
-        const message = formattedDetail ? `${label}: ${formattedDetail}` : label;
-        if (nextDebugLogEl.textContent === "Waiting for activity...") {
-          nextDebugLogEl.textContent = "";
-        }
-        nextDebugLogEl.textContent = `[${timestamp}] ${message}\n` + nextDebugLogEl.textContent;
-      };
-
-      nextDebugToggleBtn?.addEventListener("click", () => {
-        if (nextDebugPanelEl) nextDebugPanelEl.classList.toggle("collapsed");
-        if (nextDebugToggleBtn) nextDebugToggleBtn.textContent = nextDebugPanelEl?.classList.contains("collapsed") ? "Show" : "Hide";
-      });
-
-      nextDebugClearBtn?.addEventListener("click", () => {
-        if (nextDebugLogEl) nextDebugLogEl.textContent = "Waiting for activity...";
-      });
-
-      const logCheckResponseDebug = (label, detail) => {
-        if (!checkResponseDebugLogEl) return;
-        const timestamp = new Date().toLocaleTimeString();
-        const formattedDetail = detail === undefined || detail === null ? "" : formatDebugPayload(detail);
-        const message = formattedDetail ? `${label}: ${formattedDetail}` : label;
-        if (checkResponseDebugLogEl.textContent === "Waiting for Check Response activity...") {
-          checkResponseDebugLogEl.textContent = "";
-        }
-        checkResponseDebugLogEl.textContent = `[${timestamp}] ${message}\n` + checkResponseDebugLogEl.textContent;
-      };
-
-      checkResponseDebugToggleBtn?.addEventListener("click", () => {
-        if (checkResponseDebugPanelEl) checkResponseDebugPanelEl.classList.toggle("collapsed");
-        if (checkResponseDebugToggleBtn) checkResponseDebugToggleBtn.textContent = checkResponseDebugPanelEl?.classList.contains("collapsed") ? "Show" : "Hide";
-      });
-
-      window.addEventListener("error", (event) => {
-        logAssessmentDebug("Window error", event?.error?.stack || event?.message || "Unknown error");
-      });
-
-      window.addEventListener("unhandledrejection", (event) => {
-        logAssessmentDebug("Unhandled rejection", event?.reason?.stack || event?.reason?.message || event?.reason || "Unknown rejection");
-      });
+      const logDebug = () => {};
+      const logDebugDetail = () => {};
+      const logAssessmentDebug = () => {};
+      const logNextDebug = () => {};
+      const logCheckResponseDebug = () => {};
+      const logWelcomeDebug = () => {};
+      const updateDebugVisibility = () => {};
+      const installWelcomeDebug = () => {};
+      const instrumentWelcomeFetch = () => {};
 
       const loadPromptTemplates = async () => {
         try {
@@ -2850,7 +2801,7 @@ Job Title: ${jobTitleValue || "N/A"}
             GivenName: ctx.givenName,
           };
           logWelcomeDebug("Welcome payload", formatDebugPayload(payload));
-          const response = await fetch(WELCOME_WEBHOOK_URL, {
+          const response = await fetchWithTimeout(WELCOME_WEBHOOK_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
@@ -4261,7 +4212,6 @@ END_REVIEW>>>`;
         logDebugDetail("AI mode", mode);
         logDebugDetail("Prompt length", prompt?.length ?? 0);
         
-        // Capture request details for debug panel
         const requestBody = {
           prompt,
           temperature,
@@ -4772,7 +4722,7 @@ END_REVIEW>>>`;
               ? "the transcript backup did not complete"
               : "";
           if (saveWarning) {
-            setStatus(`Feedback ready, but ${saveWarning}. Please check the debug panel before continuing.`);
+            setStatus(`Feedback ready, but ${saveWarning}. Please try Check Response again before continuing.`);
             finalButtonState = { nextDisabled: true, evaluateDisabled: true };
             return;
           }
