@@ -426,7 +426,7 @@ app.post("/api/analysis/chat", async (req, res) => {
   if (isDeepseek) {
     const deepEndpoint = String(process.env["RPL_DEEPSEEK_MODEL_ENDPOINT"] || "").replace(/\/+$/, "");
     const deepModelName = process.env["RPL_DEEPSEEK_MODEL_NAME"] || "deepseek-chat";
-    const deepApiVersion = process.env["RPL_DEEPSEEK_MODEL_VERSION"] || "";
+    const deepApiVersion = process.env["RPL_DEEPSEEK_MODEL_VERSION"] || "v1";
 
     if (!process.env["RPL_DEEPSEEK_MODEL_API_KEY"]) {
       res.status(500).json({ error: "Missing RPL_DEEPSEEK_MODEL_API_KEY environment variable." });
@@ -441,7 +441,7 @@ app.post("/api/analysis/chat", async (req, res) => {
     modelName = deepModelName;
     apiVersion = deepApiVersion;
     deployment = deepModelName;
-    useOpenAiV1 = false;
+    useOpenAiV1 = true;
     authHeader = "api-key";
   } else {
     const envPrefix = isFinal ? "RPL_FINAL" : isAssessor ? "RPL_ASSESSOR" : "RPL_ROUTER";
@@ -496,7 +496,11 @@ app.post("/api/analysis/chat", async (req, res) => {
   
   let url;
   if (isDeepseek) {
-    url = `${endpointBase}/openai/deployments/${encodeURIComponent(deployment)}/chat/completions?api-version=${encodeURIComponent(apiVersion)}`;
+    const deepVersion = String(apiVersion || "v1").replace(/^\/+|\/+$/g, "");
+    const deepBase = /\/openai\/v\d+$/i.test(endpointBase)
+      ? endpointBase
+      : `${endpointBase}/openai/${deepVersion || "v1"}`;
+    url = `${deepBase}/chat/completions`;
   } else {
     const normalizedBase = endpointBase
       .replace(/\/api\/projects\/[^/]+$/i, "")

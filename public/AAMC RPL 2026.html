@@ -70,6 +70,12 @@
       .assessmentDebugHeader { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
       .assessmentDebugTitle { font-size: 13px; font-weight: 700; color: var(--text); }
       .assessmentDebugLog { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 12px; line-height: 1.45; white-space: pre-wrap; max-height: 200px; overflow: auto; background: #f8fafc; border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
+      .responseDebugPanel { border: 1px solid var(--border); border-radius: 12px; background: #ffffff; padding: 12px; display: grid; gap: 8px; }
+      .responseDebugPanel.collapsed { gap: 0; }
+      .responseDebugPanel.collapsed .responseDebugLog { display: none; }
+      .responseDebugHeader { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+      .responseDebugTitle { font-size: 13px; font-weight: 700; color: var(--text); }
+      .responseDebugLog { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 12px; line-height: 1.45; white-space: pre-wrap; max-height: 240px; overflow: auto; background: #f8fafc; border: 1px solid var(--border); border-radius: 10px; padding: 10px; min-height: 140px; }
       .quizHeader { font-size: 18px; font-weight: 700; margin: 0 0 8px; }
       .assessmentLayout {
         display: grid;
@@ -972,6 +978,13 @@
                 </div>
                 <span class="dictationStatus" id="dictationStatus">Dictation idle.</span>
               </div>
+              <div id="checkResponseDebugPanel" class="responseDebugPanel">
+                <div class="responseDebugHeader">
+                  <div class="responseDebugTitle">Check Response Debug</div>
+                  <button id="checkResponseDebugToggle" class="secondary">Hide</button>
+                </div>
+                <div id="checkResponseDebugLog" class="responseDebugLog">Waiting for Check Response activity...</div>
+              </div>
             </div>
             <button id="nextBtn" class="secondary nextFloating" disabled>Next Question</button>
           </div>
@@ -1097,6 +1110,9 @@
       const playbackMeterFillEl = document.getElementById("playbackMeterFill");
       const dictationStatusEl = document.getElementById("dictationStatus");
       const assessmentDebugLogEl = document.getElementById("assessmentDebugLog");
+      const checkResponseDebugPanelEl = document.getElementById("checkResponseDebugPanel");
+      const checkResponseDebugLogEl = document.getElementById("checkResponseDebugLog");
+      const checkResponseDebugToggleBtn = document.getElementById("checkResponseDebugToggle");
       const evaluateBtn = document.getElementById("evaluateBtn");
       const nextBtn = document.getElementById("nextBtn");
       const finalBtn = document.getElementById("finalBtn");
@@ -2856,6 +2872,22 @@ Job Title: ${jobTitleValue || "N/A"}
         if (nextDebugLogEl) nextDebugLogEl.textContent = "Waiting for activity...";
       });
 
+      const logCheckResponseDebug = (label, detail) => {
+        if (!checkResponseDebugLogEl) return;
+        const timestamp = new Date().toLocaleTimeString();
+        const formattedDetail = detail === undefined || detail === null ? "" : formatDebugPayload(detail);
+        const message = formattedDetail ? `${label}: ${formattedDetail}` : label;
+        if (checkResponseDebugLogEl.textContent === "Waiting for Check Response activity...") {
+          checkResponseDebugLogEl.textContent = "";
+        }
+        checkResponseDebugLogEl.textContent = `[${timestamp}] ${message}\n` + checkResponseDebugLogEl.textContent;
+      };
+
+      checkResponseDebugToggleBtn?.addEventListener("click", () => {
+        if (checkResponseDebugPanelEl) checkResponseDebugPanelEl.classList.toggle("collapsed");
+        if (checkResponseDebugToggleBtn) checkResponseDebugToggleBtn.textContent = checkResponseDebugPanelEl?.classList.contains("collapsed") ? "Show" : "Hide";
+      });
+
       window.addEventListener("error", (event) => {
         logAssessmentDebug("Window error", event?.error?.stack || event?.message || "Unknown error");
       });
@@ -4417,6 +4449,7 @@ END_REVIEW>>>`;
 
       const callTextModel = async (prompt, options = {}) => {
         let mode = options.mode || aiMode;
+        const debugLabel = options.debugLabel || "";
         
         // If Deepseek toggle is enabled and we're using an Azure OpenAI mode, switch to Deepseek.
         if (useDeepseekMode) {
@@ -4440,6 +4473,14 @@ END_REVIEW>>>`;
           "x-rpl-mode": mode,
         };
         
+        if (debugLabel) {
+          logCheckResponseDebug(`${debugLabel} request`, {
+            mode,
+            useDeepseekMode,
+            requestHeaders,
+            requestBody,
+          });
+        }
         logDebugDetail("Request headers", JSON.stringify(requestHeaders));
         logDebugDetail("Request body (truncated)", JSON.stringify(requestBody).substring(0, 200) + "...");
         
@@ -4451,10 +4492,15 @@ END_REVIEW>>>`;
 
         logDebugDetail("HTTP status", `${response.status} ${response.statusText}`);
         logDebugDetail("Response headers", Object.fromEntries(response.headers.entries()));
+        if (debugLabel) {
+          logCheckResponseDebug(`${debugLabel} HTTP status`, `${response.status} ${response.statusText}`);
+          logCheckResponseDebug(`${debugLabel} response headers`, Object.fromEntries(response.headers.entries()));
+        }
 
         if (!response.ok) {
           const text = await response.text();
           logDebug(`AI error ${response.status}: ${response.statusText} ${text}`);
+          if (debugLabel) logCheckResponseDebug(`${debugLabel} error body`, text || "(empty)");
           
           // Enhanced debug info for 502 errors
           if (response.status === 502) {
@@ -4471,6 +4517,7 @@ END_REVIEW>>>`;
         const json = await response.json();
         logDebug("AI response received.");
         logDebugDetail("AI response JSON", json);
+        if (debugLabel) logCheckResponseDebug(`${debugLabel} response JSON`, json);
         const content = json?.content || json?.response || json?.text;
         if (typeof content === "string" && content.trim()) return content.trim();
         const raw = json?.raw || {};
@@ -4891,7 +4938,7 @@ END_REVIEW>>>`;
           const prompt = buildPrompt(questions[currentIndex], currentResponses);
           const [, responseText] = await Promise.all([
             sendRecordingOnEvaluate(attemptNumber, questionNumber),
-            callTextModel(prompt, { mode: "assessor", temperature: 0, max_tokens: 900 }),
+            callTextModel(prompt, { mode: "assessor", temperature: 0, max_tokens: 900, debugLabel: "Check Response" }),
           ]);
           const assessorFeedback = buildAssessorFeedbackFromResponse(responseText, currentAttempts);
           const showNextQuestionOnly = assessorFeedback.shouldContinue;
