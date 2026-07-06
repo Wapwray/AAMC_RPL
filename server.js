@@ -427,16 +427,18 @@ app.post("/api/analysis/chat", async (req, res) => {
     const deepEndpoint = String(process.env["RPL_DEEPSEEK_MODEL_ENDPOINT"] || "").replace(/\/+$/, "");
     const deepModelName = process.env["RPL_DEEPSEEK_MODEL_NAME"] || "deepseek-chat";
     const deepApiVersion = process.env["RPL_DEEPSEEK_MODEL_VERSION"] || "v1";
+    const deepApiKey = process.env["RPL_DEEPSEEK_MODEL_API_KEY"] || "";
 
-    if (!process.env["RPL_DEEPSEEK_MODEL_API_KEY"]) {
-      res.status(500).json({ error: "Missing RPL_DEEPSEEK_MODEL_API_KEY environment variable." });
-      return;
-    }
+    apiKey = deepApiKey;
+
     if (!deepApiVersion) {
       res.status(500).json({ error: "Missing RPL_DEEPSEEK_MODEL_VERSION environment variable." });
       return;
     }
-    apiKey = process.env["RPL_DEEPSEEK_MODEL_API_KEY"];
+    if (!deepApiKey) {
+      res.status(500).json({ error: "Missing RPL_DEEPSEEK_MODEL_API_KEY environment variable." });
+      return;
+    }
     endpoint = deepEndpoint;
     modelName = deepModelName;
     apiVersion = deepApiVersion;
@@ -542,12 +544,14 @@ app.post("/api/analysis/chat", async (req, res) => {
   }
 
   try {
+    const authValue = apiKey;
+
     console.log(`[AI] Auth header: ${authHeader} | Model: ${modelName}`);
     const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        [authHeader]: isDeepseek ? `Bearer ${apiKey}` : apiKey,
+        [authHeader]: authValue,
       },
       body: JSON.stringify(body),
     });
