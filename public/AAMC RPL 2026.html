@@ -2638,6 +2638,7 @@ Job Title: ${jobTitleValue || "N/A"}
           .map((entry) => ({
             role: entry.classList.contains("user") ? "user" : "ai",
             text: entry.textContent || "",
+            transcriptText: entry.dataset.transcriptText || entry.textContent || "",
           }))
           .filter((entry) => entry.text.trim());
       };
@@ -2670,6 +2671,7 @@ Job Title: ${jobTitleValue || "N/A"}
           .map((entry) => ({
             role: entry?.role === "user" ? "user" : "ai",
             text: String(entry?.text || ""),
+            transcriptText: String(entry?.transcriptText || entry?.text || ""),
           }))
           .filter((entry) => entry.text.trim());
       };
@@ -3618,7 +3620,7 @@ Job Title: ${jobTitleValue || "N/A"}
       };
 
       const sendRecordingOnEvaluate = async (attemptNumber, questionNumber) => {
-        if (!lastResponseRecording?.blob) return;
+        if (!lastResponseRecording?.blob) return true;
         const ctx = getStudentContext();
         const givenName = ctx.givenName;
         const nameValue = fullName || ctx.fullName;
@@ -3649,8 +3651,13 @@ Job Title: ${jobTitleValue || "N/A"}
           if (text) {
             logDebugDetail("Recording response", text);
           }
+          if (!response.ok) {
+            throw new Error(`Recording upload failed (${response.status}) ${response.statusText}`.trim());
+          }
+          return true;
         } catch (error) {
           logDebugDetail("Recording error", error?.message || String(error));
+          return false;
         } finally {
           lastResponseRecording = null;
         }
@@ -4158,6 +4165,7 @@ Job Title: ${jobTitleValue || "N/A"}
         const entry = document.createElement("div");
         entry.className = `chatEntry ${role}`;
         entry.textContent = text;
+        entry.dataset.transcriptText = transcriptText || text || "";
         chatHistoryEl.appendChild(entry);
         chatHistoryEl.scrollTop = chatHistoryEl.scrollHeight;
         if (options.appendTranscript !== false) {
@@ -4934,54 +4942,56 @@ END_REVIEW>>>`;
         playbackLocked = true;
         updateDictationUi(dictationStatusEl?.textContent || "Dictation idle.");
         setUiLockedState(true);
+        if (answerInputEl) answerInputEl.disabled = true;
         showThinkingOverlay();
+        let finalButtonState = null;
 
         try {
-          // Run recording upload and AI evaluation in parallel — they are independent.
+          // Run transcript merge, recording upload, and AI evaluation in parallel where possible.
+          const transcriptMergePromise = ensureCompleteTranscriptQuestions();
           const prompt = buildPrompt(questions[currentIndex], currentResponses);
-          const [, responseText] = await Promise.all([
+          const [recordingSaved, responseText] = await Promise.all([
             sendRecordingOnEvaluate(attemptNumber, questionNumber),
             callTextModel(prompt, { mode: "assessor", temperature: 0, max_tokens: 900, debugLabel: "Check Response" }),
           ]);
           const assessorFeedback = buildAssessorFeedbackFromResponse(responseText, currentAttempts);
           const showNextQuestionOnly = assessorFeedback.shouldContinue;
           addChatEntry(assessorFeedback.displayText, "ai", assessorFeedback.transcriptAttemptText);
+          hideThinkingOverlay();
+          setStatus("Feedback ready. Saving transcript...");
           attemptRecord.feedback = assessorFeedback.transcriptAttemptText;
           const entry = ensureTranscriptQuestion(currentIndex, questionText, { objective: objectiveText, hint: hintText, section: sectionText });
           entry.questionText = questionText;
-          // Capture AI/system responses in transcript for complete conversation recording
-          if (assessorFeedback.displayText && assessorFeedback.displayText.trim()) {
-            if (!entry.systemResponses) entry.systemResponses = [];
-            entry.systemResponses.push({
-              turn: `AI Follow-up ${attemptNumber}`,
-              response: assessorFeedback.displayText,
-              timestamp: new Date().toISOString(),
-            });
-          }
           entry.attempts.push(attemptRecord);
           entry.summary = assessorFeedback.assessorSummary;
           entry.overallAssessment = assessorFeedback.overallAssessment;
-          await ensureCompleteTranscriptQuestions();
+          await transcriptMergePromise;
           fullTranscript = buildFullTranscript();
           window.RPLFullTranscript = fullTranscript;
           const nextAttemptForWebhook = Math.min(MAX_ATTEMPTS, attemptNumber + 1);
-          logNextDebug("Check Response - sending webhooks", { attemptNumber, nextAttemptForWebhook, currentAttempts });
+          logNextDebug("Check Response - sending webhooks", { attemptNumber, nextAttemptForWebhook, currentAttempts, recordingSaved });
           const [backupSaved, attemptAndTranscriptSaved] = await Promise.all([
             sendTranscriptBackupOnEvaluate({ attemptNumber, questionNumber }),
             sendCurrentAttemptOnEvaluate(nextAttemptForWebhook, questionNumber),
           ]);
-          logNextDebug("Webhook results", { backupSaved, attemptAndTranscriptSaved });
-          const saveWarning = !attemptAndTranscriptSaved
+          logNextDebug("Webhook results", { recordingSaved, backupSaved, attemptAndTranscriptSaved });
+          const saveWarning = !recordingSaved
+            ? "the recording upload did not complete"
+            : !attemptAndTranscriptSaved
             ? "the attempt/transcript update did not complete"
             : !backupSaved
               ? "the transcript backup did not complete"
               : "";
+          if (saveWarning) {
+            setStatus(`Feedback ready, but ${saveWarning}. Please check the debug panel before continuing.`);
+            finalButtonState = { nextDisabled: true, evaluateDisabled: true };
+            return;
+          }
           if (showNextQuestionOnly) {
             logNextDebug("Check Response - showNextQuestionOnly path", { showNextQuestionOnly, saveWarning, currentAttempts });
-            setStatus(!saveWarning
-              ? "Feedback ready. Press Next to continue."
-              : `Feedback ready, but ${saveWarning}. Please check the debug panel before continuing.`);
+            setStatus("Feedback ready. Press Next to continue.");
             setAttemptLockState(true);
+            finalButtonState = { nextDisabled: false, evaluateDisabled: true };
             logNextDebug("After setAttemptLockState(true) in showNextQuestionOnly", { attemptLocked, nextBtnDisabled: nextBtn?.disabled });
             return;
           }
@@ -4992,26 +5002,26 @@ END_REVIEW>>>`;
           logNextDebug("nextBtn disabled=false (feedback path)", { nextBtnDisabled: nextBtn?.disabled });
           if (currentAttempts >= MAX_ATTEMPTS) {
             evaluateBtn.disabled = true;
-            setStatus(!saveWarning
-              ? "Feedback ready. Maximum attempts reached."
-              : `Feedback ready, but ${saveWarning}. Please check the debug panel.`);
+            setStatus("Feedback ready. Maximum attempts reached.");
             setAttemptLockState(true);
+            finalButtonState = { nextDisabled: false, evaluateDisabled: true };
             logNextDebug("Max attempts - after setAttemptLockState(true)", { attemptLocked, nextBtnDisabled: nextBtn?.disabled });
           } else {
             evaluateBtn.disabled = false;
-            setStatus(!saveWarning
-              ? `Feedback ready. You have ${MAX_ATTEMPTS - currentAttempts} attempt(s) left.`
-              : `Feedback ready, but ${saveWarning}. Please check the debug panel.`);
+            setStatus(`Feedback ready. You have ${MAX_ATTEMPTS - currentAttempts} attempt(s) left.`);
+            finalButtonState = { nextDisabled: false, evaluateDisabled: true };
             logNextDebug("Attempts remaining - nextBtn state", { nextBtnDisabled: nextBtn?.disabled, evaluateBtnDisabled: evaluateBtn?.disabled });
           }
         } catch (err) {
           hideThinkingOverlay();
           addChatEntry(err?.message || String(err), "ai");
           setStatus("Evaluation failed.");
+          finalButtonState = { nextDisabled: true, evaluateDisabled: false };
           evaluateBtn.disabled = false;
         } finally {
           hideThinkingOverlay();
           setUiLockedState(false);
+          if (answerInputEl && !attemptLocked) answerInputEl.disabled = false;
           logNextDebug("Check Response finally block", {
             isUiLocked,
             attemptLocked,
@@ -5020,6 +5030,10 @@ END_REVIEW>>>`;
             evaluateBtnDisabled: evaluateBtn?.disabled
           });
           updateEvaluateButtonState();
+          if (finalButtonState) {
+            if (nextBtn) nextBtn.disabled = finalButtonState.nextDisabled;
+            if (evaluateBtn) evaluateBtn.disabled = finalButtonState.evaluateDisabled;
+          }
           if (currentAttempts >= MAX_ATTEMPTS) {
             evaluateBtn.disabled = true;
           }
@@ -5075,32 +5089,6 @@ END_REVIEW>>>`;
             throw new Error("Transcript save did not complete. Please try Next again.");
           }
 
-          const transcriptWebhookPayload = {
-            FullName: ctx.fullName,
-            ContactID: String(ctx.contactId),
-            GivenName: ctx.givenName,
-            FullTranscript: fullTranscript || buildFullTranscript(),
-            FullTranscriptJson: buildFullTranscriptJson(),
-            CurrentQuestion: nextQuestionValue,
-          };
-          logAssessmentDebug("Transcript webhook", "Sending payload");
-          logAssessmentDebug("Transcript webhook payload", transcriptWebhookPayload);
-          const transcriptResponse = await fetch(TRANSCRIPT_WEBHOOK_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(transcriptWebhookPayload),
-          });
-          const transcriptResponseText = await transcriptResponse.text();
-          logAssessmentDebug("Transcript webhook", `${transcriptResponse.status} ${transcriptResponse.statusText}`);
-          logNextDebug("Transcript webhook attempt", { attempt: 1, status: transcriptResponse.status, statusText: transcriptResponse.statusText });
-          if (transcriptResponseText) {
-            logAssessmentDebug("Transcript webhook response", transcriptResponseText);
-          }
-          if (!transcriptResponse.ok) {
-            throw new Error(`Transcript webhook failed (${transcriptResponse.status}) ${transcriptResponse.statusText}`.trim());
-          }
-          logNextDebug("Transcript webhook sent", `${transcriptResponse.status} ${transcriptResponse.statusText}`);
-
           const postNextQuestionPayload = async (body) => {
             const response = await fetch(NEXT_QUESTION_WEBHOOK_URL, {
               method: "POST",
@@ -5111,30 +5099,82 @@ END_REVIEW>>>`;
             return { response, text };
           };
 
-          let { response, text } = await postNextQuestionPayload(payload);
-          logDebugDetail("Next question HTTP status", `${response.status} ${response.statusText}`);
-          logAssessmentDebug("Next webhook", `${response.status} ${response.statusText}`);
-          if (text) {
-            logDebugDetail("Next question response", text);
-            logAssessmentDebug("Next response", text);
-          }
-          if (!response.ok && response.status === 400 && /CurrentAttempt/i.test(text) && /not been defined|additional properties/i.test(text)) {
-            const legacyPayload = { ...payload };
-            delete legacyPayload.CurrentAttempt;
-            logAssessmentDebug("Next webhook", "Retrying without CurrentAttempt for legacy schema");
-            logAssessmentDebug("Next retry payload", legacyPayload);
-            ({ response, text } = await postNextQuestionPayload(legacyPayload));
-            logDebugDetail("Next question retry HTTP status", `${response.status} ${response.statusText}`);
-            logAssessmentDebug("Next retry webhook", `${response.status} ${response.statusText}`);
+          const sendNextWebhook = async () => {
+            let { response, text } = await postNextQuestionPayload(payload);
+            logDebugDetail("Next question HTTP status", `${response.status} ${response.statusText}`);
+            logAssessmentDebug("Next webhook", `${response.status} ${response.statusText}`);
             if (text) {
-              logDebugDetail("Next question retry response", text);
-              logAssessmentDebug("Next retry response", text);
+              logDebugDetail("Next question response", text);
+              logAssessmentDebug("Next response", text);
             }
-          }
-          if (!response.ok) {
-            throw new Error(`Next webhook failed (${response.status}) ${response.statusText}`.trim());
-          }
-          logNextDebug("Next webhook succeeded", `${response.status} ${response.statusText}`);
+            if (!response.ok && response.status === 400 && /CurrentAttempt/i.test(text) && /not been defined|additional properties/i.test(text)) {
+              const legacyPayload = { ...payload };
+              delete legacyPayload.CurrentAttempt;
+              logAssessmentDebug("Next webhook", "Retrying without CurrentAttempt for legacy schema");
+              logAssessmentDebug("Next retry payload", legacyPayload);
+              ({ response, text } = await postNextQuestionPayload(legacyPayload));
+              logDebugDetail("Next question retry HTTP status", `${response.status} ${response.statusText}`);
+              logAssessmentDebug("Next retry webhook", `${response.status} ${response.statusText}`);
+              if (text) {
+                logDebugDetail("Next question retry response", text);
+                logAssessmentDebug("Next retry response", text);
+              }
+            }
+            if (!response.ok) {
+              throw new Error(`Next webhook failed (${response.status}) ${response.statusText}`.trim());
+            }
+            logNextDebug("Next webhook succeeded", `${response.status} ${response.statusText}`);
+            return true;
+          };
+
+          const sendTranscriptWebhook = async () => {
+            const transcriptWebhookPayload = {
+              FullName: ctx.fullName,
+              ContactID: String(ctx.contactId),
+              GivenName: ctx.givenName,
+              FullTranscript: fullTranscript || buildFullTranscript(),
+              FullTranscriptJson: buildFullTranscriptJson(),
+              CurrentQuestion: nextQuestionValue,
+            };
+            logAssessmentDebug("Transcript webhook", "Sending payload");
+            logAssessmentDebug("Transcript webhook payload", transcriptWebhookPayload);
+            const transcriptResponse = await fetch(TRANSCRIPT_WEBHOOK_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(transcriptWebhookPayload),
+            });
+            const transcriptResponseText = await transcriptResponse.text();
+            logAssessmentDebug("Transcript webhook", `${transcriptResponse.status} ${transcriptResponse.statusText}`);
+            logNextDebug("Transcript webhook attempt", { attempt: 1, status: transcriptResponse.status, statusText: transcriptResponse.statusText });
+            if (transcriptResponseText) {
+              logAssessmentDebug("Transcript webhook response", transcriptResponseText);
+            }
+            if (!transcriptResponse.ok) {
+              throw new Error(`Transcript webhook failed (${transcriptResponse.status}) ${transcriptResponse.statusText}`.trim());
+            }
+            logNextDebug("Transcript webhook sent", `${transcriptResponse.status} ${transcriptResponse.statusText}`);
+            return true;
+          };
+
+          const resetAttemptPromise = isLastQuestion
+            ? Promise.resolve(true)
+            : sendCurrentAttemptOnEvaluate(1, nextQuestionValue, "Attempt reset webhook")
+              .then((saved) => {
+                logAssessmentDebug("Attempt reset", saved ? "CurrentAttempt reset to 1." : "Reset request did not complete.");
+                logNextDebug("Attempt reset webhook result", saved ? "succeeded" : "failed");
+                if (!saved) {
+                  throw new Error("Attempt reset webhook did not complete.");
+                }
+                return true;
+              });
+
+          logNextDebug("Next Question - sending webhook batch", { isLastQuestion, nextQuestionValue });
+          await Promise.all([
+            sendTranscriptWebhook(),
+            sendNextWebhook(),
+            resetAttemptPromise,
+          ]);
+          logNextDebug("Next Question webhook batch complete", { isLastQuestion, nextQuestionValue });
         } catch (error) {
           logDebugDetail("Next question error", error?.message || String(error));
           logAssessmentDebug("Next error", error?.message || String(error));
@@ -5148,13 +5188,6 @@ END_REVIEW>>>`;
         }
         hideThinkingOverlay();
         logNextDebug("Next Question webhooks complete", { isLastQuestion, nextQuestionValue, currentIndex });
-        if (!isLastQuestion) {
-          sendCurrentAttemptOnEvaluate(1, nextQuestionValue, "Attempt reset webhook")
-            .then((saved) => {
-              logAssessmentDebug("Attempt reset", saved ? "CurrentAttempt reset to 1." : "Reset request did not complete.");
-              logNextDebug("Attempt reset webhook result", saved ? "succeeded" : "failed");
-            });
-        }
         if (isLastQuestion) {
           nextQuestionInFlight = false;
           setCompletedState();
