@@ -247,6 +247,7 @@ Assessment rules:
 - Mark LIKELY SUFFICIENT when the combined response reasonably answers the question requirements, including where understanding is implied rather than expressed in ideal wording.
 - Mark ADDITIONAL EVIDENCE MAY BE NEEDED only when a required part of the question is genuinely missing.
 - For regulatory-change questions, day-to-day impact can be shown by changed work processes such as updated forms, added compliance checks, training, consultant review, client explanations, changed time allocation, or changed client conversations. Do not require a separate phrase such as "day-to-day" if the practical work impact is already clear.
+- For product or service impact questions, product/service impact can be shown by changed lender policy, risk appetite, pricing, servicing, borrowing capacity, product features, product availability, lender selection, or recommendation scope. Do not require a separate explicit phrase such as "impact on products or services" if a concrete product, lender, policy, pricing, servicing, or recommendation change is already clear.
 - If the response is LIKELY SUFFICIENT, missing must be an empty array.
 
 Return this exact JSON shape:
@@ -343,6 +344,7 @@ Assessment rules:
 - Mark LIKELY SUFFICIENT when the combined response reasonably answers the question requirements, including where understanding is implied rather than expressed in ideal wording.
 - Mark ADDITIONAL EVIDENCE MAY BE NEEDED only when a required part of the question is genuinely missing.
 - For regulatory-change questions, day-to-day impact can be shown by changed work processes such as updated forms, added compliance checks, training, consultant review, client explanations, changed time allocation, or changed client conversations. Do not require a separate phrase such as "day-to-day" if the practical work impact is already clear.
+- For product or service impact questions, product/service impact can be shown by changed lender policy, risk appetite, pricing, servicing, borrowing capacity, product features, product availability, lender selection, or recommendation scope. Do not require a separate explicit phrase such as "impact on products or services" if a concrete product, lender, policy, pricing, servicing, or recommendation change is already clear.
 - If the response is LIKELY SUFFICIENT, missing must be an empty array.
 
 Return this exact JSON shape:

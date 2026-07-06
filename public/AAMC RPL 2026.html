@@ -3524,11 +3524,17 @@ Job Title: ${jobTitleValue || "N/A"}
         };
         logAssessmentDebug(label, "Sending payload");
         logAssessmentDebug(`${label} payload`, payload);
+        const bodyText = JSON.stringify(payload);
+        logCheckResponseDebug(`${label} payload size`, {
+          fullTranscriptCharacters: fullTranscript.length,
+          fullTranscriptJsonCharacters: payload.FullTranscriptJSON.length,
+          requestBodyCharacters: bodyText.length,
+        });
         try {
           const response = await fetch(CURRENT_ATTEMPT_WEBHOOK_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
+            body: bodyText,
           });
           logAssessmentDebug(label, `${response.status} ${response.statusText}`);
           const text = await response.text();

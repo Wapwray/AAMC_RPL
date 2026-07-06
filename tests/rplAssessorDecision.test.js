@@ -70,6 +70,9 @@ test("buildDeepseekAssessmentPrompt calibrates partial evidence feedback", () =>
   assert.match(prompt, /Do not provide example answers, suggested facts, model wording, or specific content the learner could copy/);
   assert.match(prompt, /never turn hint content into learner-facing missing detail/);
   assert.match(prompt, /Covered must acknowledge only evidence the learner has already said/);
+  assert.match(prompt, /For product or service impact questions/);
+  assert.match(prompt, /changed lender policy, risk appetite, pricing, servicing, borrowing capacity, product features, product availability, lender selection, or recommendation scope/);
+  assert.match(prompt, /Do not require a separate explicit phrase such as "impact on products or services"/);
 });
 
 test("parseAssessmentResponse accepts fenced JSON and normalises legacy status words", () => {
