@@ -40,6 +40,8 @@ test("buildDeepseekAssessmentPrompt calibrates partial evidence feedback", () =>
   assert.match(prompt, /one external stakeholder affected by the change/);
   assert.match(prompt, /mentions stakeholders received updates about impacts of the change/);
   assert.match(prompt, /Covered items must also be short neutral evidence points/);
+  assert.match(prompt, /Warmth and answer-safety rules/);
+  assert.match(prompt, /Do not provide example answers, suggested facts, model wording, or specific content the learner could copy/);
 });
 
 test("parseAssessmentResponse accepts fenced JSON and normalises legacy status words", () => {
@@ -90,9 +92,9 @@ test("additional evidence guidance is learner-facing and does not leak hint cont
   });
 
   assert.equal(feedback.shouldContinue, false);
-  assert.match(feedback.displayText, /^Bel, thanks for that\. Some additional detail is required\./);
+  assert.match(feedback.displayText, /^Bel, thanks for that\. You're on the right track, and a little more detail would help complete this response\./);
   assert.match(feedback.displayText, /So far, you've told us that:\n- You've identified the change/);
-  assert.match(feedback.displayText, /Explain how the work process changed\./);
+  assert.match(feedback.displayText, /It would help to add a little more detail about how the work process changed\./);
   assert.match(feedback.displayText, /Show Hint button/);
   assert.doesNotMatch(feedback.displayText, /Objective/i);
   assert.doesNotMatch(feedback.displayText, /RG209|responsible lending obligations/i);
@@ -112,11 +114,11 @@ test("additional evidence guidance formats multiple evidence points readably", (
   }, { attemptCount: 1, maxAttempts: 3 });
   const feedback = assessor.buildFeedback(decision, { givenName: "Richard" });
 
-  assert.match(feedback.displayText, /^Richard, thanks for that\. Some additional detail is required\./);
+  assert.match(feedback.displayText, /^Richard, thanks for that\. You're on the right track, and a little more detail would help complete this response\./);
   assert.match(feedback.displayText, /So far, you've told us that:\n- You would recommend the more appropriate loan/);
   assert.match(feedback.displayText, /\n- You would document recommendations and rationale/);
   assert.match(feedback.displayText, /\n- You would keep file notes, CRM records/);
-  assert.match(feedback.displayText, /Explain who you would consult or ask for help if you were unsure\./);
+  assert.match(feedback.displayText, /It would help to add a little more detail about who you would consult or ask for help if you were unsure\./);
   assert.doesNotMatch(feedback.displayText, /appropriate course of action/);
   assert.doesNotMatch(feedback.displayText, /demonstrates a clear understanding/i);
   assert.doesNotMatch(feedback.displayText, /Richard, Your/);
@@ -159,8 +161,8 @@ test("low-evidence answers do not claim clear understanding", () => {
 
   const feedback = assessor.buildFeedback(decision, { givenName: "Bel" });
 
-  assert.match(feedback.displayText, /^Bel, I could not identify enough evidence yet/);
-  assert.match(feedback.displayText, /The key areas that still need more detail are/);
+  assert.match(feedback.displayText, /^Bel, thanks for your response\. I need a little more evidence before I can match it to this question\./);
+  assert.match(feedback.displayText, /It would help to add a little more detail about/);
   assert.doesNotMatch(feedback.displayText, /demonstrates a clear understanding/i);
   assert.doesNotMatch(feedback.displayText, /So far, you've told us that:/);
 });

@@ -1216,6 +1216,8 @@
       const DEFAULT_GIVEN_NAME = "Billy";
       const DEFAULT_CONTACT_ID = "123456";
       const MIC_STORAGE_KEY = "rplMicDeviceId";
+      const MICROPHONE_PERMISSION_TIMEOUT_MS = 1500;
+      const MICROPHONE_ENUMERATE_TIMEOUT_MS = 3000;
 
       const setStatus = (message) => {
         statusEl.textContent = message;
@@ -1675,6 +1677,8 @@
 
       const populateMicrophones = async () => {
         if (!micSelectEl) return;
+        micSelectEl.innerHTML = "<option value=\"\">Checking microphones...</option>";
+        micSelectEl.disabled = true;
         if (!navigator?.mediaDevices?.enumerateDevices) {
           micSelectEl.innerHTML = "<option value=\"\">Microphone list not supported</option>";
           micSelectEl.disabled = true;
@@ -1683,14 +1687,37 @@
         }
 
         try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          stream.getTracks().forEach((track) => track.stop());
+          const permissionRequest = navigator.mediaDevices.getUserMedia({ audio: true });
+          const permissionResult = await Promise.race([
+            permissionRequest.then((stream) => ({ stream })).catch((error) => ({ error })),
+            wait(MICROPHONE_PERMISSION_TIMEOUT_MS).then(() => ({ timedOut: true })),
+          ]);
+          if (permissionResult.stream) {
+            permissionResult.stream.getTracks().forEach((track) => track.stop());
+          } else if (permissionResult.timedOut) {
+            permissionRequest
+              .then((stream) => stream.getTracks().forEach((track) => track.stop()))
+              .catch(() => {});
+            setMicStatus("Microphone permission pending. Using available device list.");
+          } else if (permissionResult.error) {
+            setMicStatus("Microphone access blocked. Device names may be hidden.");
+          }
         } catch (err) {
-          setMicStatus("Microphone access blocked. Allow access to list devices.");
+          setMicStatus("Microphone access blocked. Device names may be hidden.");
         }
 
         try {
-          const devices = await navigator.mediaDevices.enumerateDevices();
+          const devicesResult = await Promise.race([
+            navigator.mediaDevices.enumerateDevices().then((devices) => ({ devices })).catch((error) => ({ error })),
+            wait(MICROPHONE_ENUMERATE_TIMEOUT_MS).then(() => ({ timedOut: true })),
+          ]);
+          if (devicesResult.timedOut) {
+            throw new Error("Timed out loading microphone list.");
+          }
+          if (devicesResult.error) {
+            throw devicesResult.error;
+          }
+          const devices = devicesResult.devices || [];
           const mics = devices.filter((device) => device.kind === "audioinput");
           const savedId = localStorage.getItem(MIC_STORAGE_KEY) || "";
 
@@ -4675,6 +4702,7 @@ END_REVIEW>>>`;
         updateDebugVisibility();
         window.addEventListener("hashchange", updateDebugVisibility);
         await loadPromptTemplates();
+        populateMicrophones();
         await populateCameras();
         if (!resume) {
           await startCamera();

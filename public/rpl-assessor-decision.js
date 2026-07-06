@@ -317,6 +317,12 @@ Deepseek calibration rules:
 - Missing items must be short noun phrases, not commands. Use phrases like "one internal stakeholder affected by the change" and "one external stakeholder affected by the change". Do not write "names an internal stakeholder" or "explain an external stakeholder".
 - Covered items must also be short neutral evidence points. Use phrases like "mentions stakeholders received updates about impacts of the change" rather than judgmental phrases.
 
+Warmth and answer-safety rules:
+- The application will turn covered and missing into learner feedback. Write covered and missing so they support a calm, encouraging assessor voice.
+- Missing items must describe only the area where more evidence is needed. Do not provide example answers, suggested facts, model wording, or specific content the learner could copy.
+- Do not reveal the correct answer, the hint, or assessor-only reasoning in covered, missing, or assessorRationale.
+- When any relevant evidence exists, make assessorRationale balanced: briefly acknowledge the useful evidence before noting the remaining gap.
+
 Assessment rules:
 - Give primary weight to the question text and objective.
 - Use the hint only as supplementary assessment context. Never quote, paraphrase, list, or reveal hint content in any returned field.
@@ -368,16 +374,14 @@ ${JSON.stringify(payload, null, 2)}`;
       ? `\n\nSo far, you've told us that:\n${coveredBullets}`
       : "";
     const opening = coveredBullets
-      ? "thanks for that. Some additional detail is required."
-      : "I could not identify enough evidence yet to show the required understanding for this question.";
+      ? "thanks for that. You're on the right track, and a little more detail would help complete this response."
+      : "thanks for your response. I need a little more evidence before I can match it to this question.";
     const missing = formatMissingRequirement(decision.missing);
     const hintSentence = decision.hintWouldHelp
       ? "\n\nYou can press the Show Hint button for additional help."
       : "";
-    const missingIntro = toArray(decision.missing).length > 1
-      ? "The key areas that still need more detail are"
-      : "Explain";
-    return `${givenName}, ${opening}${covered}\n\n${missingIntro} ${missing}.${hintSentence}\n\nYou can add this by pressing the Start Transcription button or typing in the Your response box. If you cannot add any more, you can move to the next question.`;
+    const missingIntro = "It would help to add a little more detail about";
+    return `${givenName}, ${opening}${covered}\n\n${missingIntro} ${missing}.${hintSentence}\n\nTry adding this in your own words by pressing the Start Transcription button or typing in the Your response box. If you cannot add any more, you can move to the next question.`;
   };
 
   const buildFeedback = (decision, context = {}) => {
