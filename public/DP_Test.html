@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AAMC RPL - Deepseek Chat Test</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background: #f8fafc;
+      color: #0f172a;
+    }
+    .container { max-width: 900px; margin: 24px auto; padding: 0 16px; }
+    h1 { font-size: 24px; margin-bottom: 8px; }
+    .subtitle { color: #64748b; font-size: 14px; margin-bottom: 24px; }
+    
+    .config-section {
+      background: white;
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      margin-bottom: 24px;
+    }
+    .config-section h2 { font-size: 16px; margin-top: 0; color: #334155; }
+    
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 12px;
+    }
+    .form-group { display: flex; flex-direction: column; }
+    .form-group label { font-size: 12px; color: #64748b; margin-bottom: 4px; font-weight: 500; }
+    .form-group input, .form-group select {
+      padding: 8px 12px;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      font-size: 14px;
+      background: #ffffff;
+    }
+    .form-group input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.1); }
+    
+    .chat-section { background: white; border-radius: 8px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .chat-messages { height: 500px; overflow-y: auto; padding: 16px; background: #f1f5f9; border-radius: 6px; margin-bottom: 12px; }
+    
+    .message { margin-bottom: 16px; display: flex; gap: 12px; }
+    .message.user { flex-direction: row-reverse; }
+    .message-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; color: white; flex-shrink: 0; }
+    .message.assistant .message-avatar { background: #8b5cf6; }
+    .message.user .message-avatar { background: #3b82f6; }
+    
+    .message-content { max-width: 70%; padding: 12px 16px; border-radius: 12px; font-size: 14px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; }
+    .message.user .message-content { background: #3b82f6; color: white; border-bottom-right-radius: 4px; }
+    .message.assistant .message-content { background: white; border: 1px solid #e2e8f0; border-bottom-left-radius: 4px; }
+    
+    .input-section { display: flex; gap: 8px; }
+    .input-section textarea {
+      flex: 1;
+      padding: 12px;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      font-size: 14px;
+      resize: vertical;
+      min-height: 48px;
+      max-height: 150px;
+      font-family: inherit;
+    }
+    .input-section textarea:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.1); }
+    
+    button {
+      padding: 12px 24px;
+      background: #7c3aed;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover { background: #6d28d9; }
+    button:disabled { background: #a78bfa; cursor: not-allowed; }
+    
+    .status-bar { margin-top: 12px; padding: 8px 12px; border-radius: 6px; font-size: 13px; display: none; }
+    .status-bar.error { background: #fef2f2; color: #991b1b; display: block; }
+    .status-bar.success { background: #f0fdf4; color: #166534; display: block; }
+    
+    .loading { opacity: 0.6; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>AAMC RPL - Deepseek Chat Test</h1>
+    <p class="subtitle">Direct endpoint testing for DeepSeek-V4-Flash via Azure AI Foundry</p>
+
+    <div class="config-section">
+      <h2>Configuration (matches server.js Deepseek branch)</h2>
+      <p style="font-size:13px;color:#64748b;margin-top:-8px;">URL is built by stripping <code>/openai/v1</code>, <code>/chat/completions</code>, and <code>/openai</code> from the endpoint, then appending <code>/openai/{version}/chat/completions</code>.</p>
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="endpoint">RPL_DEEPSEEK_MODEL_ENDPOINT (base)</label>
+          <input type="text" id="endpoint" value="https://aamc-ax-int-resource.services.ai.azure.com/openai/v1" />
+        </div>
+        <div class="form-group">
+          <label for="apiKey">RPL_DEEPSEEK_MODEL_API_KEY</label>
+          <input type="password" id="apiKey" placeholder="API key (not stored)" />
+        </div>
+        <div class="form-group">
+          <label for="modelName">RPL_DEEPSEEK_MODEL_NAME</label>
+          <input type="text" id="modelName" value="DeepSeek-V4-Flash" />
+        </div>
+        <div class="form-group">
+          <label for="apiVersion">RPL_DEEPSEEK_MODEL_VERSION (deployment version)</label>
+          <input type="text" id="apiVersion" value="2026-04-23" />
+        </div>
+      </div>
+
+      <details style="margin-top:12px;">
+        <summary style="cursor:pointer;font-size:13px;color:#3b82f6;">Show resolved URL &amp; headers</summary>
+        <pre id="preview" style="background:#f1f5f9;padding:10px;border-radius:6px;font-size:12px;overflow-x:auto;white-space:pre-wrap;margin-top:8px;"></pre>
+      </details>
+    </div>
+
+    <div class="chat-section">
+      <div class="chat-messages" id="chatMessages"></div>
+      
+      <form class="input-section" id="chatForm">
+        <textarea id="userInput" placeholder="Type your message..." rows="1"></textarea>
+        <button type="submit" id="sendBtn">Send</button>
+      </form>
+
+      <div class="status-bar" id="statusBar"></div>
+    </div>
+  </div>
+
+  <script>
+    const chatMessages = document.getElementById('chatMessages');
+    const chatForm = document.getElementById('chatForm');
+    const userInput = document.getElementById('userInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const statusBar = document.getElementById('statusBar');
+    const previewEl = document.getElementById('preview');
+
+    let conversationHistory = [];
+
+    function showStatus(message, type) {
+      statusBar.textContent = message;
+      statusBar.className = `status-bar ${type}`;
+      if (type === 'error') setTimeout(() => statusBar.style.display = 'none', 5000);
+    }
+
+    function addMessage(role, content) {
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `message ${role}`;
+      
+      const avatar = document.createElement('div');
+      avatar.className = 'message-avatar';
+      avatar.textContent = role === 'user' ? 'U' : 'AI';
+      
+      const contentDiv = document.createElement('div');
+      contentDiv.className = 'message-content';
+      contentDiv.textContent = content;
+      
+      messageDiv.appendChild(avatar);
+      messageDiv.appendChild(contentDiv);
+      chatMessages.appendChild(messageDiv);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function buildDeepseekUrl(endpoint, apiVersion) {
+      // Mirrors server.js Deepseek branch: strip /openai/v1, /chat/completions, /openai then append.
+      const endpointBase = String(endpoint || '').replace(/\/+$/, '');
+      const deepVersion = String(apiVersion || 'v1').replace(/^\/+|\/+$/g, '') || 'v1';
+      const deepBase = endpointBase
+        .replace(/\/?chat\/completions$/i, '')
+        .replace(/\/?openai\/v\d+$/i, '')
+        .replace(/\/?openai$/i, '');
+      return `${deepBase}/openai/${deepVersion}/chat/completions`;
+    }
+
+    function updatePreview() {
+      const endpoint = document.getElementById('endpoint').value.trim();
+      const apiKey = document.getElementById('apiKey').value;
+      const modelName = document.getElementById('modelName').value.trim();
+      const apiVersion = document.getElementById('apiVersion').value.trim();
+      
+      if (!endpoint) { previewEl.textContent = 'Enter an endpoint to see the resolved URL.'; return; }
+
+      const url = buildDeepseekUrl(endpoint, apiVersion);
+      const maskedKey = apiKey ? `${apiKey.slice(0, 4)}...${apiKey.slice(-4)}` : '(none)';
+      
+      previewEl.textContent = [
+        `URL:    ${url}`,
+        `Model:  ${modelName || 'deepseek-chat'}`,
+        `Auth:   api-key: ${maskedKey}`,
+        `Body:   { messages: [...], model: "${modelName}", max_completion_tokens: <default> }`
+      ].join('\n');
+    }
+
+    document.getElementById('endpoint').addEventListener('input', updatePreview);
+    document.getElementById('apiKey').addEventListener('input', updatePreview);
+    document.getElementById('modelName').addEventListener('input', updatePreview);
+    document.getElementById('apiVersion').addEventListener('input', updatePreview);
+    updatePreview();
+
+    async function sendMessage() {
+      const endpoint = document.getElementById('endpoint').value.trim();
+      const apiKey = document.getElementById('apiKey').value;
+      const modelName = document.getElementById('modelName').value.trim() || 'deepseek-chat';
+      const apiVersion = document.getElementById('apiVersion').value.trim() || 'v1';
+
+      if (!endpoint) { showStatus('Please enter an endpoint.', 'error'); return; }
+      if (!apiKey) { showStatus('Please enter the API key.', 'error'); return; }
+
+      const userMessage = userInput.value.trim();
+      if (!userMessage) return;
+
+      addMessage('user', userMessage);
+      conversationHistory.push({ role: 'user', content: userMessage });
+      
+      sendBtn.disabled = true;
+      userInput.style.height = '48px';
+      showStatus('Sending...', 'success');
+
+      const url = buildDeepseekUrl(endpoint, apiVersion);
+
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'api-key': apiKey
+          },
+          body: JSON.stringify({
+            messages: conversationHistory,
+            model: modelName,
+            max_completion_tokens: 1024
+          })
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 500)}`);
+        }
+
+        const data = await response.json();
+        const assistantMessage = data.choices?.[0]?.message?.content || 'No response content';
+        
+        conversationHistory.push({ role: 'assistant', content: assistantMessage });
+        addMessage('assistant', assistantMessage);
+        
+      } catch (error) {
+        showStatus(`Error: ${error.message}`, 'error');
+        console.error('Deepseek API error:', error);
+      } finally {
+        sendBtn.disabled = false;
+        userInput.focus();
+      }
+    }
+
+    chatForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      sendMessage();
+    });
+
+    userInput.addEventListener('input', function() {
+      this.style.height = 'auto';
+      const newHeight = Math.max(48, Math.min(this.scrollHeight, 150));
+      this.style.height = `${newHeight}px`;
+    });
+
+    userInput.focus();
+  </script>
+</body>
+</html>

@@ -4357,7 +4357,7 @@ Job Title: ${jobTitleValue || "N/A"}
         const answerBlock = answers
           .map((response, index) => `Response ${index + 1}: ${response}`)
           .join("\n");
-        const template = promptTemplates?.assessmentPrompt;
+        const template = useDeepseekMode ? null : promptTemplates?.assessmentPrompt;
         if (template && /overallAssessment/i.test(template) && /valid JSON only/i.test(template)) {
           return applyTemplate(template, {
             FullName: fullName || ctx.fullName,
@@ -4373,7 +4373,10 @@ Job Title: ${jobTitleValue || "N/A"}
             MaxAttempts: String(MAX_ATTEMPTS),
           });
         }
-        return getAssessorDecisionModule().buildAssessmentPrompt({
+        const promptBuilder = useDeepseekMode && typeof getAssessorDecisionModule().buildDeepseekAssessmentPrompt === "function"
+          ? getAssessorDecisionModule().buildDeepseekAssessmentPrompt
+          : getAssessorDecisionModule().buildAssessmentPrompt;
+        return promptBuilder({
           candidateMetadata: {
             fullName: fullName || ctx.fullName,
             givenName: firstName || ctx.givenName || ctx.fullName,

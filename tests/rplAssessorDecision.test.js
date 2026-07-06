@@ -21,6 +21,27 @@ test("buildAssessmentPrompt requires combined-attempt consistency", () => {
   assert.match(prompt, /Never quote, paraphrase, list, or reveal hint content/);
 });
 
+test("buildDeepseekAssessmentPrompt calibrates partial evidence feedback", () => {
+  const prompt = assessor.buildDeepseekAssessmentPrompt({
+    candidateMetadata: { givenName: "MondayTest2", industry: "Finance Broking" },
+    question: {
+      questionText: "Tell me about a regulatory change and identify stakeholders affected by it.",
+      objective: "Confirm the learner can identify internal and external stakeholders affected by change.",
+      hint: "This hint must not be disclosed.",
+    },
+    attempts: ["They had to be given regular updates to demonstrate how the changes impacted the business"],
+    maxAttempts: 3,
+  });
+
+  assert.match(prompt, /Deepseek calibration rules/);
+  assert.match(prompt, /If the learner gives any relevant evidence, put it in covered/);
+  assert.match(prompt, /some additional detail is required/);
+  assert.match(prompt, /one internal stakeholder affected by the change/);
+  assert.match(prompt, /one external stakeholder affected by the change/);
+  assert.match(prompt, /mentions stakeholders received updates about impacts of the change/);
+  assert.match(prompt, /Legacy prompt kept for reference/);
+});
+
 test("parseAssessmentResponse accepts fenced JSON and normalises legacy status words", () => {
   const parsed = assessor.parseAssessmentResponse(`Before\n\`\`\`json
 {

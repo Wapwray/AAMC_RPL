@@ -206,21 +206,23 @@
     };
   };
 
+  const buildAssessmentPayload = ({ candidateMetadata = {}, question = {}, attempts = [], attemptCount, maxAttempts = 3 } = {}) => ({
+    candidateMetadata,
+    question: {
+      questionText: question.questionText || "",
+      objective: question.objective || "",
+      hint: question.hint || "",
+    },
+    attempts: attempts.map((answer, index) => ({
+      attemptNumber: index + 1,
+      responseText: String(answer || ""),
+    })),
+    currentAttempt: attemptCount || attempts.length,
+    maxAttempts,
+  });
+
   const buildAssessmentPrompt = ({ candidateMetadata = {}, question = {}, attempts = [], attemptCount, maxAttempts = 3 } = {}) => {
-    const payload = {
-      candidateMetadata,
-      question: {
-        questionText: question.questionText || "",
-        objective: question.objective || "",
-        hint: question.hint || "",
-      },
-      attempts: attempts.map((answer, index) => ({
-        attemptNumber: index + 1,
-        responseText: String(answer || ""),
-      })),
-      currentAttempt: attemptCount || attempts.length,
-      maxAttempts,
-    };
+    const payload = buildAssessmentPayload({ candidateMetadata, question, attempts, attemptCount, maxAttempts });
 
     return `You are an expert Australian financial services RPL evidence reviewer. Return valid JSON only. Do not return Markdown, commentary, or learner-facing prose.
 
@@ -246,6 +248,89 @@ Return this exact JSON shape:
   "overallAssessment": "LIKELY SUFFICIENT | ADDITIONAL EVIDENCE MAY BE NEEDED",
   "covered": ["short neutral evidence point"],
   "missing": ["short neutral missing requirement"],
+  "hintWouldHelp": false,
+  "assessorRationale": "one concise assessor-facing reason for the status, about the learner in third person, not addressed to the learner",
+  "confidence": "high | medium | low"
+}
+
+Input:
+${JSON.stringify(payload, null, 2)}`;
+  };
+
+  const buildDeepseekAssessmentPrompt = ({ candidateMetadata = {}, question = {}, attempts = [], attemptCount, maxAttempts = 3 } = {}) => {
+    const payload = buildAssessmentPayload({ candidateMetadata, question, attempts, attemptCount, maxAttempts });
+
+    /*
+    Legacy prompt kept for reference before Deepseek-specific tuning:
+
+    You are an expert Australian financial services RPL evidence reviewer. Return valid JSON only. Do not return Markdown, commentary, or learner-facing prose.
+
+    Your only task is to assess the combined evidence in the learner attempts against the supplied question and objective.
+
+    Critical consistency rule:
+    - Treat all attempts as one combined response.
+    - The same evidence must receive the same overallAssessment whether it appears in one long answer or is split across multiple attempts.
+    - Do not ask for repetition or extra detail just because the response is a single long answer.
+    - A later attempt may add evidence that was missing from an earlier attempt. The learner has up to ${maxAttempts} attempts to build their complete response. If the combined evidence across all attempts answers the question requirements, mark LIKELY SUFFICIENT even if earlier attempts only partially addressed the objective. Do not ask the learner to repeat evidence they have already provided in a previous attempt.
+
+    Assessment rules:
+    - Give primary weight to the question text and objective.
+    - Use the hint only as supplementary assessment context. Never quote, paraphrase, list, or reveal hint content in any returned field.
+    - Do not introduce requirements that are not present in the question, objective, or reasonably implied by them.
+    - Mark LIKELY SUFFICIENT when the combined response reasonably answers the question requirements, including where understanding is implied rather than expressed in ideal wording.
+    - Mark ADDITIONAL EVIDENCE MAY BE NEEDED only when a required part of the question is genuinely missing.
+    - For regulatory-change questions, day-to-day impact can be shown by changed work processes such as updated forms, added compliance checks, training, consultant review, client explanations, changed time allocation, or changed client conversations. Do not require a separate phrase such as "day-to-day" if the practical work impact is already clear.
+    - If the response is LIKELY SUFFICIENT, missing must be an empty array.
+
+    Return this exact JSON shape:
+    {
+      "overallAssessment": "LIKELY SUFFICIENT | ADDITIONAL EVIDENCE MAY BE NEEDED",
+      "covered": ["short neutral evidence point"],
+      "missing": ["short neutral missing requirement"],
+      "hintWouldHelp": false,
+      "assessorRationale": "one concise assessor-facing reason for the status, about the learner in third person, not addressed to the learner",
+      "confidence": "high | medium | low"
+    }
+
+    Input:
+    ${JSON.stringify(payload, null, 2)}
+    */
+
+    return `You are an expert Australian financial services RPL evidence reviewer. Return valid JSON only. Do not return Markdown, commentary, or learner-facing prose.
+
+You are reviewing evidence for an RPL interview. Your output is converted by application code into learner feedback, so the JSON fields must support warm, balanced feedback similar to an experienced assessor.
+
+Your only task is to assess the combined evidence in the learner attempts against the supplied question and objective.
+
+Critical consistency rules:
+- Treat all attempts as one combined response.
+- The same evidence must receive the same overallAssessment whether it appears in one long answer or is split across multiple attempts.
+- A later attempt may add evidence that was missing from an earlier attempt. The learner has up to ${maxAttempts} attempts to build their complete response.
+- If the combined evidence across all attempts answers the question requirements, mark LIKELY SUFFICIENT even if the wording is informal, brief, or not phrased like an assessor would write it.
+- Do not ask the learner to repeat evidence they have already provided in a previous attempt.
+
+Deepseek calibration rules:
+- Be evidence-aware and generous with partial answers. If the learner gives any relevant evidence, put it in covered. Do not leave covered empty unless the response is completely unrelated or blank.
+- For a partly correct answer, return ADDITIONAL EVIDENCE MAY BE NEEDED, but still acknowledge what was covered.
+- Prefer "some additional detail is required" style outcomes over "not enough evidence" style outcomes when any relevant evidence exists.
+- Do not use harsh or absolute wording in assessorRationale such as "could not identify enough evidence", "failed to", "does not demonstrate", or "insufficient evidence" when covered contains any item.
+- Missing items must be short noun phrases, not commands. Use phrases like "one internal stakeholder affected by the change" and "one external stakeholder affected by the change". Do not write "names an internal stakeholder" or "explain an external stakeholder".
+- Covered items must also be short neutral evidence points. Use phrases like "mentions stakeholders received updates about impacts of the change" rather than judgmental phrases.
+
+Assessment rules:
+- Give primary weight to the question text and objective.
+- Use the hint only as supplementary assessment context. Never quote, paraphrase, list, or reveal hint content in any returned field.
+- Do not introduce requirements that are not present in the question, objective, or reasonably implied by them.
+- Mark LIKELY SUFFICIENT when the combined response reasonably answers the question requirements, including where understanding is implied rather than expressed in ideal wording.
+- Mark ADDITIONAL EVIDENCE MAY BE NEEDED only when a required part of the question is genuinely missing.
+- For regulatory-change questions, day-to-day impact can be shown by changed work processes such as updated forms, added compliance checks, training, consultant review, client explanations, changed time allocation, or changed client conversations. Do not require a separate phrase such as "day-to-day" if the practical work impact is already clear.
+- If the response is LIKELY SUFFICIENT, missing must be an empty array.
+
+Return this exact JSON shape:
+{
+  "overallAssessment": "LIKELY SUFFICIENT | ADDITIONAL EVIDENCE MAY BE NEEDED",
+  "covered": ["short neutral evidence point acknowledging relevant evidence already provided"],
+  "missing": ["short neutral missing requirement as a noun phrase"],
   "hintWouldHelp": false,
   "assessorRationale": "one concise assessor-facing reason for the status, about the learner in third person, not addressed to the learner",
   "confidence": "high | medium | low"
@@ -319,6 +404,7 @@ ${JSON.stringify(payload, null, 2)}`;
     STATUS_LIKELY_SUFFICIENT,
     STATUS_ADDITIONAL_EVIDENCE,
     buildAssessmentPrompt,
+    buildDeepseekAssessmentPrompt,
     parseAssessmentResponse,
     normaliseAssessmentStatus,
     normaliseDecision,
