@@ -66,16 +66,6 @@
       .chatEntry:last-child { margin-bottom: 0; }
       .chatEntry.user { background: #eef6ff; border: 1px solid #d7e7ff; }
       .chatEntry.ai { background: #f8fafc; border: 1px solid var(--border); }
-      .assessmentDebug { border: 1px solid var(--border); border-radius: 12px; background: #ffffff; padding: 12px; }
-      .assessmentDebugHeader { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
-      .assessmentDebugTitle { font-size: 13px; font-weight: 700; color: var(--text); }
-      .assessmentDebugLog { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 12px; line-height: 1.45; white-space: pre-wrap; max-height: 200px; overflow: auto; background: #f8fafc; border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
-      .responseDebugPanel { border: 1px solid var(--border); border-radius: 12px; background: #ffffff; padding: 12px; display: grid; gap: 8px; }
-      .responseDebugPanel.collapsed { gap: 0; }
-      .responseDebugPanel.collapsed .responseDebugLog { display: none; }
-      .responseDebugHeader { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-      .responseDebugTitle { font-size: 13px; font-weight: 700; color: var(--text); }
-      .responseDebugLog { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 12px; line-height: 1.45; white-space: pre-wrap; max-height: 240px; overflow: auto; background: #f8fafc; border: 1px solid var(--border); border-radius: 10px; padding: 10px; min-height: 140px; }
       .quizHeader { font-size: 18px; font-weight: 700; margin: 0 0 8px; }
       .assessmentLayout {
         display: grid;
@@ -541,71 +531,6 @@
       .stackedCard {
         margin: 0 0 18px;
       }
-      .welcomeDebugPanel {
-        margin-top: 16px;
-        width: min(880px, 100%);
-        text-align: left;
-      }
-      .liveDebugPanel {
-        position: fixed;
-        left: 20px;
-        bottom: 58px;
-        z-index: 70;
-        width: min(640px, calc(100vw - 40px));
-        max-height: 240px;
-        background: rgba(255, 255, 255, 0.96);
-        border: 1px solid rgba(148, 163, 184, 0.85);
-        border-radius: 10px;
-        box-shadow: 0 14px 34px rgba(15, 23, 42, 0.18);
-        padding: 10px;
-        -webkit-backdrop-filter: blur(6px);
-        backdrop-filter: blur(6px);
-      }
-      .liveDebugPanel .assessmentDebugHeader {
-        margin-bottom: 6px;
-      }
-      .liveDebugLog {
-        max-height: 160px;
-        font-size: 11px;
-        background: #0f172a;
-        color: #e2e8f0;
-        border-color: #334155;
-      }
-      .nextDebugPanel {
-        position: fixed;
-        left: 20px;
-        top: 20px;
-        z-index: 80;
-        width: 500px;
-        max-height: 320px;
-        background: rgba(255, 255, 255, 0.96);
-        border: 1px solid rgba(148, 163, 184, 0.85);
-        border-radius: 10px;
-        box-shadow: 0 14px 34px rgba(15, 23, 42, 0.18);
-        padding: 10px;
-        -webkit-backdrop-filter: blur(6px);
-        backdrop-filter: blur(6px);
-        display: flex;
-        flex-direction: column;
-      }
-      .nextDebugPanel.collapsed { max-height: 38px; overflow: hidden; }
-      .nextDebugHeader { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
-      .nextDebugTitle { font-size: 13px; font-weight: 700; color: var(--text); }
-      .nextDebugControls { display: flex; gap: 6px; }
-      .nextDebugControls button { font-size: 11px; padding: 2px 8px; }
-      .nextDebugLog {
-        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-        font-size: 11px;
-        line-height: 1.4;
-        white-space: pre-wrap;
-        max-height: 260px;
-        overflow: auto;
-        background: #0f172a;
-        color: #e2e8f0;
-        border: 1px solid #334155;
-        border-radius: 6px;
-        padding: 8px;
-      }
       .initTitle {
         font-weight: 700;
         margin-bottom: 6px;
@@ -649,16 +574,6 @@
           border-radius: 14px;
           font-size: 11px;
           padding: 8px 10px;
-        }
-        .liveDebugPanel {
-          left: 12px;
-          right: 12px;
-          bottom: 70px;
-          width: auto;
-          max-height: 190px;
-        }
-        .liveDebugLog {
-          max-height: 110px;
         }
       }
       .managedStaffSection {
@@ -978,13 +893,7 @@
                 </div>
                 <span class="dictationStatus" id="dictationStatus">Dictation idle.</span>
               </div>
-              <div id="checkResponseDebugPanel" class="responseDebugPanel">
-                <div class="responseDebugHeader">
-                  <div class="responseDebugTitle">Check Response Debug</div>
-                  <button id="checkResponseDebugToggle" class="secondary">Hide</button>
-                </div>
-                <div id="checkResponseDebugLog" class="responseDebugLog">Waiting for Check Response activity...</div>
-              </div>
+
             </div>
             <button id="nextBtn" class="secondary nextFloating" disabled>Next Question</button>
           </div>
@@ -1071,8 +980,6 @@
 
       const questionTextEl = document.getElementById("questionText");
       const chatHistoryEl = document.getElementById("chatHistory");
-      const debugSectionEl = document.getElementById("debugSection");
-      const debugLogEl = document.getElementById("debugLog");
       const welcomeScreenEl = document.getElementById("welcomeScreen");
       const completionScreenEl = document.getElementById("completionScreen");
       const completionTitleEl = document.getElementById("completionTitle");
@@ -1080,8 +987,6 @@
       const welcomeTitleEl = document.getElementById("welcomeTitle");
       const welcomeBodyEl = document.getElementById("welcomeBody");
       const welcomeContinueBtn = document.getElementById("welcomeContinueBtn");
-      const welcomeDebugSectionEl = document.getElementById("welcomeDebugSection");
-      const welcomeDebugLogEl = document.getElementById("welcomeDebugLog");
       const welcomeResetBtn = document.getElementById("welcomeResetBtn");
       const welcomeQuestionsBtn = document.getElementById("welcomeQuestionsBtn");
       const welcomeTranscriptBtn = document.getElementById("welcomeTranscriptBtn");
@@ -1090,8 +995,6 @@
       const appFooterDisclaimerEl = document.getElementById("appFooterDisclaimer");
       const initScreenEl = document.getElementById("initScreen");
       const initStatusEl = document.getElementById("initStatus");
-      const initDebugSectionEl = document.getElementById("initDebugSection");
-      const initDebugLogEl = document.getElementById("initDebugLog");
       const appShellEl = document.getElementById("appShell");
       const progressRowEl = document.getElementById("progressRow");
       const micSelectEl = document.getElementById("micSelect");
@@ -1109,10 +1012,6 @@
       const playbackMeterEl = document.getElementById("playbackMeter");
       const playbackMeterFillEl = document.getElementById("playbackMeterFill");
       const dictationStatusEl = document.getElementById("dictationStatus");
-      const assessmentDebugLogEl = document.getElementById("assessmentDebugLog");
-      const checkResponseDebugPanelEl = document.getElementById("checkResponseDebugPanel");
-      const checkResponseDebugLogEl = document.getElementById("checkResponseDebugLog");
-      const checkResponseDebugToggleBtn = document.getElementById("checkResponseDebugToggle");
       const evaluateBtn = document.getElementById("evaluateBtn");
       const nextBtn = document.getElementById("nextBtn");
       const finalBtn = document.getElementById("finalBtn");
@@ -1127,12 +1026,7 @@
       const hintBodyEl = document.getElementById("hintBody");
       const finalisingOverlayEl = document.getElementById("finalisingOverlay");
       const thinkingOverlayEl = document.getElementById("thinkingOverlay");
-      const liveDebugClearBtn = document.getElementById("liveDebugClearBtn");
       const answerWrapEl = document.querySelector(".answerWrap");
-      const nextDebugPanelEl = document.getElementById("nextDebugPanel");
-      const nextDebugLogEl = document.getElementById("nextDebugLog");
-      const nextDebugToggleBtn = document.getElementById("nextDebugToggle");
-      const nextDebugClearBtn = document.getElementById("nextDebugClear");
       const managedStaffSectionEl = document.getElementById("managedStaffSection");
       const managedStaffMessageEl = document.getElementById("managedStaffMessage");
       const managedStaffToggleEl = document.getElementById("managedStaffToggle");
@@ -1198,7 +1092,6 @@
       let lastQuestionResponseText = "";
       let promptTemplates = null;
       let welcomeMode = "new";
-      let welcomeDebugInstalled = false;
       let questionsRefreshInFlight = false;
       let nextQuestionInFlight = false;
       let isUiLocked = false;
@@ -1238,108 +1131,8 @@
         }
       };
 
-      const isAdminDebugEnabled = () => {
-        const search = window.location?.search || "";
-        const pathname = window.location?.pathname || "";
-        if (typeof window.URLSearchParams === "function") {
-          const params = new URLSearchParams(search);
-          if (params.has("Admin") || params.has("admin")) return true;
-        }
-        return /(?:^|\/)Admin(?:\/|$)/.test(pathname);
-      };
-
-      const updateDebugVisibility = () => {
-        const adminMode = isAdminDebugEnabled();
-        if (debugSectionEl) debugSectionEl.classList.toggle("hidden", !adminMode);
-        if (initDebugSectionEl) initDebugSectionEl.classList.toggle("hidden", !adminMode);
-        if (adminMode && welcomeDebugSectionEl) welcomeDebugSectionEl.classList.remove("hidden");
-      };
-
-      const limitDebugText = (value, maxLength = 1600) => {
-        const text = value === undefined || value === null ? "" : String(value);
-        return text.length > maxLength ? `${text.slice(0, maxLength)}... [truncated]` : text;
-      };
-
-      const formatDebugPayload = (value) => {
-        if (value === undefined || value === null) return "";
-        if (typeof value === "string") return limitDebugText(value);
-        try {
-          return limitDebugText(JSON.stringify(value, null, 2));
-        } catch {
-          return limitDebugText(String(value));
-        }
-      };
-
-      const logWelcomeDebug = (label, detail) => {
-        if (!welcomeDebugLogEl) return;
-        const timestamp = new Date().toLocaleTimeString();
-        const message = detail === undefined || detail === null ? label : `${label}: ${detail}`;
-        if (welcomeDebugLogEl.textContent === "Waiting for welcome activity…") {
-          welcomeDebugLogEl.textContent = "";
-        }
-        welcomeDebugLogEl.textContent = `[${timestamp}] ${message}\n` + welcomeDebugLogEl.textContent;
-      };
-
-      const installWelcomeDebug = () => {
-        if (welcomeDebugInstalled) return;
-        welcomeDebugInstalled = true;
-        logWelcomeDebug("Startup", "Welcome page script initialised");
-        logWelcomeDebug("Welcome webhook URL", WELCOME_WEBHOOK_URL);
-        logWelcomeDebug("Resume webhook URL", RESUME_WEBHOOK_URL);
-        logWelcomeDebug("Reset webhook URL", RESET_WEBHOOK_URL);
-        window.addEventListener("error", (event) => {
-          const detail = event?.error?.stack || event?.message || "Unknown error";
-          logWelcomeDebug("Window error", detail);
-        });
-        window.addEventListener("unhandledrejection", (event) => {
-          const reason = event?.reason?.stack || event?.reason?.message || event?.reason || "Unknown rejection";
-          logWelcomeDebug("Unhandled rejection", formatDebugPayload(reason));
-        });
-      };
-
-      const instrumentWelcomeFetch = () => {
-        if (window.__rplWelcomeFetchInstrumented) return;
-        window.__rplWelcomeFetchInstrumented = true;
-        const nativeFetch = window.fetch.bind(window);
-        window.fetch = async (input, init) => {
-          const requestUrl = typeof input === "string" ? input : input?.url || "";
-          const method = init?.method || (typeof input === "object" && input?.method) || "GET";
-          const shouldLog =
-            requestUrl === WELCOME_WEBHOOK_URL ||
-            requestUrl === RESUME_WEBHOOK_URL ||
-            requestUrl === RESET_WEBHOOK_URL;
-
-          if (shouldLog) {
-            logWelcomeDebug("Fetch start", `${method} ${requestUrl}`);
-            if (init?.body) {
-              logWelcomeDebug("Fetch body", formatDebugPayload(init.body));
-            }
-          }
-
-          try {
-            const response = await nativeFetch(input, init);
-            if (shouldLog) {
-              logWelcomeDebug("Fetch status", `${response.status} ${response.statusText}`);
-              try {
-                const responseText = await response.clone().text();
-                logWelcomeDebug("Fetch response", formatDebugPayload(responseText || "(empty)"));
-              } catch (cloneError) {
-                logWelcomeDebug("Fetch read error", cloneError?.message || String(cloneError));
-              }
-            }
-            return response;
-          } catch (error) {
-            if (shouldLog) {
-              logWelcomeDebug("Fetch error", error?.stack || error?.message || String(error));
-            }
-            throw error;
-          }
-        };
-      };
-
       const runWelcomeReset = async () => {
         if (welcomeResetBtn) welcomeResetBtn.disabled = true;
-        logWelcomeDebug("RESET", "Calling reset webhook");
         try {
           const ctx = getStudentContext();
           const payload = {
@@ -1349,17 +1142,13 @@
             Industry: String(industryEl?.value?.trim() || industry || ""),
             jobTitle: String(jobTitleEl?.value?.trim() || jobTitle || ""),
           };
-          logWelcomeDebug("RESET payload", formatDebugPayload(payload));
           const response = await fetch(RESET_WEBHOOK_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
           });
           const text = await response.text();
-          logWelcomeDebug("RESET result", `${response.status} ${response.statusText}`);
-          logWelcomeDebug("RESET response", formatDebugPayload(text || "(empty)"));
         } catch (error) {
-          logWelcomeDebug("RESET error", error?.stack || error?.message || String(error));
         } finally {
           if (welcomeResetBtn) welcomeResetBtn.disabled = false;
         }
@@ -1796,7 +1585,7 @@
           }
           return nextInfo;
         } catch (err) {
-          logDebug(`Unable to parse student URL params: ${err?.message || String(err)}`);
+
           return {};
         }
       };
@@ -1832,21 +1621,12 @@
           ContactID: String(ctx.contactId),
           GivenName: ctx.givenName,
         };
-        if (log) {
-          logWelcomeDebug(label, "Sending payload");
-          logWelcomeDebug(`${label} payload`, formatDebugPayload(payload));
-        }
-
         const response = await fetch(RESUME_WEBHOOK_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
         const text = await response.text();
-        if (log) {
-          logWelcomeDebug(label, `${response.status} ${response.statusText}`);
-          logWelcomeDebug(`${label} response`, text || "(empty)");
-        }
         if (!response.ok) {
           throw new Error(`${label} failed (${response.status}) ${response.statusText}`.trim());
         }
@@ -4389,25 +4169,6 @@ Job Title: ${jobTitleValue || "N/A"}
         const objective = getQuestionObjective(question);
         const hintText = getQuestionHint(question);
         const ctx = getStudentContext();
-        const answerBlock = answers
-          .map((response, index) => `Response ${index + 1}: ${response}`)
-          .join("\n");
-        const template = useDeepseekMode ? null : promptTemplates?.assessmentPrompt;
-        if (template && /overallAssessment/i.test(template) && /valid JSON only/i.test(template)) {
-          return applyTemplate(template, {
-            FullName: fullName || ctx.fullName,
-            GivenName: firstName || ctx.givenName || ctx.fullName,
-            ContactID: ctx.contactId,
-            Industry: industry || industryEl?.value?.trim() || "",
-            JobTitle: jobTitle || jobTitleEl?.value?.trim() || "",
-            QuestionText: questionText,
-            Objective: objective,
-            Answers: answerBlock,
-            Hints: hintText,
-            AttemptCount: String(answers.length),
-            MaxAttempts: String(MAX_ATTEMPTS),
-          });
-        }
         const promptBuilder = useDeepseekMode && typeof getAssessorDecisionModule().buildDeepseekAssessmentPrompt === "function"
           ? getAssessorDecisionModule().buildDeepseekAssessmentPrompt
           : getAssessorDecisionModule().buildAssessmentPrompt;

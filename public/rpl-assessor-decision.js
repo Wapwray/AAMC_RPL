@@ -237,6 +237,10 @@ Critical consistency rule:
 Assessment rules:
 - Give primary weight to the question text and objective.
 - Use the hint only as supplementary assessment context. Never quote, paraphrase, list, or reveal hint content in any returned field.
+- The hint is the same content the learner can access with the Show Hint button. Use it only to decide whether pressing Show Hint would help the learner complete their own response.
+- If the hint would help with a missing part of the response, set hintWouldHelp to true and keep missing generic enough that it does not reveal the hint or a model answer.
+- Never copy hint facts, examples, terminology, suggested wording, or implied answers into covered, missing, or assessorRationale.
+- Missing items must be based on the visible question and objective only. If a missing item would require hint-only detail, use a broad phrase such as "the part of the question not yet covered" and set hintWouldHelp to true.
 - Do not introduce requirements that are not present in the question, objective, or reasonably implied by them.
 - Mark LIKELY SUFFICIENT when the combined response reasonably answers the question requirements, including where understanding is implied rather than expressed in ideal wording.
 - Mark ADDITIONAL EVIDENCE MAY BE NEEDED only when a required part of the question is genuinely missing.
@@ -321,11 +325,15 @@ Warmth and answer-safety rules:
 - The application will turn covered and missing into learner feedback. Write covered and missing so they support a calm, encouraging assessor voice.
 - Missing items must describe only the area where more evidence is needed. Do not provide example answers, suggested facts, model wording, or specific content the learner could copy.
 - Do not reveal the correct answer, the hint, or assessor-only reasoning in covered, missing, or assessorRationale.
+- Treat the hint as Show Hint button content. Use it to decide whether hintWouldHelp should be true, but never turn hint content into learner-facing missing detail.
 - When any relevant evidence exists, make assessorRationale balanced: briefly acknowledge the useful evidence before noting the remaining gap.
 
 Assessment rules:
 - Give primary weight to the question text and objective.
 - Use the hint only as supplementary assessment context. Never quote, paraphrase, list, or reveal hint content in any returned field.
+- If the hint would help with a missing part of the response, set hintWouldHelp to true and keep missing generic enough that it does not reveal the hint or a model answer.
+- Never copy hint facts, examples, terminology, suggested wording, or implied answers into covered, missing, or assessorRationale.
+- Missing items must be based on the visible question and objective only. If a missing item would require hint-only detail, use a broad phrase such as "the part of the question not yet covered" and set hintWouldHelp to true.
 - Do not introduce requirements that are not present in the question, objective, or reasonably implied by them.
 - Mark LIKELY SUFFICIENT when the combined response reasonably answers the question requirements, including where understanding is implied rather than expressed in ideal wording.
 - Mark ADDITIONAL EVIDENCE MAY BE NEEDED only when a required part of the question is genuinely missing.
@@ -377,11 +385,10 @@ ${JSON.stringify(payload, null, 2)}`;
       ? "thanks for that. You're on the right track, and a little more detail would help complete this response."
       : "thanks for your response. I need a little more evidence before I can match it to this question.";
     const missing = formatMissingRequirement(decision.missing);
-    const hintSentence = decision.hintWouldHelp
-      ? "\n\nYou can press the Show Hint button for additional help."
-      : "";
-    const missingIntro = "It would help to add a little more detail about";
-    return `${givenName}, ${opening}${covered}\n\n${missingIntro} ${missing}.${hintSentence}\n\nTry adding this in your own words by pressing the Start Transcription button or typing in the Your response box. If you cannot add any more, you can move to the next question.`;
+    const missingGuidance = decision.hintWouldHelp
+      ? "It would help to press the Show Hint button for additional help, then add any extra detail you can in your own words."
+      : `It would help to add a little more detail about ${missing}.`;
+    return `${givenName}, ${opening}${covered}\n\n${missingGuidance}\n\nTry adding this in your own words by pressing the Start Transcription button or typing in the Your response box. If you cannot add any more, you can move to the next question.`;
   };
 
   const buildFeedback = (decision, context = {}) => {
