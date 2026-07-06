@@ -496,11 +496,12 @@ app.post("/api/analysis/chat", async (req, res) => {
   
   let url;
   if (isDeepseek) {
-    const deepVersion = String(apiVersion || "v1").replace(/^\/+|\/+$/g, "");
-    const deepBase = /\/openai\/v\d+$/i.test(endpointBase)
-      ? endpointBase
-      : `${endpointBase}/openai/${deepVersion || "v1"}`;
-    url = `${deepBase}/chat/completions`;
+    const deepVersion = String(apiVersion || "v1").replace(/^\/+|\/+$/g, "") || "v1";
+    const deepBase = endpointBase
+      .replace(/\/?chat\/completions$/i, "")
+      .replace(/\/?openai\/v\d+$/i, "")
+      .replace(/\/?openai$/i, "");
+    url = `${deepBase}/openai/${deepVersion}/chat/completions`;
   } else {
     const normalizedBase = endpointBase
       .replace(/\/api\/projects\/[^/]+$/i, "")
