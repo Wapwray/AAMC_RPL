@@ -391,7 +391,7 @@ ${JSON.stringify(payload, null, 2)}`;
       : "thanks for your response. I need a little more evidence before I can match it to this question.";
     const missing = formatMissingRequirement(decision.missing);
     const missingGuidance = decision.hintWouldHelp
-      ? "It would help to press the Show Hint button, compare it with what you've already said, then add any extra detail you can in your own words."
+      ? `It would help to add more context about ${missing}. Press the Show Hint button, compare it with what you've already said, then add any extra detail you can in your own words.`
       : `It would help to add a little more detail about ${missing}.`;
     return `${givenName}, ${opening}${covered}\n\n${missingGuidance}\n\nTry adding this in your own words by pressing the Start Transcription button or typing in the Your response box. If you cannot add any more, you can move to the next question.`;
   };

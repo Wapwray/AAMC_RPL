@@ -24,6 +24,29 @@ test("buildAssessmentPrompt requires combined-attempt consistency", () => {
   assert.match(prompt, /Never copy hint facts, examples, terminology, suggested wording, or implied answers/);
 });
 
+test("buildAssessmentPrompt includes every learner attempt in order", () => {
+  const prompt = assessor.buildAssessmentPrompt({
+    candidateMetadata: { givenName: "Bel", industry: "Finance Broking" },
+    question: {
+      questionText: "Explain how you handled a compliance change.",
+      objective: "Confirm the learner can combine process and impact evidence.",
+      hint: "This hint must not be disclosed.",
+    },
+    attempts: [
+      "First I identified the change and updated our process.",
+      "Then I explained the impact to clients and documented the file notes.",
+    ],
+    attemptCount: 2,
+    maxAttempts: 3,
+  });
+
+  assert.match(prompt, /"attemptNumber": 1/);
+  assert.match(prompt, /"responseText": "First I identified the change and updated our process\."/);
+  assert.match(prompt, /"attemptNumber": 2/);
+  assert.match(prompt, /"responseText": "Then I explained the impact to clients and documented the file notes\."/);
+  assert.match(prompt, /"currentAttempt": 2/);
+});
+
 test("buildDeepseekAssessmentPrompt calibrates partial evidence feedback", () => {
   const prompt = assessor.buildDeepseekAssessmentPrompt({
     candidateMetadata: { givenName: "MondayTest2", industry: "Finance Broking" },
@@ -99,10 +122,10 @@ test("additional evidence guidance is learner-facing and does not leak hint cont
   assert.equal(feedback.shouldContinue, false);
   assert.match(feedback.displayText, /^Bel, thanks for that\. You're on the right track, and a little more detail would help complete this response\./);
   assert.match(feedback.displayText, /So far, you've told us that:\n- You've identified the change/);
-  assert.match(feedback.displayText, /It would help to press the Show Hint button, compare it with what you've already said, then add any extra detail you can in your own words\./);
+  assert.match(feedback.displayText, /It would help to add more context about how the work process changed\. Press the Show Hint button, compare it with what you've already said, then add any extra detail you can in your own words\./);
   assert.match(feedback.displayText, /Show Hint button/);
   assert.doesNotMatch(feedback.displayText, /Objective/i);
-  assert.doesNotMatch(feedback.displayText, /how the work process changed|RG209|responsible lending obligations/i);
+  assert.doesNotMatch(feedback.displayText, /RG209|responsible lending obligations/i);
   assert.doesNotMatch(feedback.transcriptAttemptText, /(?:Overall assessment|Preliminary Status):/);
 });
 

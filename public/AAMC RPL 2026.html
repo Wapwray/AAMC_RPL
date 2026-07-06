@@ -101,6 +101,47 @@
       .answerStack { display: grid; gap: 6px; grid-template-rows: auto 1fr; min-height: 0; height: 100%; }
       .answerStack textarea { height: 112px; min-height: 112px; max-height: 112px; overflow-y: auto; resize: none; }
       .answerWrap.is-locked textarea { background: #e2e8f0; color: #64748b; }
+      .checkResponseDebug {
+        width: 100%;
+        border: 1px solid #cbd5e1;
+        border-radius: 12px;
+        background: #0f172a;
+        color: #dbeafe;
+        min-height: 180px;
+        max-height: 240px;
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        overflow: hidden;
+      }
+      .checkResponseDebugHeader {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 8px 10px;
+        border-bottom: 1px solid rgba(203, 213, 225, 0.25);
+        font-size: 12px;
+        font-weight: 700;
+        color: #f8fafc;
+      }
+      .checkResponseDebugHeader button {
+        width: auto;
+        padding: 5px 10px;
+        border-radius: 999px;
+        font-size: 11px;
+        background: #ffffff;
+        color: #0f172a;
+      }
+      .checkResponseDebugLog {
+        margin: 0;
+        padding: 10px;
+        overflow: auto;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        font-family: Consolas, "Courier New", monospace;
+        font-size: 11px;
+        line-height: 1.4;
+      }
       .evaluateSide {
         align-self: start;
         width: 100%;
@@ -865,6 +906,13 @@
                 <div class="answerStack">
                   <strong>Your response</strong>
                   <textarea id="answerInput" placeholder="Type your answer here..."></textarea>
+                  <div class="checkResponseDebug" aria-live="polite">
+                    <div class="checkResponseDebugHeader">
+                      <span>Check Response AI Prompt Calls</span>
+                      <button id="clearCheckResponseDebugBtn" type="button" class="secondary">Clear</button>
+                    </div>
+                    <pre id="checkResponseDebugLog" class="checkResponseDebugLog">Waiting for Check Response...</pre>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1001,6 +1049,8 @@
       const micSelectEl = document.getElementById("micSelect");
       const micStatusEl = document.getElementById("micStatus");
       const answerInputEl = document.getElementById("answerInput");
+      const checkResponseDebugLogEl = document.getElementById("checkResponseDebugLog");
+      const clearCheckResponseDebugBtn = document.getElementById("clearCheckResponseDebugBtn");
       const dictateBtn = document.getElementById("dictateBtn");
       const playbackBtn = document.getElementById("playbackBtn");
       const dictationMeterEl = document.getElementById("dictationMeter");
@@ -2646,11 +2696,27 @@ Job Title: ${jobTitleValue || "N/A"}
         }
       };
 
+      const clearCheckResponseDebug = (message = "Waiting for Check Response...") => {
+        if (!checkResponseDebugLogEl) return;
+        checkResponseDebugLogEl.textContent = message;
+      };
+
+      const appendCheckResponseDebug = (label, payload) => {
+        if (!checkResponseDebugLogEl) return;
+        const currentText = checkResponseDebugLogEl.textContent || "";
+        const resetText = currentText.trim() === "Waiting for Check Response..." ? "" : currentText.replace(/\s+$/, "");
+        const timestamp = new Date().toLocaleTimeString();
+        const formattedPayload = payload === undefined ? "" : `\n${formatDebugPayload(payload)}`;
+        const entry = `[${timestamp}] ${label}${formattedPayload}`;
+        checkResponseDebugLogEl.textContent = resetText ? `${resetText}\n\n${entry}` : entry;
+        checkResponseDebugLogEl.scrollTop = checkResponseDebugLogEl.scrollHeight;
+      };
+
       const logDebug = () => {};
       const logDebugDetail = () => {};
       const logAssessmentDebug = () => {};
       const logNextDebug = () => {};
-      const logCheckResponseDebug = () => {};
+      const logCheckResponseDebug = appendCheckResponseDebug;
       const logWelcomeDebug = () => {};
       const updateDebugVisibility = () => {};
       const installWelcomeDebug = () => {};
@@ -4087,6 +4153,7 @@ Job Title: ${jobTitleValue || "N/A"}
         lastPlaybackDuration = 0;
         updatePlaybackUi(0, 0);
         currentAttempts = restoredAttemptCount;
+        clearCheckResponseDebug();
         currentResponses = (transcriptQuestions[currentIndex]?.attempts || [])
           .slice(0, currentAttempts)
           .map((attempt) => attempt.answer)
@@ -4639,8 +4706,13 @@ END_REVIEW>>>`;
         updateEvaluateButtonState();
       });
 
+      clearCheckResponseDebugBtn?.addEventListener("click", () => {
+        clearCheckResponseDebug();
+      });
+
       evaluateBtn.addEventListener("click", async () => {
         const answer = answerInputEl.value.trim();
+        clearCheckResponseDebug(`Starting Check Response debug for attempt ${currentAttempts + 1}...`);
         logNextDebug("Check Response clicked", {
           currentAttempts,
           currentIndex,
