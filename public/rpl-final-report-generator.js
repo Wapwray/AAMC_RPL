@@ -24,7 +24,42 @@
     return "";
   };
 
-  const normalizeAssessorQuestionList = (rawPayload) => {
+  const getNumericPrefix = (value) => {
+    const text = cleanValue(value);
+    const match = text.match(/\d+/);
+    if (!match) return null;
+    const numeric = Number(match[0]);
+    return Number.isFinite(numeric) ? numeric : null;
+  };
+
+  const renderRichField = (value) => {
+    const raw = String(value ?? "").trim();
+    if (!raw) return "N/A";
+
+    // If DOM APIs are unavailable for any reason, safely escape.
+    if (typeof DOMParser === "undefined") {
+      return escapeHtml(raw).replace(/\r?\n/g, "<br>");
+    }
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(raw, "text/html");
+    doc.querySelectorAll("script,style,iframe,object,embed,link,meta").forEach((node) => node.remove());
+
+    doc.body.querySelectorAll("*").forEach((element) => {
+      [...element.attributes].forEach((attribute) => {
+        const attrName = attribute.name.toLowerCase();
+        if (attrName.startsWith("on")) {
+          element.removeAttribute(attribute.name);
+        }
+      });
+    });
+
+    const html = doc.body.innerHTML.trim();
+    if (!html) return "N/A";
+    return html;
+  };
+
+  const normalizeAssessorQuestionList = (rawPayload, baseQuestionCount = 0) => {
     let payload = rawPayload;
 
     if (typeof payload === "string") {
@@ -59,16 +94,18 @@
       }
     }
 
-    const normalized = list
-      .map((item, index) => {
-        const qNumber = firstValue(item, ["questionNumber", "q_number", "qNumber", "Number", "number", "id"]) || String(index + 1);
+    const preNormalized = list
+      .map((item) => {
+        const titleValue = firstValue(item, ["Title", "title"]);
+        const titleNumber = getNumericPrefix(titleValue);
         const section = firstValue(item, ["section", "Section", "category", "Category", "topic", "Topic"]) || "Assessor";
         const questionText = firstValue(item, ["questionText", "question_text", "question", "Question", "title", "Title", "Question Details", "field_2"]);
-        const hints = firstValue(item, ["hints", "hint", "Hints", "Hint", "field_3"]);
-        const objective = firstValue(item, ["objective", "Objective", "field_4"]);
+        const hints = firstValue(item, ["hints", "hint", "Hints", "Hint", "field_3", "HintsHtml", "hintsHtml"]);
+        const objective = firstValue(item, ["objective", "Objective", "field_4", "ObjectiveHtml", "objectiveHtml"]);
         if (!questionText) return null;
         return {
-          qNumber,
+          titleValue,
+          titleNumber,
           section,
           questionText,
           hints: hints || "N/A",
@@ -76,6 +113,28 @@
         };
       })
       .filter(Boolean);
+
+    preNormalized.sort((a, b) => {
+      const aNum = Number.isFinite(a.titleNumber) ? a.titleNumber : Number.MAX_SAFE_INTEGER;
+      const bNum = Number.isFinite(b.titleNumber) ? b.titleNumber : Number.MAX_SAFE_INTEGER;
+      if (aNum !== bNum) return aNum - bNum;
+      return String(a.titleValue || "").localeCompare(String(b.titleValue || ""));
+    });
+
+    const normalized = preNormalized.map((item, index) => {
+      // Use Title as the assessor offset when numeric; otherwise keep continuous numbering.
+      const derivedNumber = Number.isFinite(item.titleNumber)
+        ? baseQuestionCount + item.titleNumber
+        : baseQuestionCount + index + 1;
+
+      return {
+        qNumber: String(derivedNumber),
+        section: item.section,
+        questionText: item.questionText,
+        hints: item.hints,
+        objective: item.objective,
+      };
+    });
 
     return normalized;
   };
@@ -107,15 +166,15 @@
         <h3>Assessor Question ${escapeHtml(item.qNumber)} - ${escapeHtml(item.section)}</h3>
         <section>
           <h4>Question asked</h4>
-          <p>${escapeHtml(item.questionText)}</p>
+          <div class="response-box">${renderRichField(item.questionText)}</div>
         </section>
         <section>
           <h4>Hints</h4>
-          <p>${escapeHtml(item.hints)}</p>
+          <div class="response-box">${renderRichField(item.hints)}</div>
         </section>
         <section>
           <h4>Objective</h4>
-          <p>${escapeHtml(item.objective)}</p>
+          <div class="response-box">${renderRichField(item.objective)}</div>
         </section>
         <section>
           <h4>Assessor evaluation</h4>
@@ -137,6 +196,12 @@
   const injectAssessorQuestionsIntoHtml = (html, assessorQuestions) => {
     const sectionHtml = buildAssessorQuestionsSectionHtml(assessorQuestions);
     if (!sectionHtml) return html;
+
+    // Insert assessor questions before limitations so limitations/confirmation/sign-off stay after assessor questions.
+    if (/<section\s+class="limitations"/i.test(html)) {
+      return html.replace(/<section\s+class="limitations"/i, `${sectionHtml}\n\n      <section class="limitations"`);
+    }
+
     if (/<\/main>/i.test(html)) {
       return html.replace(/<\/main>/i, `${sectionHtml}\n    </main>`);
     }
@@ -291,7 +356,7 @@
             candidateMetadata: model?.metadata || candidateMetadata || {},
             model,
           });
-          assessorQuestions = normalizeAssessorQuestionList(rawAssessorQuestions);
+          assessorQuestions = normalizeAssessorQuestionList(rawAssessorQuestions, Array.isArray(model?.questions) ? model.questions.length : 0);
         } catch (error) {
           log(`Assessor questions fetch failed: ${error?.message || String(error)}`);
         }
