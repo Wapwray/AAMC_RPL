@@ -974,6 +974,7 @@
 
     <script src="rpl-preliminary-review.js"></script>
     <script src="rpl-assessor-decision.js"></script>
+    <script src="rpl-final-report-generator.js"></script>
     <script>
       // Power Automate webhook URLs - centralized config for easier maintenance
       const WEBHOOK_URLS = {
@@ -2169,116 +2170,56 @@
         maxBatchChars: 16000,
       });
 
-      const buildQuestionAnalysisPromptForBatch = (batch, candidateMetadata) => {
-        const reportModule = getPreliminaryReviewModule();
-        const questionSpecs = batch.map((item) => item.officialQuestionSpec || {
-          questionNumber: item.questionNumber,
-          section: item.section || "Not supplied in question bank",
-          questionText: item.parsedQuestionBlock?.transcriptQuestionText || "",
-          hints: item.parsedQuestionBlock?.transcriptHint || "",
-          objective: item.parsedQuestionBlock?.transcriptObjective || "",
-        });
-        const parsedQuestionBlocks = batch.map((item) => item.parsedQuestionBlock || {
-          questionNumber: item.questionNumber,
-          transcriptQuestionText: item.officialQuestionSpec?.questionText || "",
-          attempts: [],
-          assessorBotMessages: [],
-          rawBlockText: "",
-        });
-        const template = promptTemplates?.preliminaryQuestionAnalysisPrompt;
-        if (template) {
-          return applyTemplate(template, {
-            CandidateMetadataJson: JSON.stringify(candidateMetadata || {}, null, 2),
-            QuestionSpecsJson: JSON.stringify(questionSpecs, null, 2),
-            ParsedQuestionBlocksJson: JSON.stringify(parsedQuestionBlocks, null, 2),
+      const sharedFinalReportGenerator = window.RplFinalReportGenerator.create({
+        reportModule: getPreliminaryReviewModule(),
+        callTextModel: (...args) => callTextModel(...args),
+        setStatus,
+        log: (message) => {
+          logDebugDetail("Preliminary review", message);
+          logAssessmentDebug("Preliminary review", message);
+        },
+        buildQuestionAnalysisPromptForBatch: (batch, candidateMetadata) => {
+          const reportModule = getPreliminaryReviewModule();
+          const questionSpecs = batch.map((item) => item.officialQuestionSpec || {
+            questionNumber: item.questionNumber,
+            section: item.section || "Not supplied in question bank",
+            questionText: item.parsedQuestionBlock?.transcriptQuestionText || "",
+            hints: item.parsedQuestionBlock?.transcriptHint || "",
+            objective: item.parsedQuestionBlock?.transcriptObjective || "",
           });
-        }
-        return reportModule.buildQuestionAnalysisPrompt({
-          candidateMetadata,
-          questionSpecs,
-          parsedQuestionBlocks,
-        });
-      };
-
-      const analysePreliminaryQuestionBatch = async (batch, candidateMetadata, batchNumber, totalBatches) => {
-        const reportModule = getPreliminaryReviewModule();
-        const prompt = buildQuestionAnalysisPromptForBatch(batch, candidateMetadata);
-        const estimatedTokens = Math.min(12000, Math.max(2400, 1200 + batch.length * 1200 + Math.ceil(prompt.length / 6)));
-        setStatus(`Analysing report questions batch ${batchNumber} of ${totalBatches}...`);
-        const responseText = await callTextModel(prompt, {
-          mode: "final",
-          temperature: 0.1,
-          max_tokens: estimatedTokens,
-        });
-        const parsed = reportModule.parseQuestionAnalysisResponse(responseText);
-        return Array.isArray(parsed.questions) ? parsed.questions : [];
-      };
-
-      const isMissingFinalAiConfigError = (error) => /Missing required RPL_FINAL_\* environment variables/i.test(error?.message || String(error || ""));
-
-      const getMissingFinalAiConfigWarning = () => "AI analysis warning: final AI model configuration is not available, so this report was generated from transcript source signals only.";
-
-      const analysePreliminaryQuestions = async (manifest, candidateMetadata, reportOptions) => {
-        const reportModule = getPreliminaryReviewModule();
-        const batches = reportModule.buildQuestionAnalysisBatches(manifest, reportOptions);
-        const analyses = [];
-        const warnings = [];
-        for (let index = 0; index < batches.length; index += 1) {
-          const batch = batches[index];
-          try {
-            analyses.push(...await analysePreliminaryQuestionBatch(batch, candidateMetadata, index + 1, batches.length));
-          } catch (batchError) {
-            logDebugDetail("Preliminary review batch failed", batchError?.message || String(batchError));
-            if (isMissingFinalAiConfigError(batchError)) {
-              warnings.push(getMissingFinalAiConfigWarning());
-              logAssessmentDebug("Final report AI analysis", "RPL_FINAL_* is not configured; using transcript-source fallback report.");
-              return { analyses, warnings };
-            }
-            if (batch.length <= 1) {
-              warnings.push(`AI analysis warning: Question ${batch[0]?.questionNumber || index + 1} could not be analysed by the model and was classified from transcript source signals only.`);
-              continue;
-            }
-            warnings.push(`AI analysis warning: batch ${index + 1} was retried as individual questions after the first attempt failed.`);
-            for (let singleIndex = 0; singleIndex < batch.length; singleIndex += 1) {
-              const singleQuestion = batch[singleIndex];
-              try {
-                analyses.push(...await analysePreliminaryQuestionBatch([singleQuestion], candidateMetadata, singleIndex + 1, batch.length));
-              } catch (singleError) {
-                logDebugDetail("Preliminary review question failed", singleError?.message || String(singleError));
-                if (isMissingFinalAiConfigError(singleError)) {
-                  warnings.push(getMissingFinalAiConfigWarning());
-                  logAssessmentDebug("Final report AI analysis", "RPL_FINAL_* is not configured; using transcript-source fallback report.");
-                  return { analyses, warnings };
-                }
-                warnings.push(`AI analysis warning: Question ${singleQuestion?.questionNumber || singleIndex + 1} could not be analysed by the model and was classified from transcript source signals only.`);
-              }
-            }
+          const parsedQuestionBlocks = batch.map((item) => item.parsedQuestionBlock || {
+            questionNumber: item.questionNumber,
+            transcriptQuestionText: item.officialQuestionSpec?.questionText || "",
+            attempts: [],
+            assessorBotMessages: [],
+            rawBlockText: "",
+          });
+          const template = promptTemplates?.preliminaryQuestionAnalysisPrompt;
+          if (template) {
+            return applyTemplate(template, {
+              CandidateMetadataJson: JSON.stringify(candidateMetadata || {}, null, 2),
+              QuestionSpecsJson: JSON.stringify(questionSpecs, null, 2),
+              ParsedQuestionBlocksJson: JSON.stringify(parsedQuestionBlocks, null, 2),
+            });
           }
-        }
-        return { analyses, warnings };
-      };
+          return reportModule.buildQuestionAnalysisPrompt({
+            candidateMetadata,
+            questionSpecs,
+            parsedQuestionBlocks,
+          });
+        },
+      });
 
       const buildPreliminaryReviewReport = async ({ fullTranscriptText, candidateMetadata, officialQuestionBank, reportOptions }) => {
-        const reportModule = getPreliminaryReviewModule();
-        const parsedQuestionBlocks = reportModule.parseTranscriptQuestions(fullTranscriptText);
-        const manifest = reportModule.buildQuestionManifest(officialQuestionBank, parsedQuestionBlocks);
-        const { analyses, warnings: analysisWarnings } = await analysePreliminaryQuestions(manifest, candidateMetadata, reportOptions);
-        const model = reportModule.buildReportModel({
-          fullTranscript: fullTranscriptText,
+        const result = await sharedFinalReportGenerator.buildPreliminaryReviewReport({
+          fullTranscriptText,
           candidateMetadata,
           officialQuestionBank,
           reportOptions,
-          questionAnalyses: analyses,
         });
-        model.warnings.push(...analysisWarnings);
-        const html = reportModule.renderReportHtml(model);
-        const validation = reportModule.validateReportHtmlCoverage(model, html);
-        if (!validation.valid) {
-          throw new Error(`Generated report coverage validation failed: expected ${validation.questionCount} question row(s), got ${validation.statusRows} status row(s) and ${validation.articleCount} article(s).`);
-        }
-        window.RPLLastPreliminaryReportModel = model;
-        window.RPLLastPreliminaryReportHtml = html;
-        return { html, model, validation };
+        window.RPLLastPreliminaryReportModel = result.model;
+        window.RPLLastPreliminaryReportHtml = result.html;
+        return result;
       };
 
       const setCompletedState = () => {
@@ -2331,23 +2272,22 @@
         if (thinkingOverlayEl) thinkingOverlayEl.classList.add("hidden");
       };
 
-      const ASSESSOR_SUBMIT_WEBHOOK_URL = "";
-
       const runFinalReview = async ({ openWindow = false, sendWebhook = false, showCompletion = false } = {}) => {
         const ctx = getStudentContext();
-        const reportModule = getPreliminaryReviewModule();
         setStatus("Generating preliminary review report...");
         if (finalBtn) finalBtn.disabled = true;
         showFinalisingOverlay();
         try {
-          const jsonTranscript = buildFullTranscriptJson();
+          const fullTranscriptText = buildFullTranscript();
+          const candidateMetadata = getReportCandidateMetadata();
           const officialQuestionBank = buildOfficialQuestionBankForReport(questions);
-          const reportModel = reportModule.buildReportModelFromJsonTranscript(jsonTranscript, officialQuestionBank);
-          const html = reportModule.renderInteractiveReportHtml(reportModel, {
-            submitUrl: ASSESSOR_SUBMIT_WEBHOOK_URL,
+          const reportOptions = getReportOptions();
+          const { html } = await buildPreliminaryReviewReport({
+            fullTranscriptText,
+            candidateMetadata,
+            officialQuestionBank,
+            reportOptions,
           });
-          window.RPLLastPreliminaryReportModel = reportModel;
-          window.RPLLastPreliminaryReportHtml = html;
           if (openWindow) {
             const reportWindow = window.open("", "RPLFinalReview", "width=900,height=700,scrollbars=yes");
             if (!reportWindow) {
