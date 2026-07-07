@@ -240,6 +240,7 @@
     <script>
       const FINAL_REPORT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ad445c5a35534861933f60ee864eecfa/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=qiOM0ZtGoUf_75xUdMZJ6B5zVSzpc9qYVZJbEbYm6pM";
       const ASSESSOR_QUESTIONS_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/776a38fbbe6449c996fd3a4127212eff/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=kA6BlWXbHh-ymnHGDWqRt25m_BEzVEAW1vHmiYur7vw";
+      const URL_TRANSCRIPT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/41fdc1293b8547b1ac672c8aa1ccf7f8/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=32qfqtKjiupj1eLtp31QEPjPGqGSCj9AOdZ-c3Bdy7Y";
 
       const reportModule = window.RplPreliminaryReview;
       const transcriptFileEl = document.getElementById("transcriptFile");
@@ -284,6 +285,14 @@
 
       const cleanValue = (value) => String(value || "").trim();
 
+      const pickFirstValue = (...values) => {
+        for (const value of values) {
+          const normalized = cleanValue(value);
+          if (normalized) return normalized;
+        }
+        return "";
+      };
+
       const getCandidateMetadata = () => ({
         fullName: cleanValue(fullNameEl.value),
         candidateName: cleanValue(fullNameEl.value),
@@ -301,6 +310,177 @@
         reportDate: new Date().toLocaleString(),
         maxBatchChars: 16000,
       });
+
+      const applyUrlStudentContext = () => {
+        if (typeof window.URLSearchParams !== "function") return {};
+        try {
+          const params = new URLSearchParams(window.location?.search || "");
+          const fullName = params.get("fullName") ?? params.get("FullName") ?? params.get("studentName") ?? params.get("StudentName");
+          const givenName = params.get("givenName") ?? params.get("GivenName");
+          const contactId = params.get("contactId") ?? params.get("ContactID") ?? params.get("ContactId");
+
+          const nextInfo = {
+            ...(typeof window.RPLStudentInfo === "object" && window.RPLStudentInfo ? window.RPLStudentInfo : {}),
+          };
+          let mutated = false;
+
+          if (fullName && fullName.trim()) {
+            nextInfo.fullName = fullName.trim();
+            nextInfo.studentName = fullName.trim();
+            mutated = true;
+          }
+          if (givenName && givenName.trim()) {
+            nextInfo.givenName = givenName.trim();
+            mutated = true;
+          }
+          if (contactId && contactId.trim()) {
+            nextInfo.contactId = contactId.trim();
+            mutated = true;
+          }
+
+          if (mutated) {
+            window.RPLStudentInfo = nextInfo;
+            if (document.body?.dataset) {
+              if (nextInfo.fullName || nextInfo.studentName) {
+                document.body.dataset.fullName = nextInfo.fullName || nextInfo.studentName;
+              }
+              if (nextInfo.givenName) {
+                document.body.dataset.givenName = nextInfo.givenName;
+              }
+              if (nextInfo.contactId) {
+                document.body.dataset.contactId = nextInfo.contactId;
+              }
+            }
+          }
+          return nextInfo;
+        } catch {
+          return {};
+        }
+      };
+
+      const getStudentContext = () => {
+        const bodyDataset = document.body?.dataset || {};
+        const studentInfo = window.RPLStudentInfo || window.rplStudentInfo || window.studentInfo || {};
+        const fullName = pickFirstValue(
+          studentInfo.fullName,
+          studentInfo.studentName,
+          bodyDataset.fullName,
+          bodyDataset.studentName,
+          fullNameEl.value
+        );
+        const givenName = pickFirstValue(
+          studentInfo.givenName,
+          bodyDataset.givenName
+        );
+        const contactId = pickFirstValue(
+          studentInfo.contactId,
+          bodyDataset.contactId,
+          contactIdEl.value
+        );
+
+        return {
+          fullName,
+          givenName,
+          contactId,
+        };
+      };
+
+      const preloadInputsFromStudentContext = () => {
+        const ctx = getStudentContext();
+        if (ctx.fullName) fullNameEl.value = ctx.fullName;
+        if (ctx.contactId) contactIdEl.value = ctx.contactId;
+      };
+
+      const trySetTranscriptFromWebhookPayload = (payload) => {
+        if (payload && typeof payload === "object" && Array.isArray(payload.questions)) {
+          transcriptInput = { kind: "json", text: "", json: payload };
+          applyJsonMetadata(payload);
+          return payload.questions.length;
+        }
+
+        if (payload && typeof payload === "object") {
+          const candidatePayload = payload.candidate || payload.Candidate || payload.data?.candidate;
+          const questionPayload = payload.questions || payload.Questions || payload.data?.questions;
+          if (candidatePayload && Array.isArray(questionPayload)) {
+            const normalized = { candidate: candidatePayload, questions: questionPayload };
+            transcriptInput = { kind: "json", text: "", json: normalized };
+            applyJsonMetadata(normalized);
+            return questionPayload.length;
+          }
+        }
+
+        const transcriptText = cleanValue(
+          payload?.transcript ||
+          payload?.Transcript ||
+          payload?.fullTranscript ||
+          payload?.FullTranscript ||
+          payload?.text ||
+          payload?.Text ||
+          payload?.content ||
+          payload?.Content ||
+          (typeof payload === "string" ? payload : "")
+        );
+
+        if (transcriptText) {
+          try {
+            const parsedJson = JSON.parse(transcriptText);
+            if (parsedJson && Array.isArray(parsedJson.questions)) {
+              transcriptInput = { kind: "json", text: "", json: parsedJson };
+              applyJsonMetadata(parsedJson);
+              return parsedJson.questions.length;
+            }
+          } catch {
+            // Not JSON, treat as text transcript.
+          }
+
+          transcriptInput = { kind: "text", text: transcriptText, json: null };
+          applyParsedMetadata(transcriptText);
+          return reportModule.parseTranscriptQuestions(transcriptText).length;
+        }
+
+        return 0;
+      };
+
+      const loadTranscriptFromUrlContext = async () => {
+        const ctx = getStudentContext();
+        if (!ctx.fullName || !ctx.givenName || !ctx.contactId) return false;
+
+        setStatus("Loading transcript from URL context...");
+        log(`Loading transcript from webhook for ${ctx.fullName} (${ctx.contactId})`);
+
+        const payload = {
+          FullName: ctx.fullName,
+          ContactID: String(ctx.contactId),
+          GivenName: ctx.givenName,
+        };
+
+        const response = await fetch(URL_TRANSCRIPT_WEBHOOK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const responseText = await response.text();
+        if (!response.ok) {
+          throw new Error(`URL transcript webhook failed (${response.status}) ${response.statusText}`.trim());
+        }
+
+        let payloadData = responseText;
+        try {
+          payloadData = responseText ? JSON.parse(responseText) : "";
+        } catch {
+          payloadData = responseText;
+        }
+
+        const questionCount = trySetTranscriptFromWebhookPayload(payloadData);
+        if (!questionCount) {
+          throw new Error("No transcript content returned from URL transcript webhook.");
+        }
+
+        generateBtn.disabled = false;
+        setStatus(`Loaded ${questionCount} question block(s) from URL context.`, "ok");
+        return true;
+      };
 
       const applyJsonMetadata = (json) => {
         const candidate = json?.candidate || {};
@@ -556,6 +736,16 @@
 
       if (!reportModule) {
         setStatus("Report module did not load.", "error");
+      } else {
+        applyUrlStudentContext();
+        preloadInputsFromStudentContext();
+        loadTranscriptFromUrlContext().catch((error) => {
+          const ctx = getStudentContext();
+          if (ctx.fullName && ctx.givenName && ctx.contactId) {
+            setStatus(error?.message || "Unable to load transcript from URL context.", "error");
+            log(error?.stack || error?.message || String(error));
+          }
+        });
       }
     </script>
   </body>
