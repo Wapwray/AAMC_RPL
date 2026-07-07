@@ -24,6 +24,19 @@
     return "";
   };
 
+  const joinObjectiveFields = (item) => {
+    const objectiveParts = [
+      cleanValue(item?.field_3),
+      cleanValue(item?.field_4),
+    ].filter(Boolean);
+
+    if (objectiveParts.length) {
+      return objectiveParts.join("\n\n");
+    }
+
+    return firstValue(item, ["objective", "Objective", "ObjectiveHtml", "objectiveHtml"]);
+  };
+
   const getNumericPrefix = (value) => {
     const text = cleanValue(value);
     const match = text.match(/\d+/);
@@ -98,10 +111,10 @@
       .map((item) => {
         const titleValue = firstValue(item, ["Title", "title"]);
         const titleNumber = getNumericPrefix(titleValue);
-        const section = firstValue(item, ["section", "Section", "category", "Category", "topic", "Topic"]) || "Assessor";
-        const questionText = firstValue(item, ["questionText", "question_text", "question", "Question", "title", "Title", "Question Details", "field_2"]);
-        const hints = firstValue(item, ["hints", "hint", "Hints", "Hint", "field_3", "HintsHtml", "hintsHtml"]);
-        const objective = firstValue(item, ["objective", "Objective", "field_4", "ObjectiveHtml", "objectiveHtml"]);
+        const section = firstValue(item, ["field_1", "section", "Section", "category", "Category", "topic", "Topic"]) || "Assessor";
+        const questionText = firstValue(item, ["field_2", "questionText", "question_text", "question", "Question", "Question Details", "title", "Title"]);
+        const hints = firstValue(item, ["hints", "hint", "Hints", "Hint", "HintsHtml", "hintsHtml"]);
+        const objective = joinObjectiveFields(item);
         if (!questionText) return null;
         return {
           titleValue,
