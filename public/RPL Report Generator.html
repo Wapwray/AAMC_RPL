@@ -293,6 +293,17 @@
         return "";
       };
 
+      const safeJsonParse = (value) => {
+        if (typeof value !== "string") return value;
+        const text = value.trim();
+        if (!text) return null;
+        try {
+          return JSON.parse(text);
+        } catch {
+          return null;
+        }
+      };
+
       const getCandidateMetadata = () => ({
         fullName: cleanValue(fullNameEl.value),
         candidateName: cleanValue(fullNameEl.value),
@@ -392,6 +403,24 @@
       };
 
       const trySetTranscriptFromWebhookPayload = (payload) => {
+        const envelope = typeof payload === "string" ? safeJsonParse(payload) || payload : payload;
+
+        const directCandidates = [
+          envelope,
+          envelope?.body,
+          safeJsonParse(envelope?.body),
+          safeJsonParse(envelope?.body?.["Full Transcription JSON"]),
+          safeJsonParse(envelope?.["Full Transcription JSON"]),
+        ].filter(Boolean);
+
+        for (const candidate of directCandidates) {
+          if (candidate && typeof candidate === "object" && Array.isArray(candidate.questions)) {
+            transcriptInput = { kind: "json", text: "", json: candidate };
+            applyJsonMetadata(candidate);
+            return candidate.questions.length;
+          }
+        }
+
         if (payload && typeof payload === "object" && Array.isArray(payload.questions)) {
           transcriptInput = { kind: "json", text: "", json: payload };
           applyJsonMetadata(payload);
@@ -410,6 +439,16 @@
         }
 
         const transcriptText = cleanValue(
+          payload?.body?.["Full Transcription JSON"] ||
+          payload?.["Full Transcription JSON"] ||
+          payload?.body?.transcript ||
+          payload?.body?.Transcript ||
+          payload?.body?.fullTranscript ||
+          payload?.body?.FullTranscript ||
+          payload?.body?.text ||
+          payload?.body?.Text ||
+          payload?.body?.content ||
+          payload?.body?.Content ||
           payload?.transcript ||
           payload?.Transcript ||
           payload?.fullTranscript ||
