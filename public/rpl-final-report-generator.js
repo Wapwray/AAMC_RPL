@@ -6,6 +6,143 @@
   const defaultLog = () => {};
   const defaultSetStatus = () => {};
 
+  const cleanValue = (value) => String(value ?? "").trim();
+
+  const escapeHtml = (value) => String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+  const firstValue = (item, keys) => {
+    for (const key of keys) {
+      const value = item?.[key];
+      const cleaned = cleanValue(value);
+      if (cleaned) return cleaned;
+    }
+    return "";
+  };
+
+  const normalizeAssessorQuestionList = (rawPayload) => {
+    let payload = rawPayload;
+
+    if (typeof payload === "string") {
+      try {
+        payload = JSON.parse(payload);
+      } catch {
+        payload = null;
+      }
+    }
+
+    if (!payload) return [];
+
+    let list = [];
+    if (Array.isArray(payload)) {
+      list = payload;
+    } else if (Array.isArray(payload.questions)) {
+      list = payload.questions;
+    } else if (Array.isArray(payload.value)) {
+      list = payload.value;
+    } else if (Array.isArray(payload.items)) {
+      list = payload.items;
+    } else if (Array.isArray(payload.data?.questions)) {
+      list = payload.data.questions;
+    } else if (Array.isArray(payload.listitems)) {
+      list = payload.listitems;
+    } else if (typeof payload.listitems === "string") {
+      try {
+        const parsedListItems = JSON.parse(payload.listitems);
+        if (Array.isArray(parsedListItems)) list = parsedListItems;
+      } catch {
+        list = [];
+      }
+    }
+
+    const normalized = list
+      .map((item, index) => {
+        const qNumber = firstValue(item, ["questionNumber", "q_number", "qNumber", "Number", "number", "id"]) || String(index + 1);
+        const section = firstValue(item, ["section", "Section", "category", "Category", "topic", "Topic"]) || "Assessor";
+        const questionText = firstValue(item, ["questionText", "question_text", "question", "Question", "title", "Title", "Question Details", "field_2"]);
+        const hints = firstValue(item, ["hints", "hint", "Hints", "Hint", "field_3"]);
+        const objective = firstValue(item, ["objective", "Objective", "field_4"]);
+        if (!questionText) return null;
+        return {
+          qNumber,
+          section,
+          questionText,
+          hints: hints || "N/A",
+          objective: objective || "N/A",
+        };
+      })
+      .filter(Boolean);
+
+    return normalized;
+  };
+
+  const mergeCandidateMetadataIntoModel = (model, candidateMetadata) => {
+    const metadata = model?.metadata;
+    if (!metadata || !candidateMetadata) return;
+
+    const candidateName = cleanValue(candidateMetadata.candidateName || candidateMetadata.fullName);
+    const contactId = cleanValue(candidateMetadata.contactId);
+    const qualification = cleanValue(candidateMetadata.qualification);
+    const interviewDate = cleanValue(candidateMetadata.interviewDate);
+    const industry = cleanValue(candidateMetadata.industry);
+    const jobTitle = cleanValue(candidateMetadata.jobTitle);
+
+    if (candidateName) metadata.candidateName = candidateName;
+    if (contactId) metadata.contactId = contactId;
+    if (qualification) metadata.qualification = qualification;
+    if (interviewDate) metadata.interviewDate = interviewDate;
+    if (industry) metadata.industry = industry;
+    if (jobTitle) metadata.jobTitle = jobTitle;
+  };
+
+  const buildAssessorQuestionsSectionHtml = (assessorQuestions) => {
+    if (!Array.isArray(assessorQuestions) || !assessorQuestions.length) return "";
+
+    const rows = assessorQuestions.map((item) => `
+      <article class="question-card" data-assessor-question-number="${escapeHtml(item.qNumber)}">
+        <h3>Assessor Question ${escapeHtml(item.qNumber)} - ${escapeHtml(item.section)}</h3>
+        <section>
+          <h4>Question asked</h4>
+          <p>${escapeHtml(item.questionText)}</p>
+        </section>
+        <section>
+          <h4>Hints</h4>
+          <p>${escapeHtml(item.hints)}</p>
+        </section>
+        <section>
+          <h4>Objective</h4>
+          <p>${escapeHtml(item.objective)}</p>
+        </section>
+        <section>
+          <h4>Assessor evaluation</h4>
+          <div class="field-value">to be completed by assessor</div>
+        </section>
+        <section>
+          <h4>Assessor notes</h4>
+          <div class="field-value">to be completed by assessor</div>
+        </section>
+      </article>`).join("\n");
+
+    return `
+      <section class="question-review-section" aria-labelledby="assessorQuestionsTitle">
+        <h2 id="assessorQuestionsTitle">Assessor Questions</h2>
+        ${rows}
+      </section>`;
+  };
+
+  const injectAssessorQuestionsIntoHtml = (html, assessorQuestions) => {
+    const sectionHtml = buildAssessorQuestionsSectionHtml(assessorQuestions);
+    if (!sectionHtml) return html;
+    if (/<\/main>/i.test(html)) {
+      return html.replace(/<\/main>/i, `${sectionHtml}\n    </main>`);
+    }
+    return `${html}\n${sectionHtml}`;
+  };
+
   const isMissingFinalAiConfigError = (error) => /Missing required RPL_FINAL_\* environment variables/i.test(error?.message || String(error || ""));
 
   const getMissingFinalAiConfigWarning = () => "AI analysis warning: final AI model configuration is not available, so this report was generated from transcript source signals only.";
@@ -39,6 +176,7 @@
     callTextModel,
     setStatus = defaultSetStatus,
     log = defaultLog,
+    fetchAssessorQuestions,
     buildQuestionAnalysisPromptForBatch,
   }) => {
     if (!reportModule) {
@@ -113,6 +251,7 @@
 
     const buildPreliminaryReviewReport = async ({
       fullTranscriptText,
+      jsonTranscript,
       candidateMetadata,
       officialQuestionBank = [],
       reportOptions = {},
@@ -126,26 +265,46 @@
         ...reportOptions,
       };
 
-      const parsedQuestionBlocks = reportModule.parseTranscriptQuestions(fullTranscriptText);
-      const manifest = reportModule.buildQuestionManifest(officialQuestionBank, parsedQuestionBlocks);
-      const { analyses, warnings } = await analysePreliminaryQuestions(manifest, candidateMetadata, normalizedOptions);
+      let model;
+      if (jsonTranscript !== undefined && jsonTranscript !== null && jsonTranscript !== "") {
+        model = reportModule.buildReportModelFromJsonTranscript(jsonTranscript, officialQuestionBank);
+      } else {
+        const parsedQuestionBlocks = reportModule.parseTranscriptQuestions(fullTranscriptText);
+        const manifest = reportModule.buildQuestionManifest(officialQuestionBank, parsedQuestionBlocks);
+        const { analyses, warnings } = await analysePreliminaryQuestions(manifest, candidateMetadata, normalizedOptions);
+        model = reportModule.buildReportModel({
+          fullTranscript: fullTranscriptText,
+          candidateMetadata,
+          officialQuestionBank,
+          reportOptions: normalizedOptions,
+          questionAnalyses: analyses,
+        });
+        model.warnings.push(...warnings);
+      }
 
-      const model = reportModule.buildReportModel({
-        fullTranscript: fullTranscriptText,
-        candidateMetadata,
-        officialQuestionBank,
-        reportOptions: normalizedOptions,
-        questionAnalyses: analyses,
-      });
+      mergeCandidateMetadataIntoModel(model, candidateMetadata);
 
-      model.warnings.push(...warnings);
-      const html = reportModule.renderReportHtml(model);
-      const validation = reportModule.validateReportHtmlCoverage(model, html);
+      let assessorQuestions = [];
+      if (typeof fetchAssessorQuestions === "function") {
+        try {
+          const rawAssessorQuestions = await fetchAssessorQuestions({
+            candidateMetadata: model?.metadata || candidateMetadata || {},
+            model,
+          });
+          assessorQuestions = normalizeAssessorQuestionList(rawAssessorQuestions);
+        } catch (error) {
+          log(`Assessor questions fetch failed: ${error?.message || String(error)}`);
+        }
+      }
+
+      const baseHtml = reportModule.renderReportHtml(model);
+      const html = injectAssessorQuestionsIntoHtml(baseHtml, assessorQuestions);
+      const validation = reportModule.validateReportHtmlCoverage(model, baseHtml);
       if (!validation.valid) {
         throw new Error(`Generated report coverage validation failed: expected ${validation.questionCount} question row(s), got ${validation.statusRows} status row(s) and ${validation.articleCount} article(s).`);
       }
 
-      return { html, model, validation };
+      return { html, model, validation, assessorQuestions };
     };
 
     return {

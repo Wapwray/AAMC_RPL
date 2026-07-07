@@ -239,6 +239,7 @@
     <script src="rpl-final-report-generator.js"></script>
     <script>
       const FINAL_REPORT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ad445c5a35534861933f60ee864eecfa/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=qiOM0ZtGoUf_75xUdMZJ6B5zVSzpc9qYVZJbEbYm6pM";
+      const ASSESSOR_QUESTIONS_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/776a38fbbe6449c996fd3a4127212eff/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=kA6BlWXbHh-ymnHGDWqRt25m_BEzVEAW1vHmiYur7vw";
 
       const reportModule = window.RplPreliminaryReview;
       const transcriptFileEl = document.getElementById("transcriptFile");
@@ -256,9 +257,19 @@
       const logEl = document.getElementById("log");
       const previewFrame = document.getElementById("previewFrame");
 
-      let transcriptText = "";
+      let transcriptInput = {
+        kind: "none",
+        text: "",
+        json: null,
+      };
       let lastReportHtml = "";
       let loadedTranscriptMetadata = {};
+
+      const hasLoadedTranscript = () => transcriptInput.kind === "text"
+        ? Boolean(transcriptInput.text.trim())
+        : transcriptInput.kind === "json"
+          ? Boolean(transcriptInput.json)
+          : false;
 
       const setStatus = (text, type = "") => {
         statusEl.textContent = text;
@@ -291,6 +302,32 @@
         maxBatchChars: 16000,
       });
 
+      const applyJsonMetadata = (json) => {
+        const candidate = json?.candidate || {};
+        const candidateName = cleanValue(candidate.fullName || candidate.candidateName);
+        const contactId = cleanValue(candidate.contactId);
+        const qualification = cleanValue(candidate.qualification);
+        const interviewDate = cleanValue(candidate.interviewDate || candidate.initialStartDate);
+        const industry = cleanValue(candidate.industry);
+        const jobTitle = cleanValue(candidate.jobTitle);
+
+        loadedTranscriptMetadata = {
+          candidateName,
+          contactId,
+          qualification,
+          interviewDate,
+          industry,
+          jobTitle,
+        };
+
+        if (candidateName) fullNameEl.value = candidateName;
+        if (contactId) contactIdEl.value = contactId;
+        if (qualification) qualificationEl.value = qualification;
+        if (interviewDate) interviewDateEl.value = interviewDate;
+        if (industry) industryEl.value = industry;
+        if (jobTitle) jobTitleEl.value = jobTitle;
+      };
+
       const applyParsedMetadata = (text) => {
         const metadata = reportModule.parseTranscriptMetadata(text);
         loadedTranscriptMetadata = metadata;
@@ -304,14 +341,44 @@
       };
 
       const getWebhookIdentityFromTranscript = () => {
-        const metadata = reportModule.parseTranscriptMetadata(transcriptText || "");
-        loadedTranscriptMetadata = metadata;
+        const metadata = loadedTranscriptMetadata || {};
         const fullName = cleanValue(metadata.candidateName);
         const contactId = cleanValue(metadata.contactId);
         if (!fullName || !contactId) {
           throw new Error("The loaded transcript must include both 'Name:' and 'Contact ID:' lines before the final report webhook can be sent.");
         }
         return { fullName, contactId };
+      };
+
+      const fetchAssessorQuestions = async ({ candidateMetadata } = {}) => {
+        const payload = {
+          candidateName: cleanValue(candidateMetadata?.candidateName || candidateMetadata?.fullName || fullNameEl.value),
+          contactId: cleanValue(candidateMetadata?.contactId || contactIdEl.value),
+          qualification: cleanValue(candidateMetadata?.qualification || qualificationEl.value),
+          interviewDate: cleanValue(candidateMetadata?.interviewDate || interviewDateEl.value),
+          industry: cleanValue(candidateMetadata?.industry || industryEl.value),
+          jobTitle: cleanValue(candidateMetadata?.jobTitle || jobTitleEl.value),
+        };
+
+        log("Fetching assessor questions...");
+        const response = await fetch(ASSESSOR_QUESTIONS_WEBHOOK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => "");
+          throw new Error(`Assessor questions webhook failed (${response.status}) ${response.statusText} ${errorText}`.trim());
+        }
+
+        const responseText = await response.text();
+        if (!responseText.trim()) return [];
+        try {
+          return JSON.parse(responseText);
+        } catch {
+          return responseText;
+        }
       };
 
       const callTextModel = async (prompt, options = {}) => {
@@ -347,11 +414,13 @@
         callTextModel,
         setStatus,
         log,
+        fetchAssessorQuestions,
       });
 
-      const buildPreliminaryReviewReport = async ({ fullTranscriptText, candidateMetadata, reportOptions }) => {
+      const buildPreliminaryReviewReport = async ({ fullTranscriptText, jsonTranscript, candidateMetadata, reportOptions }) => {
         return sharedFinalReportGenerator.buildPreliminaryReviewReport({
           fullTranscriptText,
+          jsonTranscript,
           candidateMetadata,
           officialQuestionBank: [],
           reportOptions,
@@ -380,7 +449,8 @@
 
       transcriptFileEl.addEventListener("change", async () => {
         const file = transcriptFileEl.files && transcriptFileEl.files[0];
-        transcriptText = "";
+        transcriptInput = { kind: "none", text: "", json: null };
+        loadedTranscriptMetadata = {};
         lastReportHtml = "";
         previewFrame.removeAttribute("srcdoc");
         openBtn.disabled = true;
@@ -391,12 +461,28 @@
           return;
         }
         try {
-          transcriptText = await file.text();
-          applyParsedMetadata(transcriptText);
-          const questionCount = reportModule.parseTranscriptQuestions(transcriptText).length;
+          const fileText = await file.text();
+          const shouldParseJson = /\.json$/i.test(file.name || "") || /^\s*\{/.test(fileText);
+          let questionCount = 0;
+
+          if (shouldParseJson) {
+            const parsedJson = JSON.parse(fileText);
+            if (!Array.isArray(parsedJson?.questions)) {
+              throw new Error("JSON transcript file must contain a questions array.");
+            }
+            transcriptInput = { kind: "json", text: "", json: parsedJson };
+            applyJsonMetadata(parsedJson);
+            questionCount = parsedJson.questions.length;
+            log(`Loaded JSON transcript file: ${file.name}`);
+          } else {
+            transcriptInput = { kind: "text", text: fileText, json: null };
+            applyParsedMetadata(fileText);
+            questionCount = reportModule.parseTranscriptQuestions(fileText).length;
+            log(`Loaded transcript file: ${file.name}`);
+          }
+
           generateBtn.disabled = !questionCount;
           setStatus(`Loaded ${questionCount} question block(s).`, questionCount ? "ok" : "error");
-          log(`Loaded transcript file: ${file.name}`);
         } catch (error) {
           loadedTranscriptMetadata = {};
           setStatus(error?.message || "Unable to load transcript file.", "error");
@@ -404,7 +490,7 @@
       });
 
       generateBtn.addEventListener("click", async () => {
-        if (!transcriptText.trim()) {
+        if (!hasLoadedTranscript()) {
           setStatus("Load a transcript file first.", "error");
           return;
         }
@@ -415,10 +501,17 @@
           const candidateMetadata = getCandidateMetadata();
           const reportOptions = getReportOptions();
           setStatus("Generating preliminary review report...");
-          const { html, validation } = await buildPreliminaryReviewReport({
-            fullTranscriptText: transcriptText,
+          const buildArgs = {
             candidateMetadata,
             reportOptions,
+          };
+          if (transcriptInput.kind === "json") {
+            buildArgs.jsonTranscript = transcriptInput.json;
+          } else {
+            buildArgs.fullTranscriptText = transcriptInput.text;
+          }
+          const { html, validation } = await buildPreliminaryReviewReport({
+            ...buildArgs,
           });
           lastReportHtml = html;
           previewFrame.srcdoc = html;
@@ -433,7 +526,7 @@
           setStatus(error?.message || "Unable to generate report.", "error");
           log(error?.stack || error?.message || String(error));
         } finally {
-          generateBtn.disabled = !transcriptText.trim();
+          generateBtn.disabled = !hasLoadedTranscript();
         }
       });
 
