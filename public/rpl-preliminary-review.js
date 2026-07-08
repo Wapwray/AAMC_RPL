@@ -1705,7 +1705,7 @@ Rules:
           };
         }
 
-        function collectAllData() {
+        function collectReportJson() {
           var articles = document.querySelectorAll("article.question-card[data-question-number]");
           var questions = [];
           articles.forEach(function(article) {
@@ -1713,8 +1713,6 @@ Rules:
             questions.push(collectQuestionData(qNum));
           });
           return {
-            submissionType: "all",
-            submittedAt: new Date().toISOString(),
             candidate: {
               fullName: candidateName,
               contactId: contactId
@@ -1724,19 +1722,26 @@ Rules:
           };
         }
 
+        function buildSubmitPayload(submitType, triggerQuestionNumber) {
+          var payload = {
+            FullName: candidateName,
+            ContactID: contactId,
+            SubmittedAt: new Date().toISOString(),
+            SubmitType: submitType,
+            ReportJson: collectReportJson()
+          };
+
+          if (triggerQuestionNumber) {
+            payload.TriggerQuestionNumber = String(triggerQuestionNumber);
+          }
+
+          return payload;
+        }
+
         function submitQuestion(qNum) {
           if (!SUBMIT_URL) { setQuestionStatus(qNum, "No submit URL configured", "error"); return; }
           setQuestionStatus(qNum, "Submitting...", "");
-          var data = {
-            submissionType: "question",
-            submittedAt: new Date().toISOString(),
-            candidate: {
-              fullName: candidateName,
-              contactId: contactId
-            },
-            question: collectQuestionData(qNum),
-            signoff: collectSignoffData()
-          };
+          var data = buildSubmitPayload("question", qNum);
           fetch(SUBMIT_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1761,7 +1766,7 @@ Rules:
           }
           if (btn) btn.disabled = true;
           if (statusEl) { statusEl.textContent = "Submitting all comments..."; statusEl.className = "global-status"; }
-          var data = collectAllData();
+          var data = buildSubmitPayload("all");
           fetch(SUBMIT_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
