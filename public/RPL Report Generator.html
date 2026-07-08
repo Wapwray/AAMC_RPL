@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; frame-src 'self'; img-src 'self' data:; connect-src 'self' https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; frame-src 'self'; img-src 'self' data:; connect-src 'self';">
     <title>RPL Report Generator V1.0</title>
     <style>
       :root {
@@ -239,9 +239,9 @@
     <script src="rpl-preliminary-review.js"></script>
     <script src="rpl-final-report-generator.js"></script>
     <script>
-      const FINAL_REPORT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ad445c5a35534861933f60ee864eecfa/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=qiOM0ZtGoUf_75xUdMZJ6B5zVSzpc9qYVZJbEbYm6pM";
-      const ASSESSOR_QUESTIONS_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/776a38fbbe6449c996fd3a4127212eff/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=kA6BlWXbHh-ymnHGDWqRt25m_BEzVEAW1vHmiYur7vw";
-      const URL_TRANSCRIPT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/41fdc1293b8547b1ac672c8aa1ccf7f8/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=32qfqtKjiupj1eLtp31QEPjPGqGSCj9AOdZ-c3Bdy7Y";
+      const FINAL_REPORT_WEBHOOK_URL = "/api/webhook/final-report";
+      const ASSESSOR_QUESTIONS_WEBHOOK_URL = "/api/webhook/assessor-questions";
+      const URL_TRANSCRIPT_WEBHOOK_URL = "/api/webhook/transcript";
 
       const reportModule = window.RplPreliminaryReview;
       const transcriptFileEl = document.getElementById("transcriptFile");
@@ -404,10 +404,8 @@
       };
 
       const trySetTranscriptFromWebhookPayload = (payload) => {
-        // Validate that payload is from a trusted source
-        if (!payload || typeof payload !== "object") return 0;
-        
         const envelope = typeof payload === "string" ? safeJsonParse(payload) || payload : payload;
+        if (!envelope) return 0;
 
         const directCandidates = [
           envelope,
