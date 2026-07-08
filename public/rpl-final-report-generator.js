@@ -375,7 +375,9 @@
         }
       }
 
-      const baseHtml = reportModule.renderReportHtml(model);
+      const baseHtml = reportModule.renderInteractiveReportHtml(model, {
+        submitUrl: cleanValue(normalizedOptions.assessorSubmitUrl),
+      });
       const html = injectAssessorQuestionsIntoHtml(baseHtml, assessorQuestions);
       const validation = reportModule.validateReportHtmlCoverage(model, baseHtml);
       if (!validation.valid) {

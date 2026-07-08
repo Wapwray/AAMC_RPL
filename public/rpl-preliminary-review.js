@@ -1519,7 +1519,7 @@ Rules:
               ${renderEditableField(`assessor-eval-${question.questionNumber}`, "Assessor evaluation", "Enter your evaluation here...", "42px")}
               <h4>Assessor Notes</h4>
               ${renderEditableField(`assessor-notes-${question.questionNumber}`, "Assessor notes", "Enter your notes here...", "80px")}
-              <button type="button" class="question-submit-btn" data-question-number="${escapeAttribute(question.questionNumber)}" style="margin-top:10px;background:#0b6ea9;color:#fff;border:none;border-radius:999px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;">Submit Question ${escapeHtml(question.questionNumber)}</button>
+              <button type="button" class="question-submit-btn" data-question-number="${escapeAttribute(question.questionNumber)}" style="margin-top:10px;background:#0b6ea9;color:#fff;border:none;border-radius:999px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;">Submit</button>
               <span class="submit-status" id="submit-status-${question.questionNumber}" style="margin-left:10px;font-size:12px;color:#64748b;"></span>
             </section>
           </article>
@@ -1569,10 +1569,12 @@ Rules:
       .question-submit-btn:hover { background: #095c8b !important; }
       .submit-status.success { color: #166534; }
       .submit-status.error { color: #991b1b; }
-      .global-submit-bar { position: sticky; bottom: 0; left: 0; right: 0; background: #fff; border-top: 2px solid #d8dee9; padding: 14px 20px; display: flex; justify-content: flex-end; gap: 12px; align-items: center; z-index: 100; box-shadow: 0 -4px 12px rgba(0,0,0,0.08); }
+      .signoff-actions { margin-top: 12px; display: flex; justify-content: flex-end; gap: 12px; align-items: center; flex-wrap: wrap; }
       .global-submit-btn { background: #0b6ea9; color: #fff; border: none; border-radius: 999px; padding: 12px 24px; font-size: 15px; font-weight: 700; cursor: pointer; }
       .global-submit-btn:hover { background: #095c8b; }
       .global-submit-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+      .send-pdf-btn { background: #1f2937; color: #fff; border: none; border-radius: 999px; padding: 12px 24px; font-size: 15px; font-weight: 700; cursor: pointer; }
+      .send-pdf-btn:hover { background: #111827; }
       .global-status { font-size: 13px; color: #64748b; }
       .global-status.success { color: #166534; }
       .global-status.error { color: #991b1b; }
@@ -1580,7 +1582,7 @@ Rules:
         body { background: #fff; }
         .report { width: 100%; max-width: 180mm; padding: 0; }
         .question-card, .summary, .warning-box, .coverage-warning, .limitations, .confirmation, .signoff { border-color: #999; }
-        .global-submit-bar { display: none; }
+        .signoff-actions { display: none; }
         .question-submit-btn { display: none; }
         .assessor-input, .assessor-signoff-input { border: 1px solid #999; }
       }
@@ -1657,18 +1659,18 @@ Rules:
         <table class="signoff-table">
           <tbody>
             <tr><th scope="row">Assessor name</th><td>${renderEditableSignoff("assessor-name", "Enter assessor name")}</td></tr>
-            <tr><th scope="row">Assessor credential / TAE qualification</th><td>${renderEditableSignoff("assessor-credential", "Enter TAE qualification")}</td></tr>
+            <tr><th scope="row">Assessor Email</th><td>${renderEditableSignoff("assessor-email", "Enter assessor email")}</td></tr>
             <tr><th scope="row">Interview Outcome</th><td>${renderEditableSignoff("interview-outcome", "to be completed by assessor")}</td></tr>
             <tr><th scope="row">Signature &amp; date</th><td>${renderEditableSignoff("assessor-signature", "Enter signature & date")}</td></tr>
           </tbody>
         </table>
+        <div class="signoff-actions">
+          <span class="global-status" id="globalSubmitStatus"></span>
+          <button type="button" class="global-submit-btn" id="globalSubmitBtn">Submit</button>
+          <button type="button" class="send-pdf-btn" id="sendPdfBtn">Send PDF</button>
+        </div>
       </section>
     </main>
-
-    <div class="global-submit-bar">
-      <span class="global-status" id="globalSubmitStatus"></span>
-      <button type="button" class="global-submit-btn" id="globalSubmitBtn">Submit All Assessor Comments</button>
-    </div>
 
     <script>
       (function() {
@@ -1694,6 +1696,15 @@ Rules:
           };
         }
 
+        function collectSignoffData() {
+          return {
+            assessorName: (document.getElementById("assessor-name") || {}).value || "",
+            assessorEmail: (document.getElementById("assessor-email") || {}).value || "",
+            interviewOutcome: (document.getElementById("interview-outcome") || {}).value || "",
+            assessorSignature: (document.getElementById("assessor-signature") || {}).value || ""
+          };
+        }
+
         function collectAllData() {
           var articles = document.querySelectorAll("article.question-card[data-question-number]");
           var questions = [];
@@ -1702,22 +1713,30 @@ Rules:
             questions.push(collectQuestionData(qNum));
           });
           return {
-            candidateName: candidateName,
-            contactId: contactId,
+            submissionType: "all",
+            submittedAt: new Date().toISOString(),
+            candidate: {
+              fullName: candidateName,
+              contactId: contactId
+            },
             questions: questions,
-            assessorName: (document.getElementById("assessor-name") || {}).value || "",
-            assessorCredential: (document.getElementById("assessor-credential") || {}).value || "",
-            interviewOutcome: (document.getElementById("interview-outcome") || {}).value || "",
-            assessorSignature: (document.getElementById("assessor-signature") || {}).value || ""
+            signoff: collectSignoffData()
           };
         }
 
         function submitQuestion(qNum) {
           if (!SUBMIT_URL) { setQuestionStatus(qNum, "No submit URL configured", "error"); return; }
           setQuestionStatus(qNum, "Submitting...", "");
-          var data = collectQuestionData(qNum);
-          data.candidateName = candidateName;
-          data.contactId = contactId;
+          var data = {
+            submissionType: "question",
+            submittedAt: new Date().toISOString(),
+            candidate: {
+              fullName: candidateName,
+              contactId: contactId
+            },
+            question: collectQuestionData(qNum),
+            signoff: collectSignoffData()
+          };
           fetch(SUBMIT_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1760,6 +1779,10 @@ Rules:
           });
         }
 
+        function sendPdf() {
+          window.print();
+        }
+
         document.querySelectorAll(".question-submit-btn").forEach(function(btn) {
           btn.addEventListener("click", function() {
             var qNum = btn.getAttribute("data-question-number");
@@ -1769,6 +1792,9 @@ Rules:
 
         var globalBtn = document.getElementById("globalSubmitBtn");
         if (globalBtn) globalBtn.addEventListener("click", submitAll);
+
+        var sendPdfBtn = document.getElementById("sendPdfBtn");
+        if (sendPdfBtn) sendPdfBtn.addEventListener("click", sendPdf);
       })();
     </script>
   </body>

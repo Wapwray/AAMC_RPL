@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aamc.example/schemas/rpl-assessor-submit.schema.json",
+  "title": "RPL Assessor Submit Payload",
+  "description": "Payload for per-question and full-report submit actions from the interactive RPL report.",
+  "type": "object",
+  "properties": {
+    "submissionType": {
+      "type": "string",
+      "enum": ["question", "all"]
+    },
+    "submittedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "candidate": {
+      "type": "object",
+      "properties": {
+        "fullName": { "type": "string" },
+        "contactId": { "type": "string" }
+      },
+      "required": ["fullName", "contactId"],
+      "additionalProperties": false
+    },
+    "question": {
+      "type": "object",
+      "properties": {
+        "questionNumber": { "type": "string" },
+        "assessorEvaluation": { "type": "string" },
+        "assessorNotes": { "type": "string" }
+      },
+      "required": ["questionNumber", "assessorEvaluation", "assessorNotes"],
+      "additionalProperties": false
+    },
+    "questions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "questionNumber": { "type": "string" },
+          "assessorEvaluation": { "type": "string" },
+          "assessorNotes": { "type": "string" }
+        },
+        "required": ["questionNumber", "assessorEvaluation", "assessorNotes"],
+        "additionalProperties": false
+      },
+      "minItems": 1
+    },
+    "signoff": {
+      "type": "object",
+      "properties": {
+        "assessorName": { "type": "string" },
+        "assessorEmail": { "type": "string", "format": "email" },
+        "interviewOutcome": { "type": "string" },
+        "assessorSignature": { "type": "string" }
+      },
+      "required": ["assessorName", "assessorEmail", "interviewOutcome", "assessorSignature"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["submissionType", "submittedAt", "candidate", "signoff"],
+  "allOf": [
+    {
+      "if": {
+        "properties": { "submissionType": { "const": "question" } },
+        "required": ["submissionType"]
+      },
+      "then": {
+        "required": ["question"],
+        "not": { "required": ["questions"] }
+      }
+    },
+    {
+      "if": {
+        "properties": { "submissionType": { "const": "all" } },
+        "required": ["submissionType"]
+      },
+      "then": {
+        "required": ["questions"],
+        "not": { "required": ["question"] }
+      }
+    }
+  ],
+  "additionalProperties": false
+}
