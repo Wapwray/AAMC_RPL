@@ -172,6 +172,15 @@ app.get("/api/teams-auth-config", (req, res) => {
   });
 });
 
+const relayWebhookResponse = async (upstreamResponse, res) => {
+  const contentType = upstreamResponse.headers.get("content-type") || "text/plain; charset=utf-8";
+  const bodyText = await upstreamResponse.text();
+
+  res.status(upstreamResponse.status);
+  res.type(contentType);
+  res.send(bodyText);
+};
+
 // Webhook endpoints - these should be secured and only accessible by authenticated users
 app.post("/api/webhook/final-report", async (req, res) => {
   try {
@@ -182,12 +191,10 @@ app.post("/api/webhook/final-report", async (req, res) => {
     });
     
     if (!response.ok) {
-      const errorText = await response.text();
-      return res.status(response.status).json({ success: false, error: `Webhook failed: ${errorText}` });
+      return relayWebhookResponse(response, res);
     }
     
-    const result = await response.json();
-    res.json({ success: true, result });
+    return relayWebhookResponse(response, res);
   } catch (error) {
     res.status(500).json({ success: false, error: error?.message || String(error) });
   }
@@ -202,12 +209,10 @@ app.post("/api/webhook/assessor-questions", async (req, res) => {
     });
     
     if (!response.ok) {
-      const errorText = await response.text();
-      return res.status(response.status).json({ success: false, error: `Webhook failed: ${errorText}` });
+      return relayWebhookResponse(response, res);
     }
     
-    const result = await response.json();
-    res.json({ success: true, result });
+    return relayWebhookResponse(response, res);
   } catch (error) {
     res.status(500).json({ success: false, error: error?.message || String(error) });
   }
@@ -222,12 +227,10 @@ app.post("/api/webhook/transcript", async (req, res) => {
     });
     
     if (!response.ok) {
-      const errorText = await response.text();
-      return res.status(response.status).json({ success: false, error: `Webhook failed: ${errorText}` });
+      return relayWebhookResponse(response, res);
     }
     
-    const result = await response.json();
-    res.json({ success: true, result });
+    return relayWebhookResponse(response, res);
   } catch (error) {
     res.status(500).json({ success: false, error: error?.message || String(error) });
   }
