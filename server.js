@@ -25,6 +25,15 @@ const MS_TEAMS_TENANT_ID =
   process.env.MS_TEAMS_TENANT_ID ||
   process.env.AZURE_TENANT_ID ||
   "63871d3c-d05d-49fa-86b6-420054699fb4";
+const FINAL_REPORT_WEBHOOK_URL =
+  process.env.FINAL_REPORT_WEBHOOK_URL ||
+  "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ad445c5a35534861933f60ee864eecfa/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=qiOM0ZtGoUf_75xUdMZJ6B5zVSzpc9qYVZJbEbYm6pM";
+const ASSESSOR_QUESTIONS_WEBHOOK_URL =
+  process.env.ASSESSOR_QUESTIONS_WEBHOOK_URL ||
+  "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/776a38fbbe6449c996fd3a4127212eff/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=kA6BlWXbHh-ymnHGDWqRt25m_BEzVEAW1vHmiYur7vw";
+const URL_TRANSCRIPT_WEBHOOK_URL =
+  process.env.URL_TRANSCRIPT_WEBHOOK_URL ||
+  "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/41fdc1293b8547b1ac672c8aa1ccf7f8/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=32qfqtKjiupj1eLtp31QEPjPGqGSCj9AOdZ-c3Bdy7Y";
 const INDUSTRY_FALLBACK_ITEMS = [
   { Title: "Banking" },
   { Title: "Lending" },
@@ -161,6 +170,67 @@ app.get("/api/teams-auth-config", (req, res) => {
     tenantId: MS_TEAMS_TENANT_ID,
     redirectUri: `${baseUrl}/Live%20Assessment.html`,
   });
+});
+
+// Webhook endpoints - these should be secured and only accessible by authenticated users
+app.post("/api/webhook/final-report", async (req, res) => {
+  try {
+    const response = await fetch(FINAL_REPORT_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req.body),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      return res.status(response.status).json({ success: false, error: `Webhook failed: ${errorText}` });
+    }
+    
+    const result = await response.json();
+    res.json({ success: true, result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error?.message || String(error) });
+  }
+});
+
+app.post("/api/webhook/assessor-questions", async (req, res) => {
+  try {
+    const response = await fetch(ASSESSOR_QUESTIONS_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req.body),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      return res.status(response.status).json({ success: false, error: `Webhook failed: ${errorText}` });
+    }
+    
+    const result = await response.json();
+    res.json({ success: true, result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error?.message || String(error) });
+  }
+});
+
+app.post("/api/webhook/transcript", async (req, res) => {
+  try {
+    const response = await fetch(URL_TRANSCRIPT_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req.body),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      return res.status(response.status).json({ success: false, error: `Webhook failed: ${errorText}` });
+    }
+    
+    const result = await response.json();
+    res.json({ success: true, result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error?.message || String(error) });
+  }
 });
 
 app.post("/api/industries", async (req, res) => {

@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; frame-src 'self'; img-src 'self' data:;">
     <title>RPL Report Generator V1.0</title>
     <style>
       :root {
@@ -184,7 +185,7 @@
         <section class="panel" aria-labelledby="controlsTitle">
           <h2 id="controlsTitle">Transcript</h2>
           <label for="transcriptFile">Transcript file</label>
-          <input id="transcriptFile" type="file" accept=".txt,.text,.log,.md,.html,.htm,.json">
+          <input id="transcriptFile" type="file" accept=".txt,.text,.log,.md,.json">
 
           <div class="row">
             <div>
@@ -212,7 +213,7 @@
           </div>
 
           <label for="interviewDate">Interview date</label>
-          <input id="interviewDate" type="text" autocomplete="off">
+          <input id="interviewDate" type="text" value="" autocomplete="off">
 
           <label class="check-row" for="sendWebhook">
             <input id="sendWebhook" type="checkbox" checked>
@@ -238,9 +239,10 @@
     <script src="rpl-preliminary-review.js"></script>
     <script src="rpl-final-report-generator.js"></script>
     <script>
-      const FINAL_REPORT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ad445c5a35534861933f60ee864eecfa/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=qiOM0ZtGoUf_75xUdMZJ6B5zVSzpc9qYVZJbEbYm6pM";
-      const ASSESSOR_QUESTIONS_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/776a38fbbe6449c996fd3a4127212eff/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=kA6BlWXbHh-ymnHGDWqRt25m_BEzVEAW1vHmiYur7vw";
-      const URL_TRANSCRIPT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/41fdc1293b8547b1ac672c8aa1ccf7f8/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=32qfqtKjiupj1eLtp31QEPjPGqGSCj9AOdZ-c3Bdy7Y";
+      // Webhook URLs should be loaded from server-side configuration to avoid exposing secrets
+      const FINAL_REPORT_WEBHOOK_URL = "/api/webhook/final-report";
+      const ASSESSOR_QUESTIONS_WEBHOOK_URL = "/api/webhook/assessor-questions"; 
+      const URL_TRANSCRIPT_WEBHOOK_URL = "/api/webhook/transcript";
 
       const reportModule = window.RplPreliminaryReview;
       const transcriptFileEl = document.getElementById("transcriptFile");
@@ -403,6 +405,9 @@
       };
 
       const trySetTranscriptFromWebhookPayload = (payload) => {
+        // Validate that payload is from a trusted source
+        if (!payload || typeof payload !== "object") return 0;
+        
         const envelope = typeof payload === "string" ? safeJsonParse(payload) || payload : payload;
 
         const directCandidates = [
@@ -493,32 +498,37 @@
           GivenName: ctx.givenName,
         };
 
-        const response = await fetch(URL_TRANSCRIPT_WEBHOOK_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-
-        const responseText = await response.text();
-        if (!response.ok) {
-          throw new Error(`URL transcript webhook failed (${response.status}) ${response.statusText}`.trim());
-        }
-
-        let payloadData = responseText;
         try {
-          payloadData = responseText ? JSON.parse(responseText) : "";
-        } catch {
-          payloadData = responseText;
-        }
+          const response = await fetch(URL_TRANSCRIPT_WEBHOOK_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
 
-        const questionCount = trySetTranscriptFromWebhookPayload(payloadData);
-        if (!questionCount) {
-          throw new Error("No transcript content returned from URL transcript webhook.");
-        }
+          const responseText = await response.text();
+          if (!response.ok) {
+            throw new Error(`URL transcript webhook failed (${response.status}) ${response.statusText}`.trim());
+          }
 
-        generateBtn.disabled = false;
-        setStatus(`Loaded ${questionCount} question block(s) from URL context.`, "ok");
-        return true;
+          let payloadData = responseText;
+          try {
+            payloadData = responseText ? JSON.parse(responseText) : "";
+          } catch {
+            payloadData = responseText;
+          }
+
+          const questionCount = trySetTranscriptFromWebhookPayload(payloadData);
+          if (!questionCount) {
+            throw new Error("No transcript content returned from URL transcript webhook.");
+          }
+
+          generateBtn.disabled = false;
+          setStatus(`Loaded ${questionCount} question block(s) from URL context.`, "ok");
+          return true;
+        } catch (error) {
+          log(`Error loading transcript from URL context: ${error?.message || String(error)}`);
+          throw error;
+        }
       };
 
       const applyJsonMetadata = (json) => {
@@ -647,6 +657,11 @@
       };
 
       const sendFinalReportWebhook = async (html) => {
+        // Check report size before sending to prevent webhook payload limits
+        if (html.length > 1000000) { // 1MB limit
+          log("Warning: Report is very large, may exceed webhook limits");
+        }
+        
         const identity = getWebhookIdentityFromTranscript();
         const payload = {
           FullName: identity.fullName,
@@ -763,10 +778,12 @@
 
       downloadBtn.addEventListener("click", () => {
         if (!lastReportHtml) return;
+        const candidate = fullNameEl.value.replace(/[^a-zA-Z0-9\s-]/g, "").trim() || "candidate";
+        const date = new Date().toISOString().slice(0, 10);
         const blob = new Blob([lastReportHtml], { type: "text/html" });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
-        link.download = "RPL Preliminary Interview Review.html";
+        link.download = `RPL_Preliminary_Review_${candidate}_${date}.html`;
         document.body.appendChild(link);
         link.click();
         link.remove();
@@ -776,6 +793,10 @@
       if (!reportModule) {
         setStatus("Report module did not load.", "error");
       } else {
+        // Set default interview date to today
+        const today = new Date().toISOString().slice(0, 10);
+        interviewDateEl.value = today;
+        
         applyUrlStudentContext();
         preloadInputsFromStudentContext();
         loadTranscriptFromUrlContext().catch((error) => {
