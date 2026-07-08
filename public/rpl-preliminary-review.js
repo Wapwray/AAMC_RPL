@@ -1473,6 +1473,7 @@ Rules:
 
   const renderInteractiveReportHtml = (reportModel, options = {}) => {
     const submitUrl = options.submitUrl || "";
+    const givenNameFromOptions = cleanMetadataValue(options.givenName || "");
     const questions = Array.isArray(reportModel?.questions) ? reportModel.questions : [];
     const metadata = reportModel?.metadata || {};
     const hasFollowUp = questions.some((question) => question.shortStatus !== SHORT_LIKELY_SUFFICIENT);
@@ -1677,6 +1678,14 @@ Rules:
         var SUBMIT_URL = ${submitUrl ? JSON.stringify(submitUrl) : '""'};
         var candidateName = ${JSON.stringify(metadata.candidateName || "")};
         var contactId = ${JSON.stringify(metadata.contactId || "")};
+        var givenName = ${JSON.stringify(givenNameFromOptions || "")};
+
+        function deriveGivenName() {
+          if (givenName && String(givenName).trim()) return String(givenName).trim();
+          var full = String(candidateName || "").trim();
+          if (!full) return "";
+          return full.split(/\s+/)[0] || "";
+        }
 
         function setQuestionStatus(qNum, text, className) {
           var el = document.getElementById("submit-status-" + qNum);
@@ -1723,19 +1732,22 @@ Rules:
         }
 
         function buildSubmitPayload(submitType, triggerQuestionNumber) {
-          var payload = {
-            FullName: candidateName,
-            ContactID: contactId,
-            SubmittedAt: new Date().toISOString(),
-            SubmitType: submitType,
-            ReportJson: collectReportJson()
+          var assessorInput = {
+            submitType: submitType,
+            submittedAt: new Date().toISOString(),
+            report: collectReportJson()
           };
 
           if (triggerQuestionNumber) {
-            payload.TriggerQuestionNumber = String(triggerQuestionNumber);
+            assessorInput.triggerQuestionNumber = String(triggerQuestionNumber);
           }
 
-          return payload;
+          return {
+            FullName: String(candidateName || ""),
+            ContactID: String(contactId || ""),
+            GivenName: deriveGivenName(),
+            AssessorInput: JSON.stringify(assessorInput)
+          };
         }
 
         function submitQuestion(qNum) {

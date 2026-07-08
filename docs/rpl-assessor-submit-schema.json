@@ -1,8 +1,4 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://aamc.example/schemas/rpl-assessor-submit.schema.json",
-  "title": "RPL Assessor Submit Payload",
-  "description": "Payload sent by submit actions, including top-level candidate identity and the full JSON report content.",
   "type": "object",
   "properties": {
     "FullName": {
@@ -11,59 +7,13 @@
     "ContactID": {
       "type": "string"
     },
-    "SubmittedAt": {
-      "type": "string",
-      "format": "date-time"
+    "GivenName": {
+      "type": "string"
     },
-    "SubmitType": {
-      "type": "string",
-      "enum": ["question", "all"]
-    },
-    "TriggerQuestionNumber": {
-      "type": "string",
-      "description": "Present when SubmitType is question and indicates which question triggered submission."
-    },
-    "ReportJson": {
-      "type": "object",
-      "properties": {
-        "candidate": {
-          "type": "object",
-          "properties": {
-            "fullName": { "type": "string" },
-            "contactId": { "type": "string" }
-          },
-          "required": ["fullName", "contactId"],
-          "additionalProperties": false
-        },
-        "questions": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "questionNumber": { "type": "string" },
-              "assessorEvaluation": { "type": "string" },
-              "assessorNotes": { "type": "string" }
-            },
-            "required": ["questionNumber", "assessorEvaluation", "assessorNotes"],
-            "additionalProperties": false
-          },
-          "minItems": 1
-        },
-        "signoff": {
-          "type": "object",
-          "properties": {
-            "assessorName": { "type": "string" },
-            "assessorEmail": { "type": "string", "format": "email" },
-            "interviewOutcome": { "type": "string" },
-            "assessorSignature": { "type": "string" }
-          },
-          "required": ["assessorName", "assessorEmail", "interviewOutcome", "assessorSignature"],
-          "additionalProperties": false
-        }
-      },
-      "additionalProperties": false
+    "AssessorInput": {
+      "type": "string"
     }
   },
-  "required": ["FullName", "ContactID", "SubmittedAt", "SubmitType", "ReportJson"],
+  "required": ["FullName", "ContactID", "GivenName", "AssessorInput"],
   "additionalProperties": false
 }

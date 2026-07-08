@@ -322,6 +322,7 @@
         reportDate: new Date().toLocaleString(),
         maxBatchChars: 16000,
         assessorSubmitUrl: ASSESSOR_SUBMIT_WEBHOOK_URL,
+        assessorGivenName: cleanValue(getStudentContext().givenName) || cleanValue(fullNameEl.value).split(/\s+/)[0] || "",
       });
 
       const applyUrlStudentContext = () => {
