@@ -1474,6 +1474,7 @@ Rules:
   const renderInteractiveReportHtml = (reportModel, options = {}) => {
     const submitUrl = options.submitUrl || "";
     const givenNameFromOptions = cleanMetadataValue(options.givenName || "");
+    const assessorPrefillFromOptions = options.assessorPrefill || null;
     const questions = Array.isArray(reportModel?.questions) ? reportModel.questions : [];
     const metadata = reportModel?.metadata || {};
     const hasFollowUp = questions.some((question) => question.shortStatus !== SHORT_LIKELY_SUFFICIENT);
@@ -1679,6 +1680,7 @@ Rules:
         var candidateName = ${JSON.stringify(metadata.candidateName || "")};
         var contactId = ${JSON.stringify(metadata.contactId || "")};
         var givenName = ${JSON.stringify(givenNameFromOptions || "")};
+        var ASSESSOR_PREFILL = ${assessorPrefillFromOptions ? JSON.stringify(assessorPrefillFromOptions) : "null"};
 
         function deriveGivenName() {
           if (givenName && String(givenName).trim()) return String(givenName).trim();
@@ -1729,6 +1731,48 @@ Rules:
             questions: questions,
             signoff: collectSignoffData()
           };
+        }
+
+        function normalizeAssessorPrefill() {
+          var raw = ASSESSOR_PREFILL;
+          if (!raw) return null;
+
+          if (typeof raw === "string") {
+            try {
+              raw = JSON.parse(raw);
+            } catch {
+              return null;
+            }
+          }
+
+          if (!raw || typeof raw !== "object") return null;
+          if (raw.report && typeof raw.report === "object") return raw.report;
+          return raw;
+        }
+
+        function setFieldValue(id, value) {
+          var el = document.getElementById(id);
+          if (!el) return;
+          el.value = value === undefined || value === null ? "" : String(value);
+        }
+
+        function applyAssessorPrefill() {
+          var prefill = normalizeAssessorPrefill();
+          if (!prefill) return;
+
+          var questions = Array.isArray(prefill.questions) ? prefill.questions : [];
+          questions.forEach(function(item) {
+            var qNum = String(item && item.questionNumber !== undefined ? item.questionNumber : "").trim();
+            if (!qNum) return;
+            setFieldValue("assessor-eval-" + qNum, item.assessorEvaluation || "");
+            setFieldValue("assessor-notes-" + qNum, item.assessorNotes || "");
+          });
+
+          var signoff = prefill.signoff && typeof prefill.signoff === "object" ? prefill.signoff : {};
+          setFieldValue("assessor-name", signoff.assessorName || "");
+          setFieldValue("assessor-email", signoff.assessorEmail || "");
+          setFieldValue("interview-outcome", signoff.interviewOutcome || "");
+          setFieldValue("assessor-signature", signoff.assessorSignature || "");
         }
 
         function buildSubmitPayload(submitType, triggerQuestionNumber) {
@@ -1812,6 +1856,8 @@ Rules:
 
         var sendPdfBtn = document.getElementById("sendPdfBtn");
         if (sendPdfBtn) sendPdfBtn.addEventListener("click", sendPdf);
+
+        applyAssessorPrefill();
       })();
     </script>
   </body>

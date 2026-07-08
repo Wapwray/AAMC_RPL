@@ -378,6 +378,7 @@
       const baseHtml = reportModule.renderInteractiveReportHtml(model, {
         submitUrl: cleanValue(normalizedOptions.assessorSubmitUrl),
         givenName: cleanValue(normalizedOptions.assessorGivenName),
+        assessorPrefill: normalizedOptions.assessorPrefill || null,
       });
       const html = injectAssessorQuestionsIntoHtml(baseHtml, assessorQuestions);
       const validation = reportModule.validateReportHtmlCoverage(model, baseHtml);

@@ -266,6 +266,7 @@
       };
       let lastReportHtml = "";
       let loadedTranscriptMetadata = {};
+      let loadedAssessorComments = null;
 
       const hasLoadedTranscript = () => transcriptInput.kind === "text"
         ? Boolean(transcriptInput.text.trim())
@@ -305,6 +306,18 @@
         }
       };
 
+      const extractAssessorCommentsPayload = (payload) => {
+        const envelope = typeof payload === "string" ? safeJsonParse(payload) || payload : payload;
+        const rawValue = envelope?.["Assessor Comments JSON"] || envelope?.body?.["Assessor Comments JSON"];
+        if (!rawValue) return null;
+        if (typeof rawValue === "object") return rawValue;
+        if (typeof rawValue === "string") {
+          const parsed = safeJsonParse(rawValue);
+          return parsed && typeof parsed === "object" ? parsed : null;
+        }
+        return null;
+      };
+
       const getCandidateMetadata = () => ({
         fullName: cleanValue(fullNameEl.value),
         candidateName: cleanValue(fullNameEl.value),
@@ -323,6 +336,7 @@
         maxBatchChars: 16000,
         assessorSubmitUrl: ASSESSOR_SUBMIT_WEBHOOK_URL,
         assessorGivenName: cleanValue(getStudentContext().givenName) || cleanValue(fullNameEl.value).split(/\s+/)[0] || "",
+        assessorPrefill: loadedAssessorComments,
       });
 
       const applyUrlStudentContext = () => {
@@ -514,9 +528,15 @@
           payloadData = responseText;
         }
 
+        loadedAssessorComments = extractAssessorCommentsPayload(payloadData);
+
         const questionCount = trySetTranscriptFromWebhookPayload(payloadData);
         if (!questionCount) {
           throw new Error("No transcript content returned from URL transcript webhook.");
+        }
+
+        if (loadedAssessorComments) {
+          log("Loaded Assessor Comments JSON for prefill.");
         }
 
         generateBtn.disabled = false;
@@ -673,6 +693,7 @@
         const file = transcriptFileEl.files && transcriptFileEl.files[0];
         transcriptInput = { kind: "none", text: "", json: null };
         loadedTranscriptMetadata = {};
+        loadedAssessorComments = null;
         lastReportHtml = "";
         previewFrame.removeAttribute("srcdoc");
         openBtn.disabled = true;
