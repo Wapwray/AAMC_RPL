@@ -174,39 +174,30 @@
   const buildAssessorQuestionsSectionHtml = (assessorQuestions) => {
     if (!Array.isArray(assessorQuestions) || !assessorQuestions.length) return "";
 
-    const rows = assessorQuestions.map((item) => {
-      // Sanitize all inputs to prevent XSS
-      const qNumber = escapeHtml(item.qNumber || "");
-      const section = escapeHtml(item.section || "");
-      const questionText = renderRichField(item.questionText || "");
-      const hints = renderRichField(item.hints || "N/A");
-      const objective = renderRichField(item.objective || "N/A");
-      
-      return `
-        <article class="question-card" data-assessor-question-number="${qNumber}">
-          <h3>Assessor Question ${qNumber} - ${section}</h3>
-          <section>
-            <h4>Question asked</h4>
-            <div class="response-box">${questionText}</div>
-          </section>
-          <section>
-            <h4>Hints</h4>
-            <div class="response-box">${hints}</div>
-          </section>
-          <section>
-            <h4>Objective</h4>
-            <div class="response-box">${objective}</div>
-          </section>
-          <section>
-            <h4>Assessor evaluation</h4>
-            <div class="field-value">to be completed by assessor</div>
-          </section>
-          <section>
-            <h4>Assessor notes</h4>
-            <div class="field-value">to be completed by assessor</div>
-          </section>
-        </article>`;
-    }).join("\n");
+    const rows = assessorQuestions.map((item) => `
+      <article class="question-card" data-assessor-question-number="${escapeHtml(item.qNumber)}">
+        <h3>Assessor Question ${escapeHtml(item.qNumber)} - ${escapeHtml(item.section)}</h3>
+        <section>
+          <h4>Question asked</h4>
+          <div class="response-box">${renderRichField(item.questionText)}</div>
+        </section>
+        <section>
+          <h4>Hints</h4>
+          <div class="response-box">${renderRichField(item.hints)}</div>
+        </section>
+        <section>
+          <h4>Objective</h4>
+          <div class="response-box">${renderRichField(item.objective)}</div>
+        </section>
+        <section>
+          <h4>Assessor evaluation</h4>
+          <div class="field-value">to be completed by assessor</div>
+        </section>
+        <section>
+          <h4>Assessor notes</h4>
+          <div class="field-value">to be completed by assessor</div>
+        </section>
+      </article>`).join("\n");
 
     return `
       <section class="question-review-section" aria-labelledby="assessorQuestionsTitle">
