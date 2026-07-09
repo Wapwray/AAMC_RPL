@@ -175,7 +175,7 @@
     if (!Array.isArray(assessorQuestions) || !assessorQuestions.length) return "";
 
     const rows = assessorQuestions.map((item) => `
-      <article class="question-card" data-assessor-question-number="${escapeHtml(item.qNumber)}">
+      <article class="question-card" data-question-number="${escapeHtml(item.qNumber)}">
         <h3>Assessor Question ${escapeHtml(item.qNumber)} - ${escapeHtml(item.section)}</h3>
         <section>
           <h4>Question asked</h4>
@@ -189,13 +189,13 @@
           <h4>Objective</h4>
           <div class="response-box">${renderRichField(item.objective)}</div>
         </section>
-        <section>
-          <h4>Assessor evaluation</h4>
-          <div class="field-value">to be completed by assessor</div>
-        </section>
-        <section>
-          <h4>Assessor notes</h4>
-          <div class="field-value">to be completed by assessor</div>
+        <section class="assessor-evaluation">
+          <h4>Assessor Evaluation - Objective Met / Not Met</h4>
+          <textarea id="assessor-eval-${escapeHtml(item.qNumber)}" name="assessor-eval-${escapeHtml(item.qNumber)}" class="assessor-input" placeholder="Enter your evaluation here..." style="width:100%;min-height:42px;border:1px solid #999;border-radius:4px;padding:7px 9px;box-sizing:border-box;font-family:Calibri,Arial,Helvetica,sans-serif;font-size:11pt;line-height:1.35;background:#fff;"></textarea>
+          <h4>Assessor Notes</h4>
+          <textarea id="assessor-notes-${escapeHtml(item.qNumber)}" name="assessor-notes-${escapeHtml(item.qNumber)}" class="assessor-input" placeholder="Enter your notes here..." style="width:100%;min-height:80px;border:1px solid #999;border-radius:4px;padding:7px 9px;box-sizing:border-box;font-family:Calibri,Arial,Helvetica,sans-serif;font-size:11pt;line-height:1.35;background:#fff;"></textarea>
+          <button type="button" class="question-submit-btn" data-question-number="${escapeHtml(item.qNumber)}" style="margin-top:10px;background:#0b6ea9;color:#fff;border:none;border-radius:999px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;">Submit</button>
+          <span class="submit-status" id="submit-status-${escapeHtml(item.qNumber)}" style="margin-left:10px;font-size:12px;color:#64748b;"></span>
         </section>
       </article>`).join("\n");
 
