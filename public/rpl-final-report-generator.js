@@ -379,6 +379,7 @@
         submitUrl: cleanValue(normalizedOptions.assessorSubmitUrl),
         givenName: cleanValue(normalizedOptions.assessorGivenName),
         assessorPrefill: normalizedOptions.assessorPrefill || null,
+        studentPhoto: cleanValue(normalizedOptions.studentPhoto),
       });
       const html = injectAssessorQuestionsIntoHtml(baseHtml, assessorQuestions);
       const validation = reportModule.validateReportHtmlCoverage(model, baseHtml);

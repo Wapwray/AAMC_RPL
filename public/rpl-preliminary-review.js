@@ -1012,8 +1012,9 @@ Rules:
     return `${text.slice(0, maxLength - 3)}...`;
   };
 
-  const renderMetadataRows = (metadata) => {
+  const renderMetadataRows = (metadata, studentPhoto = "") => {
     const rows = [
+      studentPhoto ? ["Student photo", `<img class="student-photo" src="${escapeAttribute(studentPhoto)}" alt="Student photo for ${escapeAttribute(metadata.candidateName || "student")}">`, true] : null,
       ["Candidate name", metadata.candidateName],
       ["Contact ID", metadata.contactId],
       ["Qualification", metadata.qualification],
@@ -1022,9 +1023,9 @@ Rules:
       ["Job title", metadata.jobTitle],
       ["Report type", metadata.reportType],
       ["Questions reviewed", metadata.questionCountReviewed],
-    ];
+    ].filter(Boolean);
     return rows
-      .map(([label, value]) => `<tr><th scope="row">${escapeHtml(label)}</th><td>${escapeHtml(valueOrMissing(value))}</td></tr>`)
+      .map(([label, value, isHtml]) => `<tr><th scope="row">${escapeHtml(label)}</th><td${isHtml ? ' class="student-photo-cell"' : ""}>${isHtml ? value : escapeHtml(valueOrMissing(value))}</td></tr>`)
       .join("\n");
   };
 
@@ -1193,6 +1194,8 @@ Rules:
       .metadata-table, .status-table, .signoff-table { background: #fff; }
       .metadata-table th, .metadata-table td, .status-table th, .status-table td, .signoff-table th, .signoff-table td { border: 1px solid #cbd5e1; padding: 10px 12px; vertical-align: top; text-align: left; }
       .metadata-table th { width: 30%; background: #eef2f7; }
+      .student-photo-cell { background: #f8fafc; }
+      .student-photo { display: block; max-width: 140px; max-height: 160px; width: auto; height: auto; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; object-fit: contain; }
       .status-table { font-size: 9pt; line-height: 1.25; }
       .status-table th { background: #e8eef6; }
       .warning-box, .coverage-warning, .summary, .question-card, .limitations, .confirmation, .signoff { background: #fff; border: 1px solid #d8dee9; border-radius: 8px; padding: 18px; margin-top: 18px; }
@@ -1230,7 +1233,7 @@ Rules:
       </header>
 
       <section aria-labelledby="candidateMetadataTitle">
-        <h2 id="candidateMetadataTitle">Candidate Metadata</h2>
+        <h2 id="candidateMetadataTitle">Student Details</h2>
         <table class="metadata-table">
           <tbody>
             ${renderMetadataRows(metadata)}
@@ -1475,6 +1478,7 @@ Rules:
     const submitUrl = options.submitUrl || "";
     const givenNameFromOptions = cleanMetadataValue(options.givenName || "");
     const assessorPrefillFromOptions = options.assessorPrefill || null;
+    const studentPhoto = cleanMetadataValue(options.studentPhoto || "");
     const questions = Array.isArray(reportModel?.questions) ? reportModel.questions : [];
     const metadata = reportModel?.metadata || {};
     const hasFollowUp = questions.some((question) => question.shortStatus !== SHORT_LIKELY_SUFFICIENT);
@@ -1549,6 +1553,8 @@ Rules:
       .metadata-table, .status-table, .signoff-table { background: #fff; }
       .metadata-table th, .metadata-table td, .status-table th, .status-table td, .signoff-table th, .signoff-table td { border: 1px solid #cbd5e1; padding: 10px 12px; vertical-align: top; text-align: left; }
       .metadata-table th { width: 30%; background: #eef2f7; }
+      .student-photo-cell { background: #f8fafc; }
+      .student-photo { display: block; max-width: 140px; max-height: 160px; width: auto; height: auto; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; object-fit: contain; }
       .status-table { font-size: 9pt; line-height: 1.25; }
       .status-table th { background: #e8eef6; }
       .warning-box, .coverage-warning, .summary, .question-card, .limitations, .confirmation, .signoff { background: #fff; border: 1px solid #d8dee9; border-radius: 8px; padding: 18px; margin-top: 18px; }
@@ -1598,10 +1604,10 @@ Rules:
       </header>
 
       <section aria-labelledby="candidateMetadataTitle">
-        <h2 id="candidateMetadataTitle">Candidate Metadata</h2>
+        <h2 id="candidateMetadataTitle">Student Details</h2>
         <table class="metadata-table">
           <tbody>
-            ${renderMetadataRows(metadata)}
+            ${renderMetadataRows(metadata, studentPhoto)}
           </tbody>
         </table>
       </section>
