@@ -1013,15 +1013,7 @@ Rules:
   };
 
   const renderMetadataRows = (metadata) => {
-    const studentPhotoSrc = cleanMetadataValue(metadata.studentPhoto);
-    const studentPhotoMarkup = studentPhotoSrc
-      ? `<img src="${escapeAttribute(studentPhotoSrc)}" alt="Student photo" style="display:block;max-width:180px;max-height:180px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;object-fit:cover;">`
-      : '<div class="muted">Student photo not available.</div>';
     const rows = [
-      {
-        label: "Student photo",
-        htmlValue: studentPhotoMarkup,
-      },
       ["Candidate name", metadata.candidateName],
       ["Contact ID", metadata.contactId],
       ["Qualification", metadata.qualification],
@@ -1032,14 +1024,7 @@ Rules:
       ["Questions reviewed", metadata.questionCountReviewed],
     ];
     return rows
-      .map((row) => {
-        if (Array.isArray(row)) {
-          const label = row[0];
-          const value = row[1];
-          return `<tr><th scope="row">${escapeHtml(label)}</th><td>${escapeHtml(valueOrMissing(value))}</td></tr>`;
-        }
-        return `<tr><th scope="row">${escapeHtml(row.label || "")}</th><td>${row.htmlValue || ""}</td></tr>`;
-      })
+      .map(([label, value]) => `<tr><th scope="row">${escapeHtml(label)}</th><td>${escapeHtml(valueOrMissing(value))}</td></tr>`)
       .join("\n");
   };
 
@@ -1245,10 +1230,10 @@ Rules:
       </header>
 
       <section aria-labelledby="candidateMetadataTitle">
-        <h2 id="candidateMetadataTitle">Student Details</h2>
+        <h2 id="candidateMetadataTitle">Candidate Metadata</h2>
         <table class="metadata-table">
           <tbody>
-            ${renderMetadataRows(reportMetadata)}
+            ${renderMetadataRows(metadata)}
           </tbody>
         </table>
       </section>
@@ -1490,10 +1475,8 @@ Rules:
     const submitUrl = options.submitUrl || "";
     const givenNameFromOptions = cleanMetadataValue(options.givenName || "");
     const assessorPrefillFromOptions = options.assessorPrefill || null;
-    const studentPhotoFromOptions = cleanMetadataValue(options.studentPhoto || "");
     const questions = Array.isArray(reportModel?.questions) ? reportModel.questions : [];
     const metadata = reportModel?.metadata || {};
-    const reportMetadata = { ...metadata, studentPhoto: studentPhotoFromOptions };
     const hasFollowUp = questions.some((question) => question.shortStatus !== SHORT_LIKELY_SUFFICIENT);
     const executiveHeading = hasFollowUp
       ? "Executive Summary - Preliminary Findings (assessor follow-up suggested)"
@@ -1615,7 +1598,7 @@ Rules:
       </header>
 
       <section aria-labelledby="candidateMetadataTitle">
-        <h2 id="candidateMetadataTitle">Student Details</h2>
+        <h2 id="candidateMetadataTitle">Candidate Metadata</h2>
         <table class="metadata-table">
           <tbody>
             ${renderMetadataRows(metadata)}
@@ -1694,7 +1677,6 @@ Rules:
     <script>
       (function() {
         var SUBMIT_URL = ${submitUrl ? JSON.stringify(submitUrl) : '""'};
-        var STUDENT_PHOTO_SRC = ${studentPhotoFromOptions ? JSON.stringify(studentPhotoFromOptions) : '""'};
         var candidateName = ${JSON.stringify(metadata.candidateName || "")};
         var contactId = ${JSON.stringify(metadata.contactId || "")};
         var givenName = ${JSON.stringify(givenNameFromOptions || "")};
@@ -1713,38 +1695,6 @@ Rules:
             el.textContent = text;
             el.className = "submit-status " + (className || "");
           }
-        }
-
-        function normalizeImageSource(value) {
-          var text = String(value === undefined || value === null ? "" : value).trim();
-          if (!text) return "";
-
-          if (/^data:image\//i.test(text)) return text;
-          if (/^https?:\/\//i.test(text)) return text;
-
-          // Remove whitespace/newlines for base64 payloads.
-          var compact = text.replace(/\s+/g, "");
-          if (/^[A-Za-z0-9+/=]+$/.test(compact) && compact.length > 80) {
-            return "data:image/jpeg;base64," + compact;
-          }
-
-          return "";
-        }
-
-        function applyStudentPhoto() {
-          var imgEl = document.getElementById("studentPhotoImg");
-          var statusEl = document.getElementById("studentPhotoStatus");
-          if (!imgEl || !statusEl) return;
-
-          var src = normalizeImageSource(STUDENT_PHOTO_SRC);
-          if (!src) {
-            statusEl.textContent = "Student photo not available.";
-            return;
-          }
-
-          imgEl.src = src;
-          imgEl.style.display = "block";
-          statusEl.remove();
         }
 
         function collectQuestionData(qNum) {
@@ -1908,7 +1858,6 @@ Rules:
         if (sendPdfBtn) sendPdfBtn.addEventListener("click", sendPdf);
 
         applyAssessorPrefill();
-        applyStudentPhoto();
       })();
     </script>
   </body>
