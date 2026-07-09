@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>RPL Report Generator V1.2</title>
+    <title>RPL Report Generator V1.3</title>
     <style>
       :root {
         color-scheme: light;
@@ -176,7 +176,7 @@
   <body>
     <main>
       <header>
-        <h1>RPL Report Generator V1.2</h1>
+        <h1>RPL Report Generator V1.3</h1>
         <div id="status" class="status">Ready.</div>
       </header>
 
@@ -215,7 +215,7 @@
           <input id="interviewDate" type="text" autocomplete="off">
 
           <label class="check-row" for="sendWebhook">
-            <input id="sendWebhook" type="checkbox" checked>
+            <input id="sendWebhook" type="checkbox">
             Send final report webhook
           </label>
 
@@ -223,6 +223,7 @@
             <button id="generateBtn" class="primary" type="button" disabled>Generate Report</button>
             <button id="openBtn" type="button" disabled>Open HTML</button>
             <button id="downloadBtn" type="button" disabled>Download HTML</button>
+            <button id="getCommentsBtn" type="button">Get Comments</button>
           </div>
 
           <div id="log" class="log" aria-live="polite"></div>
@@ -242,6 +243,7 @@
       const ASSESSOR_QUESTIONS_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/776a38fbbe6449c996fd3a4127212eff/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=kA6BlWXbHh-ymnHGDWqRt25m_BEzVEAW1vHmiYur7vw";
       const URL_TRANSCRIPT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/41fdc1293b8547b1ac672c8aa1ccf7f8/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=32qfqtKjiupj1eLtp31QEPjPGqGSCj9AOdZ-c3Bdy7Y";
       const ASSESSOR_SUBMIT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/c16eb7b6410046b9b9c42f9ea0906f6e/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=UK5U-3LpQQjjTe3ObOXLGyNNbfDT7lm3dNtGD188FpY";
+      const GET_COMMENTS_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/fae53cfbfdf34e41ad287e99b5e5ae27/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=zKGiLS6UJMScAyuFibK9yFNdn1e8jMlwmZ7nQ97c5OU";
 
       const reportModule = window.RplPreliminaryReview;
       const transcriptFileEl = document.getElementById("transcriptFile");
@@ -255,6 +257,7 @@
       const generateBtn = document.getElementById("generateBtn");
       const openBtn = document.getElementById("openBtn");
       const downloadBtn = document.getElementById("downloadBtn");
+      const getCommentsBtn = document.getElementById("getCommentsBtn");
       const statusEl = document.getElementById("status");
       const logEl = document.getElementById("log");
       const previewFrame = document.getElementById("previewFrame");
@@ -318,6 +321,30 @@
           return parsed && typeof parsed === "object" ? parsed : null;
         }
         return null;
+      };
+
+      const applyIndustryAndJobTitleFromPayload = (payload) => {
+        const envelope = typeof payload === "string" ? safeJsonParse(payload) || payload : payload;
+        const combined = cleanValue(envelope?.["Industry,Job Title"] || envelope?.body?.["Industry,Job Title"]);
+        if (!combined) return;
+
+        let industry = "";
+        let jobTitle = "";
+
+        if (combined.startsWith("{")) {
+          const parsed = safeJsonParse(combined);
+          industry = cleanValue(parsed?.Industry || parsed?.industry);
+          jobTitle = cleanValue(parsed?.["Job Title"] || parsed?.jobTitle || parsed?.job_title);
+        }
+
+        if (!industry && !jobTitle) {
+          const parts = combined.split(",").map((part) => cleanValue(part));
+          industry = parts[0] || "";
+          jobTitle = parts.slice(1).join(", ").trim();
+        }
+
+        if (industry) industryEl.value = industry;
+        if (jobTitle) jobTitleEl.value = jobTitle;
       };
 
       const normalizeImageSource = (value) => {
@@ -574,20 +601,56 @@
           payloadData = responseText;
         }
 
-        loadedAssessorComments = extractAssessorCommentsPayload(payloadData);
+        applyIndustryAndJobTitleFromPayload(payloadData);
 
         const questionCount = trySetTranscriptFromWebhookPayload(payloadData);
         if (!questionCount) {
           throw new Error("No transcript content returned from URL transcript webhook.");
         }
 
-        if (loadedAssessorComments) {
-          log("Loaded Assessor Comments JSON for prefill.");
-        }
-
         generateBtn.disabled = false;
         setStatus(`Loaded ${questionCount} question block(s) from URL context.`, "ok");
         return true;
+      };
+
+      const loadAssessorCommentsFromWebhook = async () => {
+        const ctx = getStudentContext();
+        if (!ctx.fullName || !ctx.contactId) {
+          throw new Error("Student name and Contact ID are required to get assessor comments.");
+        }
+
+        const payload = {
+          FullName: ctx.fullName,
+          ContactID: String(ctx.contactId),
+          GivenName: ctx.givenName || cleanValue(ctx.fullName).split(/\s+/)[0] || "",
+        };
+
+        log(`Fetching assessor comments for ${ctx.fullName} (${ctx.contactId})`);
+        const response = await fetch(GET_COMMENTS_WEBHOOK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const responseText = await response.text();
+        if (!response.ok) {
+          throw new Error(`Get comments webhook failed (${response.status}) ${response.statusText}`.trim());
+        }
+
+        let payloadData = responseText;
+        try {
+          payloadData = responseText ? JSON.parse(responseText) : "";
+        } catch {
+          payloadData = responseText;
+        }
+
+        const parsedComments = extractAssessorCommentsPayload(payloadData);
+        if (!parsedComments) {
+          throw new Error("Get comments webhook returned no Assessor Comments JSON payload.");
+        }
+
+        loadedAssessorComments = parsedComments;
+        log("Loaded Assessor Comments JSON for prefill.");
       };
 
       const loadStudentPhotoFromWebhook = async () => {
@@ -883,6 +946,23 @@
         link.click();
         link.remove();
         URL.revokeObjectURL(link.href);
+      });
+
+      getCommentsBtn.addEventListener("click", async () => {
+        const originalText = getCommentsBtn.textContent;
+        getCommentsBtn.disabled = true;
+        getCommentsBtn.textContent = "Loading...";
+        try {
+          setStatus("Loading assessor comments...");
+          await loadAssessorCommentsFromWebhook();
+          setStatus("Assessor comments loaded.", "ok");
+        } catch (error) {
+          setStatus(error?.message || "Unable to load assessor comments.", "error");
+          log(error?.stack || error?.message || String(error));
+        } finally {
+          getCommentsBtn.disabled = false;
+          getCommentsBtn.textContent = originalText;
+        }
       });
 
       if (!reportModule) {
