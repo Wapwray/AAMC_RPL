@@ -1013,10 +1013,14 @@ Rules:
   };
 
   const renderMetadataRows = (metadata) => {
+    const studentPhotoSrc = cleanMetadataValue(metadata.studentPhoto);
+    const studentPhotoMarkup = studentPhotoSrc
+      ? `<img src="${escapeAttribute(studentPhotoSrc)}" alt="Student photo" style="display:block;max-width:180px;max-height:180px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;object-fit:cover;">`
+      : '<div class="muted">Student photo not available.</div>';
     const rows = [
       {
         label: "Student photo",
-        htmlValue: '<div><img id="studentPhotoImg" alt="Student photo" style="display:none;max-width:180px;max-height:180px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;object-fit:cover;"><div id="studentPhotoStatus" class="muted">Student photo not loaded.</div></div>',
+        htmlValue: studentPhotoMarkup,
       },
       ["Candidate name", metadata.candidateName],
       ["Contact ID", metadata.contactId],
@@ -1244,7 +1248,7 @@ Rules:
         <h2 id="candidateMetadataTitle">Student Details</h2>
         <table class="metadata-table">
           <tbody>
-            ${renderMetadataRows(metadata)}
+            ${renderMetadataRows(reportMetadata)}
           </tbody>
         </table>
       </section>
@@ -1486,8 +1490,10 @@ Rules:
     const submitUrl = options.submitUrl || "";
     const givenNameFromOptions = cleanMetadataValue(options.givenName || "");
     const assessorPrefillFromOptions = options.assessorPrefill || null;
+    const studentPhotoFromOptions = cleanMetadataValue(options.studentPhoto || "");
     const questions = Array.isArray(reportModel?.questions) ? reportModel.questions : [];
     const metadata = reportModel?.metadata || {};
+    const reportMetadata = { ...metadata, studentPhoto: studentPhotoFromOptions };
     const hasFollowUp = questions.some((question) => question.shortStatus !== SHORT_LIKELY_SUFFICIENT);
     const executiveHeading = hasFollowUp
       ? "Executive Summary - Preliminary Findings (assessor follow-up suggested)"
@@ -1688,7 +1694,7 @@ Rules:
     <script>
       (function() {
         var SUBMIT_URL = ${submitUrl ? JSON.stringify(submitUrl) : '""'};
-        var STUDENT_PHOTO_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/04fb56ac16dc4dedbda729a2e0c63f07/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=D1qX4806dcDyxGo9bk5rLA2-OLArTJtGXoRWg4iZqyM";
+        var STUDENT_PHOTO_SRC = ${studentPhotoFromOptions ? JSON.stringify(studentPhotoFromOptions) : '""'};
         var candidateName = ${JSON.stringify(metadata.candidateName || "")};
         var contactId = ${JSON.stringify(metadata.contactId || "")};
         var givenName = ${JSON.stringify(givenNameFromOptions || "")};
@@ -1709,13 +1715,6 @@ Rules:
           }
         }
 
-        function setStudentPhotoStatus(text, isError) {
-          var statusEl = document.getElementById("studentPhotoStatus");
-          if (!statusEl) return;
-          statusEl.textContent = text || "";
-          statusEl.style.color = isError ? "#991b1b" : "#64748b";
-        }
-
         function normalizeImageSource(value) {
           var text = String(value === undefined || value === null ? "" : value).trim();
           if (!text) return "";
@@ -1732,80 +1731,20 @@ Rules:
           return "";
         }
 
-        function extractStudentPhoto(payload) {
-          var source = payload;
-          if (typeof source === "string") {
-            try {
-              source = JSON.parse(source);
-            } catch {
-              return normalizeImageSource(source);
-            }
-          }
-
-          if (!source || typeof source !== "object") return "";
-
-          var direct = source.StudentPhoto || source.studentPhoto || source.body && (source.body.StudentPhoto || source.body.studentPhoto);
-          if (direct) return normalizeImageSource(direct);
-
-          if (typeof source.body === "string") {
-            try {
-              var parsedBody = JSON.parse(source.body);
-              var fromBody = parsedBody && (parsedBody.StudentPhoto || parsedBody.studentPhoto);
-              if (fromBody) return normalizeImageSource(fromBody);
-            } catch {
-              // Ignore and return no image.
-            }
-          }
-
-          return "";
-        }
-
-        function loadStudentPhoto() {
+        function applyStudentPhoto() {
           var imgEl = document.getElementById("studentPhotoImg");
-          if (!imgEl) return;
+          var statusEl = document.getElementById("studentPhotoStatus");
+          if (!imgEl || !statusEl) return;
 
-          if (!candidateName || !contactId) {
-            setStudentPhotoStatus("Student photo unavailable: missing candidate identity.", true);
+          var src = normalizeImageSource(STUDENT_PHOTO_SRC);
+          if (!src) {
+            statusEl.textContent = "Student photo not available.";
             return;
           }
 
-          setStudentPhotoStatus("Loading student photo...", false);
-
-          var payload = {
-            FullName: String(candidateName || ""),
-            ContactID: String(contactId || ""),
-            GivenName: deriveGivenName()
-          };
-
-          fetch(STUDENT_PHOTO_WEBHOOK_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-          }).then(function(resp) {
-            if (!resp.ok) {
-              throw new Error("Photo webhook failed (" + resp.status + ")");
-            }
-            return resp.text();
-          }).then(function(responseText) {
-            var payloadData = responseText;
-            try {
-              payloadData = responseText ? JSON.parse(responseText) : "";
-            } catch {
-              payloadData = responseText;
-            }
-
-            var src = extractStudentPhoto(payloadData);
-            if (!src) {
-              setStudentPhotoStatus("Student photo not found.", true);
-              return;
-            }
-
-            imgEl.src = src;
-            imgEl.style.display = "block";
-            setStudentPhotoStatus("", false);
-          }).catch(function(err) {
-            setStudentPhotoStatus("Unable to load student photo: " + (err && err.message ? err.message : "unknown error"), true);
-          });
+          imgEl.src = src;
+          imgEl.style.display = "block";
+          statusEl.remove();
         }
 
         function collectQuestionData(qNum) {
@@ -1969,7 +1908,7 @@ Rules:
         if (sendPdfBtn) sendPdfBtn.addEventListener("click", sendPdf);
 
         applyAssessorPrefill();
-        loadStudentPhoto();
+        applyStudentPhoto();
       })();
     </script>
   </body>
