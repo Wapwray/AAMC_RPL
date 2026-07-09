@@ -25,7 +25,7 @@
   ];
   const MISSING_VALUE = "Not stated in transcript";
   const ACTIVE_DATA_MISSING = "Not available in active question data";
-  const DISCLAIMER_INTRO = "This report was prepared by an AI-based assistant as a preliminary analysis of the candidate's responses during an RPL interview.";
+  const DISCLAIMER_INTRO = "This report was prepared by an AI-based assistant as a preliminary analysis of the student's responses during an RPL interview.";
   const DISCLAIMER_BULLETS = [
     "It does NOT constitute a competency decision.",
     "All findings are preliminary and subject to validation by a qualified human RPL assessor.",
@@ -33,7 +33,7 @@
   ];
   const DISCLAIMER_TEXT = `IMPORTANT — PRELIMINARY AI REVIEW ONLY\n${DISCLAIMER_INTRO}\n${DISCLAIMER_BULLETS.map((item) => `- ${item}`).join("\n")}`;
   const SUMMARY_FINAL_SENTENCE = "The summary above reflects the AI's preliminary observations only. All findings remain subject to confirmation by a qualified human RPL assessor.";
-  const LIMITATIONS_TEXT = "This report is an automated preliminary analysis and may not capture all nuances of the candidate's competence. It does not account for non-verbal cues, workplace context, third-party evidence, or any documentation provided outside the recorded interview transcript. The AI cannot confirm authenticity or currency of evidence; those Rules of Evidence must be verified through human assessor processes.";
+  const LIMITATIONS_TEXT = "This report is an automated preliminary analysis and may not capture all nuances of the student's competence. It does not account for non-verbal cues, workplace context, third-party evidence, or any documentation provided outside the recorded interview transcript. The AI cannot confirm authenticity or currency of evidence; those Rules of Evidence must be verified through human assessor processes.";
   const ASSESSOR_CONFIRMATION_TEXT = `A qualified RPL assessor must review the full transcript and any additional evidence, and make the final judgement on each unit's competency. The assessor should confirm that all critical evidence meets the requirements of ${DEFAULT_QUALIFICATION} and its constituent units, applying the Principles of Assessment (fair, flexible, valid, reliable) and the Rules of Evidence (valid, sufficient, authentic, current). No outcome described in this preliminary report should be treated as final until signed off by the qualified assessor.`;
   const TRANSCRIPT_SUMMARY_LABELS = ["AI Interviewer Summary", "AI Interview Summary", "Assessor summary", "Summary"];
   const TRANSCRIPT_FIELD_LABELS = ["Objective", "Hint", ...TRANSCRIPT_SUMMARY_LABELS, "Preliminary Status", "Overall assessment"];
@@ -567,7 +567,7 @@ You are an expert in Australian financial services RPL evidence review. You prep
 USER:
 Analyse the following RPL transcript question block(s) and return valid JSON only. Do not return Markdown or HTML.
 
-Candidate metadata:
+Student metadata:
 ${JSON.stringify(candidateMetadata || {}, null, 2)}
 
 Official question specification(s):
@@ -576,7 +576,7 @@ ${JSON.stringify(questionSpecs || [], null, 2)}
 Parsed transcript question block(s):
 ${JSON.stringify(parsedQuestionBlocks || [], null, 2)}
 
-For each question, review all candidate attempts together against the official objective. Use only the allowed preliminary status labels. Preserve candidate attempts exactly as supplied; do not rewrite them.
+For each question, review all student attempts together against the official objective. Use only the allowed preliminary status labels. Preserve student attempts exactly as supplied; do not rewrite them.
 
 Return JSON with this shape:
 {
@@ -607,8 +607,8 @@ Rules:
 - Do not use the words competent, not competent, pass, fail, or not classified as status labels.
 - Do not write to the learner.
 - Remove learner-facing directions such as "move to the next question".
-- If candidate evidence exists, do not return "Not available in transcript".
-- If the transcript lacks a candidate response, return "Not available in transcript" and specify assessor follow-up.
+- If student evidence exists, do not return "Not available in transcript".
+- If the transcript lacks a student response, return "Not available in transcript" and specify assessor follow-up.
 - If additional evidence may be needed, identify the specific missing evidence.`;
 
   const parseQuestionAnalysisResponse = (responseText) => {
@@ -670,13 +670,13 @@ Rules:
   const rewriteAssessorSummaryForReport = (summary) => {
     const cleaned = sanitiseAssessorFacingText(summary)
       .replace(/^\s*[^,]{1,80},\s*/i, "")
-      .replace(/\byou\b/gi, "the candidate")
-      .replace(/\byour\b/gi, "the candidate's")
+      .replace(/\byou\b/gi, "the student")
+      .replace(/\byour\b/gi, "the student's")
       .replace(/\bprovided evidence covering\b/gi, "provided evidence covering")
       .trim();
     if (!cleaned) return "";
     const sentence = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
-    return /^The candidate\b/i.test(sentence) ? sentence : `The candidate ${sentence.charAt(0).toLowerCase()}${sentence.slice(1)}`;
+    return /^The student\b/i.test(sentence) ? sentence : `The student ${sentence.charAt(0).toLowerCase()}${sentence.slice(1)}`;
   };
 
   const summariseCandidateEvidence = (block) => {
@@ -717,8 +717,8 @@ Rules:
       ? block.attempts.find((attempt) => Number(attempt.attemptNumber) > Number(block.assessorBotMessages[0]?.followsAttemptNumber || 0))
       : null;
     const laterText = laterAttempt?.responseText
-      ? " A later candidate attempt was recorded and should be reviewed against that request."
-      : " No later candidate attempt was located after this follow-up request.";
+      ? " A later student attempt was recorded and should be reviewed against that request."
+      : " No later student attempt was located after this follow-up request.";
     return `The AI requested further information: ${firstRequest}${laterText}`;
   };
 
@@ -766,20 +766,20 @@ Rules:
       return `Question ${questionNumber} was not asked in the transcript. Assessor review is required before any competency judgement can be made.`;
     }
     if (shortStatus === SHORT_NOT_AVAILABLE) {
-      return `No candidate response for Question ${questionNumber} was located in the transcript. Assessor review is required before any competency judgement can be made.`;
+      return `No student response for Question ${questionNumber} was located in the transcript. Assessor review is required before any competency judgement can be made.`;
     }
     const evidence = summariseCandidateEvidence(block);
     if (shortStatus === SHORT_LIKELY_SUFFICIENT) {
       return objective
-        ? `The candidate provided evidence relevant to the objective: ${objective}. The assessor should verify sufficiency against the active question requirements.`
-        : "The candidate provided evidence that appears relevant to the question. The assessor should verify sufficiency against the active question requirements.";
+        ? `The student provided evidence relevant to the objective: ${objective}. The assessor should verify sufficiency against the active question requirements.`
+        : "The student provided evidence that appears relevant to the question. The assessor should verify sufficiency against the active question requirements.";
     }
     if (evidence) {
       return objective
-        ? `The candidate provided some evidence, but the response should be checked against the objective: ${objective}. Available evidence begins: ${evidence}`
-        : `The candidate provided some evidence, but assessor review is needed to confirm whether it addresses all question requirements. Available evidence begins: ${evidence}`;
+        ? `The student provided some evidence, but the response should be checked against the objective: ${objective}. Available evidence begins: ${evidence}`
+        : `The student provided some evidence, but assessor review is needed to confirm whether it addresses all question requirements. Available evidence begins: ${evidence}`;
     }
-    return `The candidate response for Question ${questionNumber} was not located. Assessor review is required before any preliminary finding can be confirmed.`;
+    return `The student response for Question ${questionNumber} was not located. Assessor review is required before any preliminary finding can be confirmed.`;
   };
 
   const buildAiInterviewSummaryForReport = (item, analysisObservation, shortStatus) => {
@@ -798,7 +798,7 @@ Rules:
       return "Confirm whether this question should have been asked or whether it was intentionally skipped before making a final determination.";
     }
     if (shortStatus === SHORT_NOT_AVAILABLE) {
-      return "Locate the missing transcript evidence or seek a candidate response for this question before making a final determination.";
+      return "Locate the missing transcript evidence or seek a student response for this question before making a final determination.";
     }
     if (shortStatus === SHORT_ADDITIONAL_EVIDENCE) {
       return "Review this question against the Rules of Evidence (valid, sufficient, authentic, current) and seek additional evidence about the relevant question requirements if required before making a final determination.";
@@ -1013,9 +1013,9 @@ Rules:
   };
 
   const renderMetadataRows = (metadata, studentPhoto = "") => {
+    const studentIdentity = `<div class="student-identity"><span class="student-name">${escapeHtml(valueOrMissing(metadata.candidateName))}</span>${studentPhoto ? `<img class="student-photo student-photo-inline" src="${escapeAttribute(studentPhoto)}" alt="Student photo for ${escapeAttribute(metadata.candidateName || "student")}">` : ""}</div>`;
     const rows = [
-      studentPhoto ? ["Student photo", `<img class="student-photo" src="${escapeAttribute(studentPhoto)}" alt="Student photo for ${escapeAttribute(metadata.candidateName || "student")}">`, true] : null,
-      ["Candidate name", metadata.candidateName],
+      ["Student", studentIdentity, true],
       ["Contact ID", metadata.contactId],
       ["Qualification", metadata.qualification],
       ["Interview date", metadata.interviewDate],
@@ -1144,7 +1144,7 @@ Rules:
               <p>${escapeHtml(valueOrMissing(question.questionAsked))}</p>
             </section>
             <section>
-              <h4>Hints provided to candidate</h4>
+              <h4>Hints provided to student</h4>
               <p>${escapeHtml(valueOrMissing(question.hintsProvided))}</p>
             </section>
             <section>
@@ -1194,8 +1194,11 @@ Rules:
       .metadata-table, .status-table, .signoff-table { background: #fff; }
       .metadata-table th, .metadata-table td, .status-table th, .status-table td, .signoff-table th, .signoff-table td { border: 1px solid #cbd5e1; padding: 10px 12px; vertical-align: top; text-align: left; }
       .metadata-table th { width: 30%; background: #eef2f7; }
+      .student-identity { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+      .student-name { display: block; flex: 1 1 auto; min-height: 24px; padding-top: 2px; }
       .student-photo-cell { background: #f8fafc; }
       .student-photo { display: block; max-width: 140px; max-height: 160px; width: auto; height: auto; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; object-fit: contain; }
+      .student-photo-inline { flex: 0 0 auto; margin-left: 12px; }
       .status-table { font-size: 9pt; line-height: 1.25; }
       .status-table th { background: #e8eef6; }
       .warning-box, .coverage-warning, .summary, .question-card, .limitations, .confirmation, .signoff { background: #fff; border: 1px solid #d8dee9; border-radius: 8px; padding: 18px; margin-top: 18px; }
@@ -1505,7 +1508,7 @@ Rules:
               <p>${escapeHtml(valueOrMissing(question.questionAsked))}</p>
             </section>
             <section>
-              <h4>Hints provided to candidate</h4>
+              <h4>Hints provided to student</h4>
               <p>${escapeHtml(valueOrMissing(question.hintsProvided))}</p>
             </section>
             <section>
@@ -1553,8 +1556,11 @@ Rules:
       .metadata-table, .status-table, .signoff-table { background: #fff; }
       .metadata-table th, .metadata-table td, .status-table th, .status-table td, .signoff-table th, .signoff-table td { border: 1px solid #cbd5e1; padding: 10px 12px; vertical-align: top; text-align: left; }
       .metadata-table th { width: 30%; background: #eef2f7; }
+      .student-identity { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+      .student-name { display: block; flex: 1 1 auto; min-height: 24px; padding-top: 2px; }
       .student-photo-cell { background: #f8fafc; }
       .student-photo { display: block; max-width: 140px; max-height: 160px; width: auto; height: auto; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; object-fit: contain; }
+      .student-photo-inline { flex: 0 0 auto; margin-left: 12px; }
       .status-table { font-size: 9pt; line-height: 1.25; }
       .status-table th { background: #e8eef6; }
       .warning-box, .coverage-warning, .summary, .question-card, .limitations, .confirmation, .signoff { background: #fff; border: 1px solid #d8dee9; border-radius: 8px; padding: 18px; margin-top: 18px; }
