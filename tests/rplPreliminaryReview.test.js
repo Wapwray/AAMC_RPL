@@ -157,8 +157,8 @@ test("builds report list from official question bank plus unmapped transcript qu
 
   assert.equal(q24.shortStatus, "ADDITIONAL EVIDENCE MAY BE NEEDED");
   assert.equal(q25.section, "Additional transcript question");
-  assert.equal(model.questions[1].shortStatus, "Question Not Asked");
-  assert.equal(model.questions[1].preliminaryStatus, "Question Not Asked");
+  assert.equal(model.questions[1].shortStatus, "Not available in transcript");
+  assert.equal(model.questions[1].preliminaryStatus, "Not available in transcript");
   assert.ok(model.warnings.some((warning) => warning.includes("active question bank contains 24")));
 });
 
