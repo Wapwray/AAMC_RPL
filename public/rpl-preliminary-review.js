@@ -1592,12 +1592,23 @@ Rules:
       .global-status { font-size: 13px; color: #64748b; }
       .global-status.success { color: #166534; }
       .global-status.error { color: #991b1b; }
+      .confirm-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 1000; }
+      .confirm-backdrop[hidden] { display: none !important; }
+      .confirm-dialog { width: min(420px, 100%); background: #fff; border: 1px solid #cbd5e1; border-radius: 10px; padding: 18px; box-shadow: 0 16px 36px rgba(15, 23, 42, 0.22); }
+      .confirm-message { margin: 0; color: #0f172a; white-space: pre-line; }
+      .confirm-actions { margin-top: 16px; display: flex; justify-content: flex-end; gap: 10px; }
+      .confirm-no-btn, .confirm-yes-btn { border: none; border-radius: 999px; padding: 9px 16px; font-size: 14px; font-weight: 700; cursor: pointer; }
+      .confirm-no-btn { background: #e2e8f0; color: #0f172a; }
+      .confirm-no-btn:hover { background: #cbd5e1; }
+      .confirm-yes-btn { background: #0b6ea9; color: #fff; }
+      .confirm-yes-btn:hover { background: #095c8b; }
       @media print {
         body { background: #fff; }
         .report { width: 100%; max-width: 180mm; padding: 0; }
         .question-card, .summary, .warning-box, .coverage-warning, .limitations, .confirmation, .signoff { border-color: #999; }
         .signoff-actions { display: none; }
         .question-submit-btn { display: none; }
+        .confirm-backdrop { display: none !important; }
         .assessor-input, .assessor-signoff-input { border: 1px solid #999; }
       }
     </style>
@@ -1680,10 +1691,21 @@ Rules:
         </table>
         <div class="signoff-actions">
           <span class="global-status" id="globalSubmitStatus"></span>
-          <button type="button" class="global-submit-btn" id="globalSubmitBtn">Submit</button>
+          <button type="button" class="global-submit-btn" id="globalSubmitBtn">Finalise</button>
           <button type="button" class="send-pdf-btn" id="sendPdfBtn">Send PDF</button>
         </div>
       </section>
+
+      <div class="confirm-backdrop" id="finaliseConfirmBackdrop" hidden>
+        <div class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="finaliseConfirmMessage">
+          <p class="confirm-message" id="finaliseConfirmMessage">No further changes can be made to the report if you proceed
+Do you want to proceed?</p>
+          <div class="confirm-actions">
+            <button type="button" class="confirm-no-btn" id="finaliseConfirmNo">No</button>
+            <button type="button" class="confirm-yes-btn" id="finaliseConfirmYes">Yes</button>
+          </div>
+        </div>
+      </div>
     </main>
 
     <script>
@@ -1852,6 +1874,16 @@ Rules:
           });
         }
 
+        function setFinaliseDialogOpen(open) {
+          var backdrop = document.getElementById("finaliseConfirmBackdrop");
+          if (!backdrop) return;
+          if (open) {
+            backdrop.removeAttribute("hidden");
+          } else {
+            backdrop.setAttribute("hidden", "hidden");
+          }
+        }
+
         function sendPdf() {
           window.print();
         }
@@ -1864,7 +1896,41 @@ Rules:
         });
 
         var globalBtn = document.getElementById("globalSubmitBtn");
-        if (globalBtn) globalBtn.addEventListener("click", submitAll);
+        if (globalBtn) {
+          globalBtn.addEventListener("click", function() {
+            setFinaliseDialogOpen(true);
+          });
+        }
+
+        var finaliseNoBtn = document.getElementById("finaliseConfirmNo");
+        if (finaliseNoBtn) {
+          finaliseNoBtn.addEventListener("click", function() {
+            setFinaliseDialogOpen(false);
+          });
+        }
+
+        var finaliseYesBtn = document.getElementById("finaliseConfirmYes");
+        if (finaliseYesBtn) {
+          finaliseYesBtn.addEventListener("click", function() {
+            setFinaliseDialogOpen(false);
+            submitAll();
+          });
+        }
+
+        var finaliseBackdrop = document.getElementById("finaliseConfirmBackdrop");
+        if (finaliseBackdrop) {
+          finaliseBackdrop.addEventListener("click", function(event) {
+            if (event.target === finaliseBackdrop) {
+              setFinaliseDialogOpen(false);
+            }
+          });
+        }
+
+        document.addEventListener("keydown", function(event) {
+          if (event.key === "Escape") {
+            setFinaliseDialogOpen(false);
+          }
+        });
 
         var sendPdfBtn = document.getElementById("sendPdfBtn");
         if (sendPdfBtn) sendPdfBtn.addEventListener("click", sendPdf);

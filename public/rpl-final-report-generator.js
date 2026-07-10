@@ -45,6 +45,11 @@
     return Number.isFinite(numeric) ? numeric : null;
   };
 
+  const normalizeComparableText = (value) => cleanValue(value)
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+
   const renderRichField = (value) => {
     const raw = String(value ?? "").trim();
     if (!raw) return "N/A";
@@ -111,6 +116,20 @@
       .map((item) => {
         const titleValue = firstValue(item, ["Title", "title"]);
         const titleNumber = getNumericPrefix(titleValue);
+        const explicitQuestionNumber = getNumericPrefix(firstValue(item, [
+          "questionNumber",
+          "QuestionNumber",
+          "question_number",
+          "Question Number",
+          "questionNo",
+          "QuestionNo",
+          "question_no",
+          "qNumber",
+          "QNumber",
+          "qNo",
+          "QNo",
+          "field_0",
+        ]));
         const section = firstValue(item, ["field_1", "section", "Section", "category", "Category", "topic", "Topic"]) || "Assessor";
         const questionText = firstValue(item, ["field_2", "questionText", "question_text", "question", "Question", "Question Details", "title", "Title"]);
         const hints = firstValue(item, ["hints", "hint", "Hints", "Hint", "HintsHtml", "hintsHtml"]);
@@ -119,6 +138,7 @@
         return {
           titleValue,
           titleNumber,
+          explicitQuestionNumber,
           section,
           questionText,
           hints: hints || "N/A",
@@ -135,10 +155,12 @@
     });
 
     const normalized = preNormalized.map((item, index) => {
-      // Use Title as the assessor offset when numeric; otherwise keep continuous numbering.
-      const derivedNumber = Number.isFinite(item.titleNumber)
-        ? baseQuestionCount + item.titleNumber
-        : baseQuestionCount + index + 1;
+      // Prefer explicit webhook question numbers, then numeric Title, then a simple sequence.
+      const derivedNumber = Number.isFinite(item.explicitQuestionNumber)
+        ? item.explicitQuestionNumber
+        : Number.isFinite(item.titleNumber)
+          ? item.titleNumber
+          : baseQuestionCount + index + 1;
 
       return {
         qNumber: String(derivedNumber),
@@ -150,6 +172,29 @@
     });
 
     return normalized;
+  };
+
+  const removeDuplicateAssessorQuestions = (assessorQuestions, reportQuestions) => {
+    const normalizedReportQuestions = new Set((Array.isArray(reportQuestions) ? reportQuestions : [])
+      .map((item) => normalizeComparableText(item?.questionAsked))
+      .filter(Boolean));
+
+    const seenAssessorQuestions = new Set();
+    return (Array.isArray(assessorQuestions) ? assessorQuestions : []).filter((item) => {
+      const normalizedQuestionText = normalizeComparableText(item?.questionText);
+      if (!normalizedQuestionText) return false;
+
+      if (normalizedReportQuestions.has(normalizedQuestionText)) {
+        return false;
+      }
+
+      if (seenAssessorQuestions.has(normalizedQuestionText)) {
+        return false;
+      }
+
+      seenAssessorQuestions.add(normalizedQuestionText);
+      return true;
+    });
   };
 
   const mergeCandidateMetadataIntoModel = (model, candidateMetadata) => {
@@ -370,6 +415,12 @@
             model,
           });
           assessorQuestions = normalizeAssessorQuestionList(rawAssessorQuestions, Array.isArray(model?.questions) ? model.questions.length : 0);
+          const assessorQuestionCountBeforeDedup = assessorQuestions.length;
+          assessorQuestions = removeDuplicateAssessorQuestions(assessorQuestions, model?.questions);
+          const dedupedCount = assessorQuestionCountBeforeDedup - assessorQuestions.length;
+          if (dedupedCount > 0) {
+            log(`Removed ${dedupedCount} duplicate assessor question(s) already present in Question-by-Question Review.`);
+          }
         } catch (error) {
           log(`Assessor questions fetch failed: ${error?.message || String(error)}`);
         }
