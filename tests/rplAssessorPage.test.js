@@ -5,6 +5,8 @@ const path = require("node:path");
 
 const pagePath = path.join(__dirname, "..", "public", "RPL Report Generator - Assessor.html");
 const page = fs.readFileSync(pagePath, "utf8");
+const generatorPath = path.join(__dirname, "..", "public", "rpl-final-report-generator.js");
+const generator = fs.readFileSync(generatorPath, "utf8");
 
 test("assessor page uses a full-width student information section above the draft report", () => {
   const studentInformationIndex = page.indexOf('id="studentInformationTitle"');
@@ -43,4 +45,9 @@ test("Send PDF posts the button-free live report to the dedicated webhook", () =
   assert.match(page, /FinalReport: html/);
   assert.match(page, /payload\.AssessorName = assessor\.assessorName/);
   assert.match(page, /payload\.AssessorEmail = assessor\.assessorEmail/);
+});
+
+test("PDF sections start on new pages with their first question kept under the heading", () => {
+  assert.match(generator, /class="question-review-section assessor-questions-section"/);
+  assert.match(generator, /<h2 id="assessorQuestionsTitle">Assessor Questions<\/h2>/);
 });

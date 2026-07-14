@@ -1257,7 +1257,7 @@ Rules:
         ${renderExecutiveSummary(reportModel)}
       </section>
 
-      <section aria-labelledby="statusTableTitle">
+      <section class="status-summary-section" aria-labelledby="statusTableTitle">
         <h2 id="statusTableTitle">Preliminary Status by Question</h2>
         <table class="status-table">
           <colgroup>
@@ -1633,6 +1633,9 @@ Rules:
       @media print {
         body { background: #fff; }
         .report { width: 100%; max-width: 186mm; padding: 0; }
+        .summary, .status-summary-section, .question-review-section, .assessor-questions-section, .limitations, .signoff { break-before: page; page-break-before: always; }
+        .question-review-section > .question-card:first-of-type, .assessor-questions-section > .question-card:first-of-type { break-inside: auto; page-break-inside: auto; }
+        .question-review-section > h2, .assessor-questions-section > h2 { break-after: avoid; page-break-after: avoid; }
         .question-card, .summary, .warning-box, .coverage-warning, .limitations, .confirmation, .signoff { border-color: #999; }
         .signoff-actions { display: none; }
         .question-submit-btn { display: none; }
@@ -1670,7 +1673,7 @@ Rules:
         ${renderExecutiveSummary(reportModel)}
       </section>
 
-      <section aria-labelledby="statusTableTitle">
+      <section class="status-summary-section" aria-labelledby="statusTableTitle">
         <h2 id="statusTableTitle">Preliminary Status by Question</h2>
         <table class="status-table">
           <colgroup>

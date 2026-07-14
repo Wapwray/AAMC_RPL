@@ -245,7 +245,7 @@
       </article>`).join("\n");
 
     return `
-      <section class="question-review-section" aria-labelledby="assessorQuestionsTitle">
+      <section class="question-review-section assessor-questions-section" aria-labelledby="assessorQuestionsTitle">
         <h2 id="assessorQuestionsTitle">Assessor Questions</h2>
         ${rows}
       </section>`;

@@ -356,6 +356,9 @@ test("renders assessor-mode sign-off fields and keeps assessor identity read-onl
   assert.match(html, /clone\.querySelectorAll\("button"\)/);
   assert.match(html, /@page \{ size: A4 portrait; margin: 12mm; \}/);
   assert.match(html, /\.report \{ width: 100%; max-width: 186mm;/);
+  assert.match(html, /<section class="status-summary-section" aria-labelledby="statusTableTitle">/);
+  assert.match(html, /\.summary, \.status-summary-section, \.question-review-section, \.assessor-questions-section, \.limitations, \.signoff \{ break-before: page; page-break-before: always; \}/);
+  assert.match(html, /\.question-review-section > \.question-card:first-of-type, \.assessor-questions-section > \.question-card:first-of-type \{ break-inside: auto; page-break-inside: auto; \}/);
   assert.equal(review.validateReportHtmlCoverage(model, html).valid, true);
 });
 
