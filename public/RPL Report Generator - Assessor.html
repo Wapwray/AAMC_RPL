@@ -1,0 +1,986 @@
+<!doctype html>
+<html lang="en-AU">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>RPL Report Generator V1.4.2</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f4f6f8;
+        --panel: #ffffff;
+        --ink: #172033;
+        --muted: #64748b;
+        --line: #cbd5e1;
+        --accent: #1d4ed8;
+        --accent-dark: #1e40af;
+        --danger: #b91c1c;
+        --ok: #166534;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: Arial, Helvetica, sans-serif;
+        line-height: 1.45;
+      }
+
+      main {
+        width: min(1180px, calc(100vw - 32px));
+        margin: 0 auto;
+        padding: 24px 0 32px;
+      }
+
+      header {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+
+      h1, h2 {
+        margin: 0;
+        line-height: 1.2;
+        color: #0f172a;
+      }
+
+      h1 { font-size: 28px; }
+      h2 { font-size: 18px; margin-bottom: 12px; }
+
+      .grid {
+        display: grid;
+        grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+        gap: 16px;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 16px;
+      }
+
+      label {
+        display: block;
+        margin: 12px 0 6px;
+        font-size: 13px;
+        font-weight: 700;
+        color: #334155;
+      }
+
+      input[type="file"], input[type="text"] {
+        width: 100%;
+        min-height: 38px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 8px 10px;
+        background: #fff;
+        color: var(--ink);
+        font: inherit;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      .check-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 14px 0;
+        color: #334155;
+        font-size: 14px;
+      }
+
+      .check-row input { width: 16px; height: 16px; }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 16px;
+      }
+
+      button {
+        min-height: 38px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 8px 12px;
+        background: #fff;
+        color: var(--ink);
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      button.primary {
+        border-color: var(--accent);
+        background: var(--accent);
+        color: #fff;
+      }
+
+      button.primary:hover { background: var(--accent-dark); }
+      button:disabled { opacity: .55; cursor: not-allowed; }
+
+      .status {
+        min-height: 38px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 9px 10px;
+        background: #f8fafc;
+        color: #334155;
+      }
+
+      .status.ok { border-color: #86efac; color: var(--ok); background: #f0fdf4; }
+      .status.error { border-color: #fecaca; color: var(--danger); background: #fef2f2; }
+
+      .preview-wrap {
+        height: calc(100vh - 140px);
+        min-height: 640px;
+      }
+
+      iframe {
+        width: 100%;
+        height: 100%;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+      }
+
+      .log {
+        margin-top: 12px;
+        max-height: 180px;
+        overflow: auto;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 10px;
+        background: #0f172a;
+        color: #dbeafe;
+        font: 12px/1.45 Consolas, "Courier New", monospace;
+        white-space: pre-wrap;
+      }
+
+      @media (max-width: 860px) {
+        header, .grid { display: block; }
+        .panel { margin-bottom: 16px; }
+        .row { grid-template-columns: 1fr; }
+        .preview-wrap { height: 70vh; min-height: 480px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>RPL Report Generator V1.4.2</h1>
+        <div id="status" class="status">Ready.</div>
+      </header>
+
+      <div class="grid">
+        <section class="panel" aria-labelledby="controlsTitle">
+          <h2 id="controlsTitle">Transcript</h2>
+          <label for="transcriptFile">Transcript file</label>
+          <input id="transcriptFile" type="file" accept=".txt,.text,.log,.md,.html,.htm,.json">
+
+          <div class="row">
+            <div>
+              <label for="fullName">Student name</label>
+              <input id="fullName" type="text" autocomplete="off">
+            </div>
+            <div>
+              <label for="contactId">Contact ID</label>
+              <input id="contactId" type="text" autocomplete="off">
+            </div>
+          </div>
+
+          <label for="qualification">Qualification</label>
+          <input id="qualification" type="text" value="FNS50322 Diploma of Finance and Mortgage Broking Management" autocomplete="off">
+
+          <div class="row">
+            <div>
+              <label for="industry">Industry</label>
+              <input id="industry" type="text" autocomplete="off">
+            </div>
+            <div>
+              <label for="jobTitle">Job title</label>
+              <input id="jobTitle" type="text" autocomplete="off">
+            </div>
+          </div>
+
+          <label for="interviewDate">Interview date</label>
+          <input id="interviewDate" type="text" autocomplete="off">
+
+          <label class="check-row" for="sendWebhook">
+            <input id="sendWebhook" type="checkbox">
+            Send final report webhook
+          </label>
+
+          <div class="actions">
+            <button id="generateBtn" class="primary" type="button" disabled>Generate Report</button>
+            <button id="openBtn" type="button" disabled>Open HTML</button>
+            <button id="downloadBtn" type="button" disabled>Download HTML</button>
+            <button id="getCommentsBtn" type="button">Get Comments</button>
+          </div>
+
+          <div id="log" class="log" aria-live="polite"></div>
+        </section>
+
+        <section class="panel preview-wrap" aria-labelledby="previewTitle">
+          <h2 id="previewTitle">Preview</h2>
+          <iframe id="previewFrame" title="Generated report preview"></iframe>
+        </section>
+      </div>
+    </main>
+
+    <script src="rpl-preliminary-review.js"></script>
+    <script src="rpl-final-report-generator.js"></script>
+    <script>
+      const FINAL_REPORT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ad445c5a35534861933f60ee864eecfa/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=qiOM0ZtGoUf_75xUdMZJ6B5zVSzpc9qYVZJbEbYm6pM";
+      const ASSESSOR_QUESTIONS_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/776a38fbbe6449c996fd3a4127212eff/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=kA6BlWXbHh-ymnHGDWqRt25m_BEzVEAW1vHmiYur7vw";
+      const URL_TRANSCRIPT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/41fdc1293b8547b1ac672c8aa1ccf7f8/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=32qfqtKjiupj1eLtp31QEPjPGqGSCj9AOdZ-c3Bdy7Y";
+      const ASSESSOR_SUBMIT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/c16eb7b6410046b9b9c42f9ea0906f6e/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=UK5U-3LpQQjjTe3ObOXLGyNNbfDT7lm3dNtGD188FpY";
+      const GET_COMMENTS_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/fae53cfbfdf34e41ad287e99b5e5ae27/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=zKGiLS6UJMScAyuFibK9yFNdn1e8jMlwmZ7nQ97c5OU";
+
+      const reportModule = window.RplPreliminaryReview;
+      const transcriptFileEl = document.getElementById("transcriptFile");
+      const fullNameEl = document.getElementById("fullName");
+      const contactIdEl = document.getElementById("contactId");
+      const qualificationEl = document.getElementById("qualification");
+      const industryEl = document.getElementById("industry");
+      const jobTitleEl = document.getElementById("jobTitle");
+      const interviewDateEl = document.getElementById("interviewDate");
+      const sendWebhookEl = document.getElementById("sendWebhook");
+      const generateBtn = document.getElementById("generateBtn");
+      const openBtn = document.getElementById("openBtn");
+      const downloadBtn = document.getElementById("downloadBtn");
+      const getCommentsBtn = document.getElementById("getCommentsBtn");
+      const statusEl = document.getElementById("status");
+      const logEl = document.getElementById("log");
+      const previewFrame = document.getElementById("previewFrame");
+
+      let transcriptInput = {
+        kind: "none",
+        text: "",
+        json: null,
+      };
+      let lastReportHtml = "";
+      let loadedTranscriptMetadata = {};
+      let loadedAssessorComments = null;
+      let loadedStudentPhoto = "";
+      let studentPhotoLoadPromise = null;
+
+      const hasLoadedTranscript = () => transcriptInput.kind === "text"
+        ? Boolean(transcriptInput.text.trim())
+        : transcriptInput.kind === "json"
+          ? Boolean(transcriptInput.json)
+          : false;
+
+      const setStatus = (text, type = "") => {
+        statusEl.textContent = text;
+        statusEl.className = type ? `status ${type}` : "status";
+      };
+
+      const log = (text) => {
+        const stamp = new Date().toLocaleTimeString();
+        logEl.textContent += `[${stamp}] ${text}\n`;
+        logEl.scrollTop = logEl.scrollHeight;
+      };
+
+      const cleanValue = (value) => String(value || "").trim();
+
+      const pickFirstValue = (...values) => {
+        for (const value of values) {
+          const normalized = cleanValue(value);
+          if (normalized) return normalized;
+        }
+        return "";
+      };
+
+      const safeJsonParse = (value) => {
+        if (typeof value !== "string") return value;
+        const text = value.trim();
+        if (!text) return null;
+        try {
+          return JSON.parse(text);
+        } catch {
+          return null;
+        }
+      };
+
+      const extractAssessorCommentsPayload = (payload) => {
+        const envelope = typeof payload === "string" ? safeJsonParse(payload) || payload : payload;
+        const rawValue = envelope?.["Assessor Comments JSON"] || envelope?.body?.["Assessor Comments JSON"];
+        if (!rawValue) return null;
+        if (typeof rawValue === "object") return rawValue;
+        if (typeof rawValue === "string") {
+          const parsed = safeJsonParse(rawValue);
+          return parsed && typeof parsed === "object" ? parsed : null;
+        }
+        return null;
+      };
+
+      const applyIndustryAndJobTitleFromPayload = (payload) => {
+        const envelope = typeof payload === "string" ? safeJsonParse(payload) || payload : payload;
+        const combined = cleanValue(envelope?.["Industry,Job Title"] || envelope?.body?.["Industry,Job Title"]);
+        if (!combined) return;
+
+        let industry = "";
+        let jobTitle = "";
+
+        if (combined.startsWith("{")) {
+          const parsed = safeJsonParse(combined);
+          industry = cleanValue(parsed?.Industry || parsed?.industry);
+          jobTitle = cleanValue(parsed?.["Job Title"] || parsed?.jobTitle || parsed?.job_title);
+        }
+
+        if (!industry && !jobTitle) {
+          const parts = combined.split(",").map((part) => cleanValue(part));
+          industry = parts[0] || "";
+          jobTitle = parts.slice(1).join(", ").trim();
+        }
+
+        if (industry) industryEl.value = industry;
+        if (jobTitle) jobTitleEl.value = jobTitle;
+      };
+
+      const normalizeImageSource = (value) => {
+        const text = String(value === undefined || value === null ? "" : value).trim();
+        if (!text) return "";
+
+        if (/^data:image\//i.test(text)) return text;
+        if (/^https?:\/\//i.test(text)) return text;
+
+        const compact = text.replace(/\s+/g, "");
+        if (/^[A-Za-z0-9+/=]+$/.test(compact) && compact.length > 80) {
+          return `data:image/jpeg;base64,${compact}`;
+        }
+
+        return "";
+      };
+
+      const extractStudentPhoto = (payload) => {
+        let source = payload;
+        if (typeof source === "string") {
+          try {
+            source = JSON.parse(source);
+          } catch {
+            return normalizeImageSource(source);
+          }
+        }
+
+        if (!source || typeof source !== "object") return "";
+
+        const direct = source.StudentPhoto || source.studentPhoto || source.body?.StudentPhoto || source.body?.studentPhoto;
+        if (direct) return normalizeImageSource(direct);
+
+        if (typeof source.body === "string") {
+          try {
+            const parsedBody = JSON.parse(source.body);
+            const fromBody = parsedBody?.StudentPhoto || parsedBody?.studentPhoto;
+            if (fromBody) return normalizeImageSource(fromBody);
+          } catch {
+            // Ignore malformed body payloads.
+          }
+        }
+
+        return "";
+      };
+
+      const getCandidateMetadata = () => ({
+        fullName: cleanValue(fullNameEl.value),
+        candidateName: cleanValue(fullNameEl.value),
+        contactId: cleanValue(contactIdEl.value),
+        qualification: cleanValue(qualificationEl.value),
+        interviewDate: cleanValue(interviewDateEl.value),
+        industry: cleanValue(industryEl.value),
+        jobTitle: cleanValue(jobTitleEl.value),
+      });
+
+      const getReportOptions = () => ({
+        outputMode: "html",
+        includeTranscriptWarnings: false,
+        qualificationDefault: "FNS50322 Diploma of Finance and Mortgage Broking Management",
+        reportDate: new Date().toLocaleString(),
+        maxBatchChars: 16000,
+        assessorSubmitUrl: ASSESSOR_SUBMIT_WEBHOOK_URL,
+        assessorGivenName: cleanValue(getStudentContext().givenName) || cleanValue(fullNameEl.value).split(/\s+/)[0] || "",
+        assessorPrefill: loadedAssessorComments,
+        studentPhoto: loadedStudentPhoto,
+      });
+
+      const applyUrlStudentContext = () => {
+        if (typeof window.URLSearchParams !== "function") return {};
+        try {
+          const params = new URLSearchParams(window.location?.search || "");
+          const fullName = params.get("fullName") ?? params.get("FullName") ?? params.get("studentName") ?? params.get("StudentName");
+          const givenName = params.get("givenName") ?? params.get("GivenName");
+          const contactId = params.get("contactId") ?? params.get("ContactID") ?? params.get("ContactId");
+
+          const nextInfo = {
+            ...(typeof window.RPLStudentInfo === "object" && window.RPLStudentInfo ? window.RPLStudentInfo : {}),
+          };
+          let mutated = false;
+
+          if (fullName && fullName.trim()) {
+            nextInfo.fullName = fullName.trim();
+            nextInfo.studentName = fullName.trim();
+            mutated = true;
+          }
+          if (givenName && givenName.trim()) {
+            nextInfo.givenName = givenName.trim();
+            mutated = true;
+          }
+          if (contactId && contactId.trim()) {
+            nextInfo.contactId = contactId.trim();
+            mutated = true;
+          }
+
+          if (mutated) {
+            window.RPLStudentInfo = nextInfo;
+            if (document.body?.dataset) {
+              if (nextInfo.fullName || nextInfo.studentName) {
+                document.body.dataset.fullName = nextInfo.fullName || nextInfo.studentName;
+              }
+              if (nextInfo.givenName) {
+                document.body.dataset.givenName = nextInfo.givenName;
+              }
+              if (nextInfo.contactId) {
+                document.body.dataset.contactId = nextInfo.contactId;
+              }
+            }
+          }
+          return nextInfo;
+        } catch {
+          return {};
+        }
+      };
+
+      const getStudentContext = () => {
+        const bodyDataset = document.body?.dataset || {};
+        const studentInfo = window.RPLStudentInfo || window.rplStudentInfo || window.studentInfo || {};
+        const fullName = pickFirstValue(
+          studentInfo.fullName,
+          studentInfo.studentName,
+          bodyDataset.fullName,
+          bodyDataset.studentName,
+          fullNameEl.value
+        );
+        const givenName = pickFirstValue(
+          studentInfo.givenName,
+          bodyDataset.givenName
+        );
+        const contactId = pickFirstValue(
+          studentInfo.contactId,
+          bodyDataset.contactId,
+          contactIdEl.value
+        );
+
+        return {
+          fullName,
+          givenName,
+          contactId,
+        };
+      };
+
+      const preloadInputsFromStudentContext = () => {
+        const ctx = getStudentContext();
+        if (ctx.fullName) fullNameEl.value = ctx.fullName;
+        if (ctx.contactId) contactIdEl.value = ctx.contactId;
+      };
+
+      const trySetTranscriptFromWebhookPayload = (payload) => {
+        const envelope = typeof payload === "string" ? safeJsonParse(payload) || payload : payload;
+
+        const directCandidates = [
+          envelope,
+          envelope?.body,
+          safeJsonParse(envelope?.body),
+          safeJsonParse(envelope?.body?.["Full Transcription JSON"]),
+          safeJsonParse(envelope?.["Full Transcription JSON"]),
+        ].filter(Boolean);
+
+        for (const candidate of directCandidates) {
+          if (candidate && typeof candidate === "object" && Array.isArray(candidate.questions)) {
+            transcriptInput = { kind: "json", text: "", json: candidate };
+            applyJsonMetadata(candidate);
+            return candidate.questions.length;
+          }
+        }
+
+        if (payload && typeof payload === "object" && Array.isArray(payload.questions)) {
+          transcriptInput = { kind: "json", text: "", json: payload };
+          applyJsonMetadata(payload);
+          return payload.questions.length;
+        }
+
+        if (payload && typeof payload === "object") {
+          const candidatePayload = payload.candidate || payload.Candidate || payload.data?.candidate;
+          const questionPayload = payload.questions || payload.Questions || payload.data?.questions;
+          if (candidatePayload && Array.isArray(questionPayload)) {
+            const normalized = { candidate: candidatePayload, questions: questionPayload };
+            transcriptInput = { kind: "json", text: "", json: normalized };
+            applyJsonMetadata(normalized);
+            return questionPayload.length;
+          }
+        }
+
+        const transcriptText = cleanValue(
+          payload?.body?.["Full Transcription JSON"] ||
+          payload?.["Full Transcription JSON"] ||
+          payload?.body?.transcript ||
+          payload?.body?.Transcript ||
+          payload?.body?.fullTranscript ||
+          payload?.body?.FullTranscript ||
+          payload?.body?.text ||
+          payload?.body?.Text ||
+          payload?.body?.content ||
+          payload?.body?.Content ||
+          payload?.transcript ||
+          payload?.Transcript ||
+          payload?.fullTranscript ||
+          payload?.FullTranscript ||
+          payload?.text ||
+          payload?.Text ||
+          payload?.content ||
+          payload?.Content ||
+          (typeof payload === "string" ? payload : "")
+        );
+
+        if (transcriptText) {
+          try {
+            const parsedJson = JSON.parse(transcriptText);
+            if (parsedJson && Array.isArray(parsedJson.questions)) {
+              transcriptInput = { kind: "json", text: "", json: parsedJson };
+              applyJsonMetadata(parsedJson);
+              return parsedJson.questions.length;
+            }
+          } catch {
+            // Not JSON, treat as text transcript.
+          }
+
+          transcriptInput = { kind: "text", text: transcriptText, json: null };
+          applyParsedMetadata(transcriptText);
+          return reportModule.parseTranscriptQuestions(transcriptText).length;
+        }
+
+        return 0;
+      };
+
+      const loadTranscriptFromUrlContext = async () => {
+        const ctx = getStudentContext();
+        if (!ctx.fullName || !ctx.givenName || !ctx.contactId) return false;
+
+        setStatus("Loading transcript from URL context...");
+        log(`Loading transcript from webhook for ${ctx.fullName} (${ctx.contactId})`);
+
+        const payload = {
+          FullName: ctx.fullName,
+          ContactID: String(ctx.contactId),
+          GivenName: ctx.givenName,
+        };
+
+        const response = await fetch(URL_TRANSCRIPT_WEBHOOK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const responseText = await response.text();
+        if (!response.ok) {
+          throw new Error(`URL transcript webhook failed (${response.status}) ${response.statusText}`.trim());
+        }
+
+        let payloadData = responseText;
+        try {
+          payloadData = responseText ? JSON.parse(responseText) : "";
+        } catch {
+          payloadData = responseText;
+        }
+
+        applyIndustryAndJobTitleFromPayload(payloadData);
+
+        const questionCount = trySetTranscriptFromWebhookPayload(payloadData);
+        if (!questionCount) {
+          throw new Error("No transcript content returned from URL transcript webhook.");
+        }
+
+        generateBtn.disabled = false;
+        setStatus(`Loaded ${questionCount} question block(s) from URL context.`, "ok");
+        return true;
+      };
+
+      const loadAssessorCommentsFromWebhook = async () => {
+        const ctx = getStudentContext();
+        if (!ctx.fullName || !ctx.contactId) {
+          throw new Error("Student name and Contact ID are required to get assessor comments.");
+        }
+
+        const payload = {
+          FullName: ctx.fullName,
+          ContactID: String(ctx.contactId),
+          GivenName: ctx.givenName || cleanValue(ctx.fullName).split(/\s+/)[0] || "",
+        };
+
+        log(`Fetching assessor comments for ${ctx.fullName} (${ctx.contactId})`);
+        const response = await fetch(GET_COMMENTS_WEBHOOK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const responseText = await response.text();
+        if (!response.ok) {
+          throw new Error(`Get comments webhook failed (${response.status}) ${response.statusText}`.trim());
+        }
+
+        let payloadData = responseText;
+        try {
+          payloadData = responseText ? JSON.parse(responseText) : "";
+        } catch {
+          payloadData = responseText;
+        }
+
+        const parsedComments = extractAssessorCommentsPayload(payloadData);
+        if (!parsedComments) {
+          throw new Error("Get comments webhook returned no Assessor Comments JSON payload.");
+        }
+
+        loadedAssessorComments = parsedComments;
+        log("Loaded Assessor Comments JSON for prefill.");
+      };
+
+      const loadStudentPhotoFromWebhook = async () => {
+        const ctx = getStudentContext();
+        if (!ctx.fullName || !ctx.contactId) return false;
+
+        const payload = {
+          FullName: ctx.fullName,
+          ContactID: String(ctx.contactId),
+          GivenName: ctx.givenName || cleanValue(ctx.fullName).split(/\s+/)[0] || "",
+        };
+
+        log(`Loading student photo for ${ctx.fullName} (${ctx.contactId})`);
+        const response = await fetch("https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/04fb56ac16dc4dedbda729a2e0c63f07/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=D1qX4806dcDyxGo9bk5rLA2-OLArTJtGXoRWg4iZqyM", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const responseText = await response.text();
+        if (!response.ok) {
+          throw new Error(`Student photo webhook failed (${response.status}) ${response.statusText}`.trim());
+        }
+
+        let payloadData = responseText;
+        try {
+          payloadData = responseText ? JSON.parse(responseText) : "";
+        } catch {
+          payloadData = responseText;
+        }
+
+        loadedStudentPhoto = extractStudentPhoto(payloadData);
+        if (loadedStudentPhoto) {
+          log("Loaded student photo.");
+          return true;
+        }
+
+        log("Student photo webhook returned no usable image.");
+        return false;
+      };
+
+      const applyJsonMetadata = (json) => {
+        const candidate = json?.candidate || {};
+        const candidateName = cleanValue(candidate.fullName || candidate.candidateName);
+        const contactId = cleanValue(candidate.contactId);
+        const qualification = cleanValue(candidate.qualification);
+        const interviewDate = cleanValue(candidate.interviewDate || candidate.initialStartDate);
+        const industry = cleanValue(candidate.industry);
+        const jobTitle = cleanValue(candidate.jobTitle);
+
+        loadedTranscriptMetadata = {
+          candidateName,
+          contactId,
+          qualification,
+          interviewDate,
+          industry,
+          jobTitle,
+        };
+
+        if (candidateName) fullNameEl.value = candidateName;
+        if (contactId) contactIdEl.value = contactId;
+        if (qualification) qualificationEl.value = qualification;
+        if (interviewDate) interviewDateEl.value = interviewDate;
+        if (industry) industryEl.value = industry;
+        if (jobTitle) jobTitleEl.value = jobTitle;
+      };
+
+      const applyParsedMetadata = (text) => {
+        const metadata = reportModule.parseTranscriptMetadata(text);
+        loadedTranscriptMetadata = metadata;
+        if (metadata.candidateName) fullNameEl.value = metadata.candidateName;
+        if (metadata.contactId) contactIdEl.value = metadata.contactId;
+        if (metadata.industry) industryEl.value = metadata.industry;
+        if (metadata.jobTitle) jobTitleEl.value = metadata.jobTitle;
+        if (metadata.interviewDate || metadata.initialStartDate) {
+          interviewDateEl.value = metadata.interviewDate || metadata.initialStartDate;
+        }
+      };
+
+      const getWebhookIdentityFromTranscript = () => {
+        const metadata = loadedTranscriptMetadata || {};
+        const fullName = cleanValue(metadata.candidateName);
+        const contactId = cleanValue(metadata.contactId);
+        if (!fullName || !contactId) {
+          throw new Error("The loaded transcript must include both 'Name:' and 'Contact ID:' lines before the final report webhook can be sent.");
+        }
+        return { fullName, contactId };
+      };
+
+      const fetchAssessorQuestions = async ({ candidateMetadata } = {}) => {
+        const payload = {
+          candidateName: cleanValue(candidateMetadata?.candidateName || candidateMetadata?.fullName || fullNameEl.value),
+          contactId: cleanValue(candidateMetadata?.contactId || contactIdEl.value),
+          qualification: cleanValue(candidateMetadata?.qualification || qualificationEl.value),
+          interviewDate: cleanValue(candidateMetadata?.interviewDate || interviewDateEl.value),
+          industry: cleanValue(candidateMetadata?.industry || industryEl.value),
+          jobTitle: cleanValue(candidateMetadata?.jobTitle || jobTitleEl.value),
+        };
+
+        log("Fetching assessor questions...");
+        const response = await fetch(ASSESSOR_QUESTIONS_WEBHOOK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => "");
+          throw new Error(`Assessor questions webhook failed (${response.status}) ${response.statusText} ${errorText}`.trim());
+        }
+
+        const responseText = await response.text();
+        if (!responseText.trim()) return [];
+        try {
+          return JSON.parse(responseText);
+        } catch {
+          return responseText;
+        }
+      };
+
+      const callTextModel = async (prompt, options = {}) => {
+        const mode = options.mode || "final";
+        const maxTokens = Number.isFinite(Number(options.max_tokens)) ? Number(options.max_tokens) : 300;
+        log(`Calling /api/analysis/chat (${mode}, ${maxTokens} tokens)`);
+        const response = await fetch("/api/analysis/chat", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-rpl-mode": mode,
+          },
+          body: JSON.stringify({
+            prompt,
+            temperature: typeof options.temperature === "number" ? options.temperature : 0.1,
+            max_tokens: maxTokens,
+          }),
+        });
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(`AI report analysis failed (${response.status}) ${response.statusText} ${text}`.trim());
+        }
+
+        const json = await response.json();
+        const content = json?.content || json?.response || json?.text || json?.raw?.choices?.[0]?.message?.content || json?.raw?.choices?.[0]?.text;
+        if (typeof content === "string" && content.trim()) return content.trim();
+        throw new Error("AI report analysis returned no text content.");
+      };
+
+      const sharedFinalReportGenerator = window.RplFinalReportGenerator.create({
+        reportModule,
+        callTextModel,
+        setStatus,
+        log,
+        fetchAssessorQuestions,
+      });
+
+      const buildPreliminaryReviewReport = async ({ fullTranscriptText, jsonTranscript, candidateMetadata, reportOptions }) => {
+        return sharedFinalReportGenerator.buildPreliminaryReviewReport({
+          fullTranscriptText,
+          jsonTranscript,
+          candidateMetadata,
+          officialQuestionBank: [],
+          reportOptions,
+        });
+      };
+
+      const sendFinalReportWebhook = async (html) => {
+        const identity = getWebhookIdentityFromTranscript();
+        const payload = {
+          FullName: identity.fullName,
+          ContactID: identity.contactId,
+          FinalReport: html,
+        };
+        setStatus("Sending final report webhook...");
+        log(`Final report webhook payload identity: ${payload.FullName} (${payload.ContactID})`);
+        const response = await fetch(FINAL_REPORT_WEBHOOK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        log(`Final report webhook: ${response.status} ${response.statusText}`);
+        if (!response.ok) {
+          throw new Error(`Final report webhook failed (${response.status}) ${response.statusText}`.trim());
+        }
+      };
+
+      transcriptFileEl.addEventListener("change", async () => {
+        const file = transcriptFileEl.files && transcriptFileEl.files[0];
+        transcriptInput = { kind: "none", text: "", json: null };
+        loadedTranscriptMetadata = {};
+        loadedAssessorComments = null;
+        lastReportHtml = "";
+        previewFrame.removeAttribute("srcdoc");
+        openBtn.disabled = true;
+        downloadBtn.disabled = true;
+        generateBtn.disabled = true;
+        if (!file) {
+          setStatus("Ready.");
+          return;
+        }
+        try {
+          const fileText = await file.text();
+          const shouldParseJson = /\.json$/i.test(file.name || "") || /^\s*\{/.test(fileText);
+          let questionCount = 0;
+
+          if (shouldParseJson) {
+            const parsedJson = JSON.parse(fileText);
+            if (!Array.isArray(parsedJson?.questions)) {
+              throw new Error("JSON transcript file must contain a questions array.");
+            }
+            transcriptInput = { kind: "json", text: "", json: parsedJson };
+            applyJsonMetadata(parsedJson);
+            questionCount = parsedJson.questions.length;
+            log(`Loaded JSON transcript file: ${file.name}`);
+          } else {
+            transcriptInput = { kind: "text", text: fileText, json: null };
+            applyParsedMetadata(fileText);
+            questionCount = reportModule.parseTranscriptQuestions(fileText).length;
+            log(`Loaded transcript file: ${file.name}`);
+          }
+
+          generateBtn.disabled = !questionCount;
+          setStatus(`Loaded ${questionCount} question block(s).`, questionCount ? "ok" : "error");
+        } catch (error) {
+          loadedTranscriptMetadata = {};
+          setStatus(error?.message || "Unable to load transcript file.", "error");
+        }
+      });
+
+      generateBtn.addEventListener("click", async () => {
+        if (!hasLoadedTranscript()) {
+          setStatus("Load a transcript file first.", "error");
+          return;
+        }
+        generateBtn.disabled = true;
+        openBtn.disabled = true;
+        downloadBtn.disabled = true;
+        try {
+          if (studentPhotoLoadPromise) {
+            await studentPhotoLoadPromise;
+          }
+          const candidateMetadata = getCandidateMetadata();
+          const reportOptions = getReportOptions();
+          setStatus("Generating preliminary review report...");
+          const buildArgs = {
+            candidateMetadata,
+            reportOptions,
+          };
+          if (transcriptInput.kind === "json") {
+            buildArgs.jsonTranscript = transcriptInput.json;
+          } else {
+            buildArgs.fullTranscriptText = transcriptInput.text;
+          }
+          const { html, validation } = await buildPreliminaryReviewReport({
+            ...buildArgs,
+          });
+          lastReportHtml = html;
+          previewFrame.srcdoc = html;
+          log(`Report generated: ${validation.questionCount} question article(s).`);
+          if (sendWebhookEl.checked) {
+            await sendFinalReportWebhook(html);
+          }
+          openBtn.disabled = false;
+          downloadBtn.disabled = false;
+          setStatus(sendWebhookEl.checked ? "Report generated and webhook sent." : "Report generated.", "ok");
+        } catch (error) {
+          setStatus(error?.message || "Unable to generate report.", "error");
+          log(error?.stack || error?.message || String(error));
+        } finally {
+          generateBtn.disabled = !hasLoadedTranscript();
+        }
+      });
+
+      openBtn.addEventListener("click", () => {
+        if (!lastReportHtml) return;
+        const reportWindow = window.open("", "RPLGeneratedReport", "width=1000,height=800,scrollbars=yes");
+        if (!reportWindow) {
+          setStatus("Popup blocked. Please allow pop-ups to open the report.", "error");
+          return;
+        }
+        reportWindow.document.open();
+        reportWindow.document.write(lastReportHtml);
+        reportWindow.document.close();
+      });
+
+      downloadBtn.addEventListener("click", () => {
+        if (!lastReportHtml) return;
+        const blob = new Blob([lastReportHtml], { type: "text/html" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "RPL Preliminary Interview Review.html";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(link.href);
+      });
+
+      getCommentsBtn.addEventListener("click", async () => {
+        const originalText = getCommentsBtn.textContent;
+        getCommentsBtn.disabled = true;
+        getCommentsBtn.textContent = "Loading...";
+        try {
+          setStatus("Loading assessor comments...");
+          await loadAssessorCommentsFromWebhook();
+          setStatus("Assessor comments loaded.", "ok");
+        } catch (error) {
+          setStatus(error?.message || "Unable to load assessor comments.", "error");
+          log(error?.stack || error?.message || String(error));
+        } finally {
+          getCommentsBtn.disabled = false;
+          getCommentsBtn.textContent = originalText;
+        }
+      });
+
+      if (!reportModule) {
+        setStatus("Report module did not load.", "error");
+      } else {
+        applyUrlStudentContext();
+        preloadInputsFromStudentContext();
+        studentPhotoLoadPromise = loadStudentPhotoFromWebhook().catch((error) => {
+          log(error?.stack || error?.message || String(error));
+        });
+        loadTranscriptFromUrlContext().catch((error) => {
+          const ctx = getStudentContext();
+          if (ctx.fullName && ctx.givenName && ctx.contactId) {
+            setStatus(error?.message || "Unable to load transcript from URL context.", "error");
+            log(error?.stack || error?.message || String(error));
+          }
+        });
+      }
+    </script>
+  </body>
+</html>
