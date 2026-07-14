@@ -185,6 +185,7 @@
     <script src="rpl-final-report-generator.js"></script>
     <script>
       const FINAL_REPORT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ad445c5a35534861933f60ee864eecfa/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=qiOM0ZtGoUf_75xUdMZJ6B5zVSzpc9qYVZJbEbYm6pM";
+      const SEND_PDF_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/06/workflows/ad445c5a35534861933f60ee864eecfa/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=qiOM0ZtGoUf_75xUdMZJ6B5zVSzpc9qYVZJbEbYm6pM";
       const ASSESSOR_QUESTIONS_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/776a38fbbe6449c996fd3a4127212eff/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=kA6BlWXbHh-ymnHGDWqRt25m_BEzVEAW1vHmiYur7vw";
       const URL_TRANSCRIPT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/41fdc1293b8547b1ac672c8aa1ccf7f8/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=32qfqtKjiupj1eLtp31QEPjPGqGSCj9AOdZ-c3Bdy7Y";
       const ASSESSOR_SUBMIT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/c16eb7b6410046b9b9c42f9ea0906f6e/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=UK5U-3LpQQjjTe3ObOXLGyNNbfDT7lm3dNtGD188FpY";
@@ -774,23 +775,33 @@
         });
       };
 
-      const sendFinalReportWebhook = async (html) => {
+      const sendFinalReportWebhook = async (
+        html,
+        webhookUrl = FINAL_REPORT_WEBHOOK_URL,
+        activityLabel = "Final report",
+        includeAssessorIdentity = false
+      ) => {
         const identity = getWebhookIdentityFromTranscript();
         const payload = {
           FullName: identity.fullName,
           ContactID: identity.contactId,
           FinalReport: html,
         };
-        setStatus("Sending final report webhook...");
-        log(`Final report webhook payload identity: ${payload.FullName} (${payload.ContactID})`);
-        const response = await fetch(FINAL_REPORT_WEBHOOK_URL, {
+        if (includeAssessorIdentity) {
+          const assessor = getUrlAssessorContext();
+          payload.AssessorName = assessor.assessorName;
+          payload.AssessorEmail = assessor.assessorEmail;
+        }
+        setStatus(`Sending ${activityLabel.toLowerCase()} webhook...`);
+        log(`${activityLabel} webhook payload identity: ${payload.FullName} (${payload.ContactID})`);
+        const response = await fetch(webhookUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
-        log(`Final report webhook: ${response.status} ${response.statusText}`);
+        log(`${activityLabel} webhook: ${response.status} ${response.statusText}`);
         if (!response.ok) {
-          throw new Error(`Final report webhook failed (${response.status}) ${response.statusText}`.trim());
+          throw new Error(`${activityLabel} webhook failed (${response.status}) ${response.statusText}`.trim());
         }
       };
 
@@ -835,9 +846,28 @@
       let submitWebhookQueue = Promise.resolve();
       window.addEventListener("message", (event) => {
         if (event.source !== previewFrame.contentWindow) return;
-        if (event.data?.type !== "rpl-assessor-submission-saved") return;
         const currentReportHtml = typeof event.data.html === "string" ? event.data.html : "";
         if (!currentReportHtml) return;
+
+        if (event.data?.type === "rpl-assessor-send-pdf") {
+          sendFinalReportWebhook(currentReportHtml, SEND_PDF_WEBHOOK_URL, "Send PDF", true)
+            .then(() => {
+              setStatus("PDF report webhook sent.", "ok");
+              previewFrame.contentWindow?.postMessage({ type: "rpl-assessor-send-pdf-result", ok: true }, "*");
+            })
+            .catch((error) => {
+              setStatus(error?.message || "Unable to send the PDF report webhook.", "error");
+              log(error?.stack || error?.message || String(error));
+              previewFrame.contentWindow?.postMessage({
+                type: "rpl-assessor-send-pdf-result",
+                ok: false,
+                message: error?.message || "Unable to send the PDF report webhook.",
+              }, "*");
+            });
+          return;
+        }
+
+        if (event.data?.type !== "rpl-assessor-submission-saved") return;
 
         submitWebhookQueue = submitWebhookQueue
           .catch(() => undefined)

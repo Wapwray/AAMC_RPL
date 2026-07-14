@@ -1875,7 +1875,7 @@ Do you want to proceed?</p>
           };
         }
 
-        function serializeCurrentReportHtml() {
+        function serializeCurrentReportHtml(removeButtons) {
           var clone = document.documentElement.cloneNode(true);
           var liveFields = document.querySelectorAll("input, textarea");
           var clonedFields = clone.querySelectorAll("input, textarea");
@@ -1892,6 +1892,11 @@ Do you want to proceed?</p>
               else clonedField.removeAttribute("checked");
             }
           });
+          if (removeButtons) {
+            clone.querySelectorAll("button").forEach(function(button) {
+              button.remove();
+            });
+          }
           return "<" + "!doctype html>\\n" + clone.outerHTML;
         }
 
@@ -1901,7 +1906,7 @@ Do you want to proceed?</p>
             type: "rpl-assessor-submission-saved",
             submitType: submitType,
             questionNumber: questionNumber ? String(questionNumber) : "",
-            html: serializeCurrentReportHtml()
+            html: serializeCurrentReportHtml(false)
           }, "*");
         }
 
@@ -1964,7 +1969,19 @@ Do you want to proceed?</p>
         }
 
         function sendPdf() {
-          window.print();
+          var statusEl = document.getElementById("globalSubmitStatus");
+          var btn = document.getElementById("sendPdfBtn");
+          if (btn) btn.disabled = true;
+          if (statusEl) { statusEl.textContent = "Sending PDF..."; statusEl.className = "global-status"; }
+          if (window.parent === window) {
+            if (btn) btn.disabled = false;
+            if (statusEl) { statusEl.textContent = "The PDF webhook is only available in the assessor page."; statusEl.className = "global-status error"; }
+            return;
+          }
+          window.parent.postMessage({
+            type: "rpl-assessor-send-pdf",
+            html: serializeCurrentReportHtml(true)
+          }, "*");
         }
 
         document.querySelectorAll(".question-submit-btn").forEach(function(btn) {
@@ -2008,6 +2025,17 @@ Do you want to proceed?</p>
         document.addEventListener("keydown", function(event) {
           if (event.key === "Escape") {
             setFinaliseDialogOpen(false);
+          }
+        });
+
+        window.addEventListener("message", function(event) {
+          if (event.source !== window.parent || event.data?.type !== "rpl-assessor-send-pdf-result") return;
+          var statusEl = document.getElementById("globalSubmitStatus");
+          var btn = document.getElementById("sendPdfBtn");
+          if (btn) btn.disabled = false;
+          if (statusEl) {
+            statusEl.textContent = event.data.ok ? "PDF sent successfully." : (event.data.message || "Unable to send PDF.");
+            statusEl.className = "global-status " + (event.data.ok ? "success" : "error");
           }
         });
 

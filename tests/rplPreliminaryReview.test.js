@@ -351,6 +351,9 @@ test("renders assessor-mode sign-off fields and keeps assessor identity read-onl
   assert.match(html, /type: "rpl-assessor-submission-saved"/);
   assert.match(html, /notifyParentOfSavedSubmission\("question", qNum\)/);
   assert.match(html, /notifyParentOfSavedSubmission\("all", ""\)/);
+  assert.match(html, /type: "rpl-assessor-send-pdf"/);
+  assert.match(html, /html: serializeCurrentReportHtml\(true\)/);
+  assert.match(html, /clone\.querySelectorAll\("button"\)/);
   assert.match(html, /@page \{ size: A4 portrait; margin: 12mm; \}/);
   assert.match(html, /\.report \{ width: 100%; max-width: 186mm;/);
   assert.equal(review.validateReportHtmlCoverage(model, html).valid, true);
