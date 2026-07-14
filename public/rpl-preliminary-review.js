@@ -1890,7 +1890,7 @@ Do you want to proceed?</p>
               else clonedField.removeAttribute("checked");
             }
           });
-          return "<!doctype html>\\n" + clone.outerHTML;
+          return "<" + "!doctype html>\\n" + clone.outerHTML;
         }
 
         function notifyParentOfSavedSubmission(submitType, questionNumber) {
