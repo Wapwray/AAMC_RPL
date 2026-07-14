@@ -432,6 +432,7 @@
         assessorName: cleanValue(normalizedOptions.assessorName),
         assessorEmail: cleanValue(normalizedOptions.assessorEmail),
         assessorMode: normalizedOptions.assessorMode === true,
+        notifyParentOnSubmit: normalizedOptions.notifyParentOnSubmit === true,
         assessorPrefill: normalizedOptions.assessorPrefill || null,
         studentPhoto: cleanValue(normalizedOptions.studentPhoto),
       });

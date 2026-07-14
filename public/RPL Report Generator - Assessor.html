@@ -51,9 +51,7 @@
       h2 { font-size: 18px; margin-bottom: 12px; }
 
       .grid {
-        display: grid;
-        grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
-        gap: 16px;
+        display: block;
       }
 
       .panel {
@@ -85,47 +83,10 @@
       .row {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 10px;
+        gap: 12px;
       }
 
-      .check-row {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin: 14px 0;
-        color: #334155;
-        font-size: 14px;
-      }
-
-      .check-row input { width: 16px; height: 16px; }
-
-      .actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        margin-top: 16px;
-      }
-
-      button {
-        min-height: 38px;
-        border: 1px solid var(--line);
-        border-radius: 6px;
-        padding: 8px 12px;
-        background: #fff;
-        color: var(--ink);
-        font: inherit;
-        font-weight: 700;
-        cursor: pointer;
-      }
-
-      button.primary {
-        border-color: var(--accent);
-        background: var(--accent);
-        color: #fff;
-      }
-
-      button.primary:hover { background: var(--accent-dark); }
-      button:disabled { opacity: .55; cursor: not-allowed; }
+      .student-info-panel { margin-bottom: 16px; }
 
       .status {
         min-height: 38px;
@@ -140,7 +101,7 @@
       .status.error { border-color: #fecaca; color: var(--danger); background: #fef2f2; }
 
       .preview-wrap {
-        height: calc(100vh - 140px);
+        height: calc(100vh - 420px);
         min-height: 640px;
       }
 
@@ -181,11 +142,8 @@
       </header>
 
       <div class="grid">
-        <section class="panel" aria-labelledby="controlsTitle">
-          <h2 id="controlsTitle">Transcript</h2>
-          <label for="transcriptFile">Transcript file</label>
-          <input id="transcriptFile" type="file" accept=".txt,.text,.log,.md,.html,.htm,.json">
-
+        <section class="panel student-info-panel" aria-labelledby="studentInformationTitle">
+          <h2 id="studentInformationTitle">Student Information</h2>
           <div class="row">
             <div>
               <label for="fullName">Student name</label>
@@ -213,27 +171,14 @@
 
           <label for="interviewDate">Interview date</label>
           <input id="interviewDate" type="text" autocomplete="off">
-
-          <label class="check-row" for="sendWebhook">
-            <input id="sendWebhook" type="checkbox">
-            Send final report webhook
-          </label>
-
-          <div class="actions">
-            <button id="generateBtn" class="primary" type="button" disabled>Generate Report</button>
-            <button id="openBtn" type="button" disabled>Open HTML</button>
-            <button id="downloadBtn" type="button" disabled>Download HTML</button>
-            <button id="getCommentsBtn" type="button">Get Comments</button>
-          </div>
-
-          <div id="log" class="log" aria-live="polite"></div>
         </section>
 
         <section class="panel preview-wrap" aria-labelledby="previewTitle">
-          <h2 id="previewTitle">Preview</h2>
-          <iframe id="previewFrame" title="Generated report preview"></iframe>
+          <h2 id="previewTitle">Draft Report</h2>
+          <iframe id="previewFrame" title="Draft report"></iframe>
         </section>
       </div>
+      <div id="log" class="log" aria-live="polite" hidden></div>
     </main>
 
     <script src="rpl-preliminary-review.js"></script>
@@ -246,18 +191,12 @@
       const GET_COMMENTS_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/fae53cfbfdf34e41ad287e99b5e5ae27/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=zKGiLS6UJMScAyuFibK9yFNdn1e8jMlwmZ7nQ97c5OU";
 
       const reportModule = window.RplPreliminaryReview;
-      const transcriptFileEl = document.getElementById("transcriptFile");
       const fullNameEl = document.getElementById("fullName");
       const contactIdEl = document.getElementById("contactId");
       const qualificationEl = document.getElementById("qualification");
       const industryEl = document.getElementById("industry");
       const jobTitleEl = document.getElementById("jobTitle");
       const interviewDateEl = document.getElementById("interviewDate");
-      const sendWebhookEl = document.getElementById("sendWebhook");
-      const generateBtn = document.getElementById("generateBtn");
-      const openBtn = document.getElementById("openBtn");
-      const downloadBtn = document.getElementById("downloadBtn");
-      const getCommentsBtn = document.getElementById("getCommentsBtn");
       const statusEl = document.getElementById("status");
       const logEl = document.getElementById("log");
       const previewFrame = document.getElementById("previewFrame");
@@ -411,6 +350,7 @@
         assessorName: getUrlAssessorContext().assessorName,
         assessorEmail: getUrlAssessorContext().assessorEmail,
         assessorMode: true,
+        notifyParentOnSubmit: true,
         assessorPrefill: loadedAssessorComments,
         studentPhoto: loadedStudentPhoto,
       });
@@ -626,7 +566,6 @@
           throw new Error("No transcript content returned from URL transcript webhook.");
         }
 
-        generateBtn.disabled = false;
         setStatus(`Loaded ${questionCount} question block(s) from URL context.`, "ok");
         return true;
       };
@@ -855,57 +794,10 @@
         }
       };
 
-      transcriptFileEl.addEventListener("change", async () => {
-        const file = transcriptFileEl.files && transcriptFileEl.files[0];
-        transcriptInput = { kind: "none", text: "", json: null };
-        loadedTranscriptMetadata = {};
-        loadedAssessorComments = null;
-        lastReportHtml = "";
-        previewFrame.removeAttribute("srcdoc");
-        openBtn.disabled = true;
-        downloadBtn.disabled = true;
-        generateBtn.disabled = true;
-        if (!file) {
-          setStatus("Ready.");
-          return;
-        }
-        try {
-          const fileText = await file.text();
-          const shouldParseJson = /\.json$/i.test(file.name || "") || /^\s*\{/.test(fileText);
-          let questionCount = 0;
-
-          if (shouldParseJson) {
-            const parsedJson = JSON.parse(fileText);
-            if (!Array.isArray(parsedJson?.questions)) {
-              throw new Error("JSON transcript file must contain a questions array.");
-            }
-            transcriptInput = { kind: "json", text: "", json: parsedJson };
-            applyJsonMetadata(parsedJson);
-            questionCount = parsedJson.questions.length;
-            log(`Loaded JSON transcript file: ${file.name}`);
-          } else {
-            transcriptInput = { kind: "text", text: fileText, json: null };
-            applyParsedMetadata(fileText);
-            questionCount = reportModule.parseTranscriptQuestions(fileText).length;
-            log(`Loaded transcript file: ${file.name}`);
-          }
-
-          generateBtn.disabled = !questionCount;
-          setStatus(`Loaded ${questionCount} question block(s).`, questionCount ? "ok" : "error");
-        } catch (error) {
-          loadedTranscriptMetadata = {};
-          setStatus(error?.message || "Unable to load transcript file.", "error");
-        }
-      });
-
-      generateBtn.addEventListener("click", async () => {
+      const generateReport = async ({ sendWebhook = true } = {}) => {
         if (!hasLoadedTranscript()) {
-          setStatus("Load a transcript file first.", "error");
-          return;
+          throw new Error("No transcript has been loaded for this student.");
         }
-        generateBtn.disabled = true;
-        openBtn.disabled = true;
-        downloadBtn.disabled = true;
         try {
           if (studentPhotoLoadPromise) {
             await studentPhotoLoadPromise;
@@ -928,75 +820,63 @@
           lastReportHtml = html;
           previewFrame.srcdoc = html;
           log(`Report generated: ${validation.questionCount} question article(s).`);
-          if (sendWebhookEl.checked) {
+          if (sendWebhook) {
             await sendFinalReportWebhook(html);
           }
-          openBtn.disabled = false;
-          downloadBtn.disabled = false;
-          setStatus(sendWebhookEl.checked ? "Report generated and webhook sent." : "Report generated.", "ok");
+          setStatus(sendWebhook ? "Draft report generated and webhook sent." : "Draft report generated.", "ok");
+          return html;
         } catch (error) {
           setStatus(error?.message || "Unable to generate report.", "error");
           log(error?.stack || error?.message || String(error));
-        } finally {
-          generateBtn.disabled = !hasLoadedTranscript();
+          throw error;
         }
+      };
+
+      let submitWebhookQueue = Promise.resolve();
+      window.addEventListener("message", (event) => {
+        if (event.source !== previewFrame.contentWindow) return;
+        if (event.data?.type !== "rpl-assessor-submission-saved") return;
+        const currentReportHtml = typeof event.data.html === "string" ? event.data.html : "";
+        if (!currentReportHtml) return;
+
+        submitWebhookQueue = submitWebhookQueue
+          .catch(() => undefined)
+          .then(async () => {
+            await sendFinalReportWebhook(currentReportHtml);
+            setStatus("Assessor response saved and draft report webhook sent.", "ok");
+          })
+          .catch((error) => {
+            setStatus(error?.message || "Unable to send the updated draft report webhook.", "error");
+            log(error?.stack || error?.message || String(error));
+          });
       });
 
-      openBtn.addEventListener("click", () => {
-        if (!lastReportHtml) return;
-        const reportWindow = window.open("", "RPLGeneratedReport", "width=1000,height=800,scrollbars=yes");
-        if (!reportWindow) {
-          setStatus("Popup blocked. Please allow pop-ups to open the report.", "error");
-          return;
-        }
-        reportWindow.document.open();
-        reportWindow.document.write(lastReportHtml);
-        reportWindow.document.close();
-      });
-
-      downloadBtn.addEventListener("click", () => {
-        if (!lastReportHtml) return;
-        const blob = new Blob([lastReportHtml], { type: "text/html" });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = "RPL Preliminary Interview Review.html";
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        URL.revokeObjectURL(link.href);
-      });
-
-      getCommentsBtn.addEventListener("click", async () => {
-        const originalText = getCommentsBtn.textContent;
-        getCommentsBtn.disabled = true;
-        getCommentsBtn.textContent = "Loading...";
-        try {
-          setStatus("Loading assessor comments...");
-          await loadAssessorCommentsFromWebhook();
-          setStatus("Assessor comments loaded.", "ok");
-        } catch (error) {
-          setStatus(error?.message || "Unable to load assessor comments.", "error");
-          log(error?.stack || error?.message || String(error));
-        } finally {
-          getCommentsBtn.disabled = false;
-          getCommentsBtn.textContent = originalText;
-        }
-      });
-
-      if (!reportModule) {
-        setStatus("Report module did not load.", "error");
-      } else {
+      const initialiseAssessorPage = async () => {
         applyUrlStudentContext();
         preloadInputsFromStudentContext();
         studentPhotoLoadPromise = loadStudentPhotoFromWebhook().catch((error) => {
           log(error?.stack || error?.message || String(error));
         });
-        loadTranscriptFromUrlContext().catch((error) => {
-          const ctx = getStudentContext();
-          if (ctx.fullName && ctx.givenName && ctx.contactId) {
-            setStatus(error?.message || "Unable to load transcript from URL context.", "error");
-            log(error?.stack || error?.message || String(error));
-          }
+
+        await loadTranscriptFromUrlContext();
+
+        try {
+          setStatus("Loading assessor comments...");
+          await loadAssessorCommentsFromWebhook();
+          setStatus("Assessor comments loaded.", "ok");
+        } catch (error) {
+          log(error?.stack || error?.message || String(error));
+        }
+
+        await generateReport({ sendWebhook: true });
+      };
+
+      if (!reportModule) {
+        setStatus("Report module did not load.", "error");
+      } else {
+        initialiseAssessorPage().catch((error) => {
+          setStatus(error?.message || "Unable to initialise the assessor report.", "error");
+          log(error?.stack || error?.message || String(error));
         });
       }
     </script>

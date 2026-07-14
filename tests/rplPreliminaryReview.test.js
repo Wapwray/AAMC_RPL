@@ -334,6 +334,7 @@ test("renders assessor-mode sign-off fields and keeps assessor identity read-onl
     assessorMode: true,
     assessorName: "Taylor & Co",
     assessorEmail: "taylor@example.com",
+    notifyParentOnSubmit: true,
   });
 
   assert.match(html, /id="assessor-name"[^>]*value="Taylor &amp; Co"[^>]*readonly/);
@@ -346,6 +347,10 @@ test("renders assessor-mode sign-off fields and keeps assessor identity read-onl
   assert.match(html, /id="assessor-date-time"[^>]*readonly/);
   assert.match(html, /signoff\.assessorComments =/);
   assert.match(html, /signoff\.assessorDateTime =/);
+  assert.match(html, /var NOTIFY_PARENT_ON_SUBMIT = true/);
+  assert.match(html, /type: "rpl-assessor-submission-saved"/);
+  assert.match(html, /notifyParentOfSavedSubmission\("question", qNum\)/);
+  assert.match(html, /notifyParentOfSavedSubmission\("all", ""\)/);
 });
 
 test("retains the legacy interactive sign-off outside assessor mode", () => {

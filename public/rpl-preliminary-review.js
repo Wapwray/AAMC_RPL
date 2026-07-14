@@ -1483,6 +1483,7 @@ Rules:
     const assessorNameFromOptions = cleanMetadataValue(options.assessorName || "");
     const assessorEmailFromOptions = cleanMetadataValue(options.assessorEmail || "");
     const assessorMode = options.assessorMode === true;
+    const notifyParentOnSubmit = options.notifyParentOnSubmit === true;
     const assessorPrefillFromOptions = options.assessorPrefill || null;
     const studentPhoto = cleanMetadataValue(options.studentPhoto || "");
     const questions = Array.isArray(reportModel?.questions) ? reportModel.questions : [];
@@ -1737,6 +1738,7 @@ Do you want to proceed?</p>
         var contactId = ${JSON.stringify(metadata.contactId || "")};
         var givenName = ${JSON.stringify(givenNameFromOptions || "")};
         var ASSESSOR_MODE = ${assessorMode ? "true" : "false"};
+        var NOTIFY_PARENT_ON_SUBMIT = ${notifyParentOnSubmit ? "true" : "false"};
         var ASSESSOR_PREFILL = ${assessorPrefillFromOptions ? JSON.stringify(assessorPrefillFromOptions) : "null"};
 
         function deriveGivenName() {
@@ -1871,6 +1873,36 @@ Do you want to proceed?</p>
           };
         }
 
+        function serializeCurrentReportHtml() {
+          var clone = document.documentElement.cloneNode(true);
+          var liveFields = document.querySelectorAll("input, textarea");
+          var clonedFields = clone.querySelectorAll("input, textarea");
+          liveFields.forEach(function(field, index) {
+            var clonedField = clonedFields[index];
+            if (!clonedField) return;
+            if (field.tagName === "TEXTAREA") {
+              clonedField.textContent = field.value;
+              return;
+            }
+            clonedField.setAttribute("value", field.value || "");
+            if (field.type === "radio" || field.type === "checkbox") {
+              if (field.checked) clonedField.setAttribute("checked", "checked");
+              else clonedField.removeAttribute("checked");
+            }
+          });
+          return "<!doctype html>\\n" + clone.outerHTML;
+        }
+
+        function notifyParentOfSavedSubmission(submitType, questionNumber) {
+          if (!NOTIFY_PARENT_ON_SUBMIT || window.parent === window) return;
+          window.parent.postMessage({
+            type: "rpl-assessor-submission-saved",
+            submitType: submitType,
+            questionNumber: questionNumber ? String(questionNumber) : "",
+            html: serializeCurrentReportHtml()
+          }, "*");
+        }
+
         function submitQuestion(qNum) {
           if (!SUBMIT_URL) { setQuestionStatus(qNum, "No submit URL configured", "error"); return; }
           setQuestionStatus(qNum, "Submitting...", "");
@@ -1882,6 +1914,7 @@ Do you want to proceed?</p>
           }).then(function(resp) {
             if (resp.ok) {
               setQuestionStatus(qNum, "Saved", "success");
+              notifyParentOfSavedSubmission("question", qNum);
             } else {
               setQuestionStatus(qNum, "Error " + resp.status, "error");
             }
@@ -1908,6 +1941,7 @@ Do you want to proceed?</p>
             if (btn) btn.disabled = false;
             if (resp.ok) {
               if (statusEl) { statusEl.textContent = "All comments submitted successfully."; statusEl.className = "global-status success"; }
+              notifyParentOfSavedSubmission("all", "");
             } else {
               if (statusEl) { statusEl.textContent = "Error " + resp.status; statusEl.className = "global-status error"; }
             }
