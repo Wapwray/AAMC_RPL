@@ -408,9 +408,27 @@
         maxBatchChars: 16000,
         assessorSubmitUrl: ASSESSOR_SUBMIT_WEBHOOK_URL,
         assessorGivenName: cleanValue(getStudentContext().givenName) || cleanValue(fullNameEl.value).split(/\s+/)[0] || "",
+        assessorName: getUrlAssessorContext().assessorName,
+        assessorEmail: getUrlAssessorContext().assessorEmail,
+        assessorMode: true,
         assessorPrefill: loadedAssessorComments,
         studentPhoto: loadedStudentPhoto,
       });
+
+      const getUrlAssessorContext = () => {
+        if (typeof window.URLSearchParams !== "function") {
+          return { assessorName: "", assessorEmail: "" };
+        }
+        try {
+          const params = new URLSearchParams(window.location?.search || "");
+          return {
+            assessorName: cleanValue(params.get("assessorName")),
+            assessorEmail: cleanValue(params.get("assessorEmail")),
+          };
+        } catch {
+          return { assessorName: "", assessorEmail: "" };
+        }
+      };
 
       const applyUrlStudentContext = () => {
         if (typeof window.URLSearchParams !== "function") return {};

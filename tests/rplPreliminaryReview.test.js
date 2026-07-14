@@ -327,3 +327,34 @@ test("renders approved report labels, escaped verbatim responses, and one row/ar
   assert.ok(responseIndex > attemptIndex);
   assert.ok(aiResponseIndex > responseIndex);
 });
+
+test("renders assessor-mode sign-off fields and keeps assessor identity read-only", () => {
+  const model = review.buildReportModel({ fullTranscript: baseTranscript });
+  const html = review.renderInteractiveReportHtml(model, {
+    assessorMode: true,
+    assessorName: "Taylor & Co",
+    assessorEmail: "taylor@example.com",
+  });
+
+  assert.match(html, /id="assessor-name"[^>]*value="Taylor &amp; Co"[^>]*readonly/);
+  assert.match(html, /id="assessor-email"[^>]*value="taylor@example\.com"[^>]*readonly/);
+  assert.match(html, /name="interview-outcome" value="NOT APPROVED" checked/);
+  assert.match(html, /name="interview-outcome" value="APPROVED"/);
+  assert.match(html, /<th scope="row">Assessor Comments<\/th>/);
+  assert.match(html, /id="assessor-comments"/);
+  assert.match(html, /<th scope="row">Signature<\/th>/);
+  assert.match(html, /id="assessor-date-time"[^>]*readonly/);
+  assert.match(html, /signoff\.assessorComments =/);
+  assert.match(html, /signoff\.assessorDateTime =/);
+});
+
+test("retains the legacy interactive sign-off outside assessor mode", () => {
+  const model = review.buildReportModel({ fullTranscript: baseTranscript });
+  const html = review.renderInteractiveReportHtml(model);
+
+  assert.match(html, /id="assessor-name"[^>]*placeholder="Enter assessor name"/);
+  assert.match(html, /id="interview-outcome"[^>]*placeholder="to be completed by assessor"/);
+  assert.match(html, /<th scope="row">Signature &amp; date<\/th>/);
+  assert.doesNotMatch(html, /id="assessor-comments"/);
+  assert.doesNotMatch(html, /id="assessor-date-time"/);
+});

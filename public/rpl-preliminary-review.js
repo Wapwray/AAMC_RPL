@@ -1480,6 +1480,9 @@ Rules:
   const renderInteractiveReportHtml = (reportModel, options = {}) => {
     const submitUrl = options.submitUrl || "";
     const givenNameFromOptions = cleanMetadataValue(options.givenName || "");
+    const assessorNameFromOptions = cleanMetadataValue(options.assessorName || "");
+    const assessorEmailFromOptions = cleanMetadataValue(options.assessorEmail || "");
+    const assessorMode = options.assessorMode === true;
     const assessorPrefillFromOptions = options.assessorPrefill || null;
     const studentPhoto = cleanMetadataValue(options.studentPhoto || "");
     const questions = Array.isArray(reportModel?.questions) ? reportModel.questions : [];
@@ -1496,6 +1499,28 @@ Rules:
     const renderEditableSignoff = (id, placeholder = "") => {
       return `<input type="text" id="${escapeAttribute(id)}" name="${escapeAttribute(id)}" class="assessor-signoff-input" placeholder="${escapeAttribute(placeholder)}" style="width:100%;min-height:30px;border:1px solid #999;border-radius:4px;padding:7px 9px;box-sizing:border-box;font-family:Calibri,Arial,Helvetica,sans-serif;font-size:11pt;background:#fff;" />`;
     };
+
+    const renderReadOnlySignoff = (id, value) => {
+      return `<input type="text" id="${escapeAttribute(id)}" name="${escapeAttribute(id)}" class="assessor-signoff-input" value="${escapeAttribute(value)}" readonly aria-readonly="true" style="width:100%;min-height:30px;border:1px solid #999;border-radius:4px;padding:7px 9px;box-sizing:border-box;font-family:Calibri,Arial,Helvetica,sans-serif;font-size:11pt;background:#f1f5f9;color:#334155;" />`;
+    };
+
+    const renderInterviewOutcome = () => `
+      <fieldset class="interview-outcome" style="margin:0;padding:0;border:0;display:flex;gap:24px;align-items:center;flex-wrap:wrap;">
+        <label style="display:inline-flex;align-items:center;gap:7px;font-weight:700;"><input type="radio" name="interview-outcome" value="NOT APPROVED" checked> NOT APPROVED</label>
+        <label style="display:inline-flex;align-items:center;gap:7px;font-weight:700;"><input type="radio" name="interview-outcome" value="APPROVED"> APPROVED</label>
+      </fieldset>`;
+
+    const renderSignoffRows = () => assessorMode ? `
+            <tr><th scope="row">Assessor name</th><td>${renderReadOnlySignoff("assessor-name", assessorNameFromOptions)}</td></tr>
+            <tr><th scope="row">Assessor Email</th><td>${renderReadOnlySignoff("assessor-email", assessorEmailFromOptions)}</td></tr>
+            <tr><th scope="row">Interview Outcome</th><td>${renderInterviewOutcome()}</td></tr>
+            <tr><th scope="row">Assessor Comments</th><td>${renderEditableField("assessor-comments", "Assessor Comments", "Enter assessor comments", "110px")}</td></tr>
+            <tr><th scope="row">Signature</th><td>${renderEditableSignoff("assessor-signature", "Enter signature")}</td></tr>
+            <tr><th scope="row">Date</th><td>${renderReadOnlySignoff("assessor-date-time", "")}</td></tr>` : `
+            <tr><th scope="row">Assessor name</th><td>${renderEditableSignoff("assessor-name", "Enter assessor name")}</td></tr>
+            <tr><th scope="row">Assessor Email</th><td>${renderEditableSignoff("assessor-email", "Enter assessor email")}</td></tr>
+            <tr><th scope="row">Interview Outcome</th><td>${renderEditableSignoff("interview-outcome", "to be completed by assessor")}</td></tr>
+            <tr><th scope="row">Signature &amp; date</th><td>${renderEditableSignoff("assessor-signature", "Enter signature & date")}</td></tr>`;
 
     const renderQuestionArticlesInteractive = (questions) => questions.map((question) => {
       return `
@@ -1683,10 +1708,7 @@ Rules:
         <h2 id="signoffTitle">Assessor sign-off</h2>
         <table class="signoff-table">
           <tbody>
-            <tr><th scope="row">Assessor name</th><td>${renderEditableSignoff("assessor-name", "Enter assessor name")}</td></tr>
-            <tr><th scope="row">Assessor Email</th><td>${renderEditableSignoff("assessor-email", "Enter assessor email")}</td></tr>
-            <tr><th scope="row">Interview Outcome</th><td>${renderEditableSignoff("interview-outcome", "to be completed by assessor")}</td></tr>
-            <tr><th scope="row">Signature &amp; date</th><td>${renderEditableSignoff("assessor-signature", "Enter signature & date")}</td></tr>
+            ${renderSignoffRows()}
           </tbody>
         </table>
         <div class="signoff-actions">
@@ -1714,6 +1736,7 @@ Do you want to proceed?</p>
         var candidateName = ${JSON.stringify(metadata.candidateName || "")};
         var contactId = ${JSON.stringify(metadata.contactId || "")};
         var givenName = ${JSON.stringify(givenNameFromOptions || "")};
+        var ASSESSOR_MODE = ${assessorMode ? "true" : "false"};
         var ASSESSOR_PREFILL = ${assessorPrefillFromOptions ? JSON.stringify(assessorPrefillFromOptions) : "null"};
 
         function deriveGivenName() {
@@ -1742,12 +1765,20 @@ Do you want to proceed?</p>
         }
 
         function collectSignoffData() {
-          return {
+          var outcomeEl = document.querySelector('input[name="interview-outcome"]:checked');
+          var dateTimeEl = document.getElementById("assessor-date-time");
+          if (dateTimeEl) dateTimeEl.value = new Date().toLocaleString();
+          var signoff = {
             assessorName: (document.getElementById("assessor-name") || {}).value || "",
             assessorEmail: (document.getElementById("assessor-email") || {}).value || "",
-            interviewOutcome: (document.getElementById("interview-outcome") || {}).value || "",
-            assessorSignature: (document.getElementById("assessor-signature") || {}).value || ""
+            interviewOutcome: outcomeEl ? outcomeEl.value : (document.getElementById("interview-outcome") || {}).value || "",
+            assessorSignature: (document.getElementById("assessor-signature") || {}).value || "",
           };
+          if (ASSESSOR_MODE) {
+            signoff.assessorComments = (document.getElementById("assessor-comments") || {}).value || "";
+            signoff.assessorDateTime = dateTimeEl ? dateTimeEl.value : "";
+          }
+          return signoff;
         }
 
         function collectReportJson() {
@@ -1790,6 +1821,13 @@ Do you want to proceed?</p>
           el.value = value === undefined || value === null ? "" : String(value);
         }
 
+        function setInterviewOutcome(value) {
+          var normalized = String(value || "").trim().toUpperCase();
+          var target = normalized === "APPROVED" ? "APPROVED" : "NOT APPROVED";
+          var input = document.querySelector('input[name="interview-outcome"][value="' + target + '"]');
+          if (input) input.checked = true;
+        }
+
         function applyAssessorPrefill() {
           var prefill = normalizeAssessorPrefill();
           if (!prefill) return;
@@ -1803,9 +1841,14 @@ Do you want to proceed?</p>
           });
 
           var signoff = prefill.signoff && typeof prefill.signoff === "object" ? prefill.signoff : {};
-          setFieldValue("assessor-name", signoff.assessorName || "");
-          setFieldValue("assessor-email", signoff.assessorEmail || "");
-          setFieldValue("interview-outcome", signoff.interviewOutcome || "");
+          if (!ASSESSOR_MODE) {
+            setFieldValue("assessor-name", signoff.assessorName || "");
+            setFieldValue("assessor-email", signoff.assessorEmail || "");
+            setFieldValue("interview-outcome", signoff.interviewOutcome || "");
+          } else {
+            setInterviewOutcome(signoff.interviewOutcome || "NOT APPROVED");
+            setFieldValue("assessor-comments", signoff.assessorComments || "");
+          }
           setFieldValue("assessor-signature", signoff.assessorSignature || "");
         }
 
@@ -1935,6 +1978,8 @@ Do you want to proceed?</p>
         var sendPdfBtn = document.getElementById("sendPdfBtn");
         if (sendPdfBtn) sendPdfBtn.addEventListener("click", sendPdf);
 
+        var assessorDateTimeEl = document.getElementById("assessor-date-time");
+        if (assessorDateTimeEl) assessorDateTimeEl.value = new Date().toLocaleString();
         applyAssessorPrefill();
       })();
     </script>

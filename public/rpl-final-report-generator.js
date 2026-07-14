@@ -429,6 +429,9 @@
       const baseHtml = reportModule.renderInteractiveReportHtml(model, {
         submitUrl: cleanValue(normalizedOptions.assessorSubmitUrl),
         givenName: cleanValue(normalizedOptions.assessorGivenName),
+        assessorName: cleanValue(normalizedOptions.assessorName),
+        assessorEmail: cleanValue(normalizedOptions.assessorEmail),
+        assessorMode: normalizedOptions.assessorMode === true,
         assessorPrefill: normalizedOptions.assessorPrefill || null,
         studentPhoto: cleanValue(normalizedOptions.studentPhoto),
       });
