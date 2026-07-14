@@ -273,7 +273,7 @@ test("renders approved report labels, escaped verbatim responses, and one row/ar
 
   assert.equal(validation.valid, true);
   assert.equal(html.includes("@page { size: A4; margin: 12mm; }"), true);
-  assert.equal(html.includes(".report { width: 100%; max-width: 180mm;"), true);
+  assert.equal(html.includes(".report { width: 100%; max-width: 186mm;"), true);
   assert.equal(html.includes(".summary, .question-review-section, .limitations { break-before: page; page-break-before: always; }"), true);
   assert.equal(html.includes("RPL Preliminary Interview Review"), true);
   assert.equal(html.includes("RPL Preliminary Assessment Review"), false);
@@ -351,6 +351,8 @@ test("renders assessor-mode sign-off fields and keeps assessor identity read-onl
   assert.match(html, /type: "rpl-assessor-submission-saved"/);
   assert.match(html, /notifyParentOfSavedSubmission\("question", qNum\)/);
   assert.match(html, /notifyParentOfSavedSubmission\("all", ""\)/);
+  assert.match(html, /@page \{ size: A4 portrait; margin: 12mm; \}/);
+  assert.match(html, /\.report \{ width: 100%; max-width: 186mm;/);
   assert.equal(review.validateReportHtmlCoverage(model, html).valid, true);
 });
 

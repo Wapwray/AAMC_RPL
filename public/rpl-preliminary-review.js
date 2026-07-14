@@ -1182,7 +1182,7 @@ Rules:
       :root { color-scheme: light; }
       body { margin: 0; background: #ffffff; color: #000000; font-family: Calibri, Arial, Helvetica, sans-serif; font-size: 11pt; line-height: 1.35; }
       @page { size: A4; margin: 12mm; }
-      .report { width: 100%; max-width: 180mm; margin: 0 auto; box-sizing: border-box; }
+      .report { width: 100%; max-width: 186mm; margin: 0 auto; box-sizing: border-box; }
       h1, h2, h3, h4 { color: #0f172a; line-height: 1.25; }
       h1 { margin: 0; font-size: 30px; }
       h2 { margin-top: 32px; border-bottom: 2px solid #d8dee9; padding-bottom: 8px; font-size: 20px; }
@@ -1223,7 +1223,7 @@ Rules:
       .checkbox-static { display: inline-block; min-width: 1.2em; font-family: "Segoe UI Symbol", Arial, Helvetica, sans-serif; }
       @media print {
         body { background: #fff; }
-        .report { width: 100%; max-width: 180mm; }
+        .report { width: 100%; max-width: 186mm; }
         .question-card, .summary, .warning-box, .coverage-warning, .limitations, .confirmation, .signoff { border-color: #999; }
       }
     </style>
@@ -1569,8 +1569,10 @@ Rules:
     <title>RPL Preliminary Interview Review - Assessor</title>
     <style>
       :root { color-scheme: light; }
+      @page { size: A4 portrait; margin: 12mm; }
+      *, *::before, *::after { box-sizing: border-box; }
       body { margin: 0; background: #f4f6f9; color: #000000; font-family: Calibri, Arial, Helvetica, sans-serif; font-size: 11pt; line-height: 1.35; }
-      .report { width: 100%; max-width: 180mm; margin: 0 auto; box-sizing: border-box; padding: 20px; }
+      .report { width: 100%; max-width: 186mm; margin: 0 auto; padding: 20px; }
       h1, h2, h3, h4 { color: #0f172a; line-height: 1.25; }
       h1 { margin: 0; font-size: 30px; }
       h2 { margin-top: 32px; border-bottom: 2px solid #d8dee9; padding-bottom: 8px; font-size: 20px; }
@@ -1578,7 +1580,7 @@ Rules:
       h4 { margin: 18px 0 8px; font-size: 14px; text-transform: uppercase; letter-spacing: .02em; color: #334155; }
       .subtitle, .muted { color: #64748b; }
       table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-      th, td { word-wrap: break-word; overflow-wrap: break-word; word-break: normal; vertical-align: top; }
+      th, td { word-wrap: break-word; overflow-wrap: anywhere; word-break: normal; vertical-align: top; }
       .metadata-table, .status-table, .signoff-table { background: #fff; }
       .metadata-table th, .metadata-table td, .status-table th, .status-table td, .signoff-table th, .signoff-table td { border: 1px solid #cbd5e1; padding: 10px 12px; vertical-align: top; text-align: left; }
       .metadata-table th { width: 30%; background: #eef2f7; }
@@ -1630,7 +1632,7 @@ Rules:
       .confirm-yes-btn:hover { background: #095c8b; }
       @media print {
         body { background: #fff; }
-        .report { width: 100%; max-width: 180mm; padding: 0; }
+        .report { width: 100%; max-width: 186mm; padding: 0; }
         .question-card, .summary, .warning-box, .coverage-warning, .limitations, .confirmation, .signoff { border-color: #999; }
         .signoff-actions { display: none; }
         .question-submit-btn { display: none; }
