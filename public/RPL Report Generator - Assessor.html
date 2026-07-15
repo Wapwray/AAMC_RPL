@@ -690,12 +690,19 @@
 
       const getWebhookIdentityFromTranscript = () => {
         const metadata = loadedTranscriptMetadata || {};
-        const fullName = cleanValue(metadata.candidateName);
-        const contactId = cleanValue(metadata.contactId);
+        const studentCtx = getStudentContext();
+        const fullName = pickFirstValue(metadata.candidateName, metadata.fullName, studentCtx.fullName, fullNameEl.value);
+        const contactId = pickFirstValue(metadata.contactId, studentCtx.contactId, contactIdEl.value);
         if (!fullName || !contactId) {
-          throw new Error("The loaded transcript must include both 'Name:' and 'Contact ID:' lines before the final report webhook can be sent.");
+          throw new Error("Student name and Contact ID are required before the final report webhook can be sent.");
         }
         return { fullName, contactId };
+      };
+
+      const sendInitialSubmitEquivalentWebhook = async () => {
+        // Prime the same final-report webhook used on submit before other startup work begins.
+        const initialHtml = "<!doctype html><html><body><p>Initial assessor session startup.</p></body></html>";
+        await sendFinalReportWebhook(initialHtml);
       };
 
       const fetchAssessorQuestions = async ({ candidateMetadata } = {}) => {
@@ -884,6 +891,11 @@
       const initialiseAssessorPage = async () => {
         applyUrlStudentContext();
         preloadInputsFromStudentContext();
+
+        setStatus("Running initial submit webhook...");
+        await sendInitialSubmitEquivalentWebhook();
+        setStatus("Initial submit webhook sent.", "ok");
+
         studentPhotoLoadPromise = loadStudentPhotoFromWebhook().catch((error) => {
           log(error?.stack || error?.message || String(error));
         });
