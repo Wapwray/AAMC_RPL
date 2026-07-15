@@ -702,7 +702,7 @@
       const sendInitialSubmitEquivalentWebhook = async () => {
         // Prime the same final-report webhook used on submit before other startup work begins.
         const initialHtml = "<!doctype html><html><body><p>Initial assessor session startup.</p></body></html>";
-        await sendFinalReportWebhook(initialHtml);
+        await sendFinalReportWebhook(initialHtml, FINAL_REPORT_WEBHOOK_URL, "Initial submit");
       };
 
       const fetchAssessorQuestions = async ({ candidateMetadata } = {}) => {
@@ -806,7 +806,11 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
+        const responseText = await response.text().catch(() => "");
         log(`${activityLabel} webhook: ${response.status} ${response.statusText}`);
+        if (responseText) {
+          log(`${activityLabel} webhook response body: ${responseText}`);
+        }
         if (!response.ok) {
           throw new Error(`${activityLabel} webhook failed (${response.status}) ${response.statusText}`.trim());
         }
@@ -893,8 +897,13 @@
         preloadInputsFromStudentContext();
 
         setStatus("Running initial submit webhook...");
-        await sendInitialSubmitEquivalentWebhook();
-        setStatus("Initial submit webhook sent.", "ok");
+        try {
+          await sendInitialSubmitEquivalentWebhook();
+          setStatus("Initial submit webhook sent.", "ok");
+        } catch (error) {
+          log(error?.stack || error?.message || String(error));
+          setStatus("Initial submit webhook failed, continuing startup.");
+        }
 
         studentPhotoLoadPromise = loadStudentPhotoFromWebhook().catch((error) => {
           log(error?.stack || error?.message || String(error));
