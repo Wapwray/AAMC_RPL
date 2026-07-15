@@ -1127,7 +1127,7 @@ Rules:
 
   const renderAssessorStaticSection = (question) => `
             <section class="assessor-evaluation">
-              <h4>Assessor Evaluation - Objective Met / Not Met</h4>
+              <h4>Assessor Evaluation - Status</h4>
               ${renderResponseBox("", "assessor-evaluation-box")}
               <h4>Assessor Notes</h4>
               ${renderResponseBox("", "assessor-notes")}
@@ -1505,10 +1505,19 @@ Rules:
       return `<input type="text" id="${escapeAttribute(id)}" name="${escapeAttribute(id)}" class="assessor-signoff-input" value="${escapeAttribute(value)}" readonly aria-readonly="true" style="width:100%;min-height:30px;border:1px solid #999;border-radius:4px;padding:7px 9px;box-sizing:border-box;font-family:Calibri,Arial,Helvetica,sans-serif;font-size:11pt;background:#f1f5f9;color:#334155;" />`;
     };
 
+    const renderAssessorEvaluationOptions = (questionNumber) => {
+      const name = `assessor-eval-${questionNumber}`;
+      return `
+      <fieldset class="assessor-eval-options" style="margin:0;padding:0;border:0;display:flex;gap:24px;align-items:center;flex-wrap:wrap;">
+        <label style="display:inline-flex;align-items:center;gap:7px;font-weight:700;"><input type="radio" name="${escapeAttribute(name)}" value="SATISFACTORY"> Satisfactory</label>
+        <label style="display:inline-flex;align-items:center;gap:7px;font-weight:700;"><input type="radio" name="${escapeAttribute(name)}" value="NOT SATISFACTORY"> Not Satisfactory</label>
+      </fieldset>`;
+    };
+
     const renderInterviewOutcome = () => `
       <fieldset class="interview-outcome" style="margin:0;padding:0;border:0;display:flex;gap:24px;align-items:center;flex-wrap:wrap;">
-        <label style="display:inline-flex;align-items:center;gap:7px;font-weight:700;"><input type="radio" name="interview-outcome" value="NOT APPROVED" checked> NOT APPROVED</label>
-        <label style="display:inline-flex;align-items:center;gap:7px;font-weight:700;"><input type="radio" name="interview-outcome" value="APPROVED"> APPROVED</label>
+        <label style="display:inline-flex;align-items:center;gap:7px;font-weight:700;"><input type="radio" name="interview-outcome" value="NOT SATISFACTORY" checked> Not Satisfactory</label>
+        <label style="display:inline-flex;align-items:center;gap:7px;font-weight:700;"><input type="radio" name="interview-outcome" value="SATISFACTORY"> Satisfactory</label>
       </fieldset>`;
 
     const renderSignoffRows = () => assessorMode ? `
@@ -1516,7 +1525,7 @@ Rules:
             <tr><th scope="row">Assessor Email</th><td>${renderReadOnlySignoff("assessor-email", assessorEmailFromOptions)}</td></tr>
             <tr><th scope="row">Interview Outcome</th><td>${renderInterviewOutcome()}</td></tr>
             <tr><th scope="row">Assessor Comments</th><td>${renderEditableField("assessor-comments", "Assessor Comments", "Enter assessor comments", "110px")}</td></tr>
-            <tr><th scope="row">Signature</th><td>${renderEditableSignoff("assessor-signature", "Enter signature")}</td></tr>
+            <tr><th scope="row">Signature - Please type your name</th><td>${renderEditableSignoff("assessor-signature", "Enter signature")}</td></tr>
             <tr><th scope="row">Date</th><td>${renderReadOnlySignoff("assessor-date-time", "")}</td></tr>` : `
             <tr><th scope="row">Assessor name</th><td>${renderEditableSignoff("assessor-name", "Enter assessor name")}</td></tr>
             <tr><th scope="row">Assessor Email</th><td>${renderEditableSignoff("assessor-email", "Enter assessor email")}</td></tr>
@@ -1550,8 +1559,8 @@ Rules:
               ${renderConversation(question)}
             </section>
             <section class="assessor-evaluation">
-              <h4>Assessor Evaluation - Objective Met / Not Met</h4>
-              ${renderEditableField(`assessor-eval-${question.questionNumber}`, "Assessor evaluation", "Enter your evaluation here...", "42px")}
+              <h4>Assessor Evaluation - Status</h4>
+              ${renderAssessorEvaluationOptions(question.questionNumber)}
               <h4>Assessor Notes</h4>
               ${renderEditableField(`assessor-notes-${question.questionNumber}`, "Assessor notes", "Enter your notes here...", "80px")}
               <button type="button" class="question-submit-btn" data-question-number="${escapeAttribute(question.questionNumber)}" style="margin-top:10px;background:#0b6ea9;color:#fff;border:none;border-radius:999px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;">Submit</button>
@@ -1762,11 +1771,11 @@ Do you want to proceed?</p>
         }
 
         function collectQuestionData(qNum) {
-          var evalEl = document.getElementById("assessor-eval-" + qNum);
+          var evalEl = document.querySelector('input[name="assessor-eval-' + qNum + '"]:checked');
           var notesEl = document.getElementById("assessor-notes-" + qNum);
           return {
             questionNumber: qNum,
-            assessorEvaluation: evalEl ? evalEl.value : "",
+            assessorEvaluation: evalEl ? String(evalEl.value || "") : "",
             assessorNotes: notesEl ? notesEl.value : ""
           };
         }
@@ -1828,9 +1837,24 @@ Do you want to proceed?</p>
           el.value = value === undefined || value === null ? "" : String(value);
         }
 
-        function setInterviewOutcome(value) {
+        function normalizeEvaluationValue(value) {
           var normalized = String(value || "").trim().toUpperCase();
-          var target = normalized === "APPROVED" ? "APPROVED" : "NOT APPROVED";
+          if (!normalized) return "";
+          if (normalized === "SATISFACTORY" || normalized === "MET" || normalized === "APPROVED" || normalized === "OBJECTIVE MET") return "SATISFACTORY";
+          if (normalized === "NOT SATISFACTORY" || normalized === "NOT APPROVED" || normalized === "NOT MET" || normalized === "OBJECTIVE NOT MET") return "NOT SATISFACTORY";
+          return "";
+        }
+
+        function setQuestionEvaluation(qNum, value) {
+          var normalized = normalizeEvaluationValue(value);
+          if (!normalized) return;
+          var input = document.querySelector('input[name="assessor-eval-' + qNum + '"][value="' + normalized + '"]');
+          if (input) input.checked = true;
+        }
+
+        function setInterviewOutcome(value) {
+          var normalized = normalizeEvaluationValue(value);
+          var target = normalized || "NOT SATISFACTORY";
           var input = document.querySelector('input[name="interview-outcome"][value="' + target + '"]');
           if (input) input.checked = true;
         }
@@ -1843,7 +1867,7 @@ Do you want to proceed?</p>
           questions.forEach(function(item) {
             var qNum = String(item && item.questionNumber !== undefined ? item.questionNumber : "").trim();
             if (!qNum) return;
-            setFieldValue("assessor-eval-" + qNum, item.assessorEvaluation || "");
+            setQuestionEvaluation(qNum, item.assessorEvaluation || "");
             setFieldValue("assessor-notes-" + qNum, item.assessorNotes || "");
           });
 
@@ -1853,7 +1877,7 @@ Do you want to proceed?</p>
             setFieldValue("assessor-email", signoff.assessorEmail || "");
             setFieldValue("interview-outcome", signoff.interviewOutcome || "");
           } else {
-            setInterviewOutcome(signoff.interviewOutcome || "NOT APPROVED");
+            setInterviewOutcome(signoff.interviewOutcome || "NOT SATISFACTORY");
             setFieldValue("assessor-comments", signoff.assessorComments || "");
           }
           setFieldValue("assessor-signature", signoff.assessorSignature || "");

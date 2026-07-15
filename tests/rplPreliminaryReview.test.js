@@ -299,7 +299,7 @@ test("renders approved report labels, escaped verbatim responses, and one row/ar
   assert.equal(html.includes("Assessor action suggested"), false);
   assert.equal(html.includes("AI follow-up exchange"), false);
   assert.equal(html.includes("AI INTERVIEW RESPONSE"), false);
-  assert.equal(html.includes("Assessor Evaluation - Objective Met / Not Met"), true);
+  assert.equal(html.includes("Assessor Evaluation - Status"), true);
   assert.equal(html.includes("Assessor Notes"), true);
   assert.equal(html.includes("to be completed by assessor"), true);
   assert.equal(html.includes("Final assessment outcome"), false);
@@ -339,11 +339,11 @@ test("renders assessor-mode sign-off fields and keeps assessor identity read-onl
 
   assert.match(html, /id="assessor-name"[^>]*value="Taylor &amp; Co"[^>]*readonly/);
   assert.match(html, /id="assessor-email"[^>]*value="taylor@example\.com"[^>]*readonly/);
-  assert.match(html, /name="interview-outcome" value="NOT APPROVED" checked/);
-  assert.match(html, /name="interview-outcome" value="APPROVED"/);
+  assert.match(html, /name="interview-outcome" value="NOT SATISFACTORY" checked/);
+  assert.match(html, /name="interview-outcome" value="SATISFACTORY"/);
   assert.match(html, /<th scope="row">Assessor Comments<\/th>/);
   assert.match(html, /id="assessor-comments"/);
-  assert.match(html, /<th scope="row">Signature<\/th>/);
+  assert.match(html, /<th scope="row">Signature - Please type your name<\/th>/);
   assert.match(html, /id="assessor-date-time"[^>]*readonly/);
   assert.match(html, /signoff\.assessorComments =/);
   assert.match(html, /signoff\.assessorDateTime =/);
