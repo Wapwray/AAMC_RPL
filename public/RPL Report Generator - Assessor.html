@@ -184,11 +184,10 @@
     <script src="rpl-preliminary-review.js"></script>
     <script src="rpl-final-report-generator.js"></script>
     <script>
-      const FINAL_REPORT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ad445c5a35534861933f60ee864eecfa/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=qiOM0ZtGoUf_75xUdMZJ6B5zVSzpc9qYVZJbEbYm6pM";
       const SEND_PDF_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/06/workflows/ad445c5a35534861933f60ee864eecfa/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=qiOM0ZtGoUf_75xUdMZJ6B5zVSzpc9qYVZJbEbYm6pM";
       const ASSESSOR_QUESTIONS_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/776a38fbbe6449c996fd3a4127212eff/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=kA6BlWXbHh-ymnHGDWqRt25m_BEzVEAW1vHmiYur7vw";
       const URL_TRANSCRIPT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/41fdc1293b8547b1ac672c8aa1ccf7f8/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=32qfqtKjiupj1eLtp31QEPjPGqGSCj9AOdZ-c3Bdy7Y";
-      const ASSESSOR_SUBMIT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/c16eb7b6410046b9b9c42f9ea0906f6e/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=UK5U-3LpQQjjTe3ObOXLGyNNbfDT7lm3dNtGD188FpY";
+      const ASSESSOR_SUBMIT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/22/workflows/c16eb7b6410046b9b9c42f9ea0906f6e/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=UK5U-3LpQQjjTe3ObOXLGyNNbfDT7lm3dNtGD188FpY";
       const GET_COMMENTS_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/fae53cfbfdf34e41ad287e99b5e5ae27/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=zKGiLS6UJMScAyuFibK9yFNdn1e8jMlwmZ7nQ97c5OU";
 
       const reportModule = window.RplPreliminaryReview;
@@ -699,12 +698,6 @@
         return { fullName, contactId };
       };
 
-      const sendInitialSubmitEquivalentWebhook = async () => {
-        // Prime the same final-report webhook used on submit before other startup work begins.
-        const initialHtml = "<!doctype html><html><body><p>Initial assessor session startup.</p></body></html>";
-        await sendFinalReportWebhook(initialHtml, FINAL_REPORT_WEBHOOK_URL, "Initial submit");
-      };
-
       const fetchAssessorQuestions = async ({ candidateMetadata } = {}) => {
         const payload = {
           candidateName: cleanValue(candidateMetadata?.candidateName || candidateMetadata?.fullName || fullNameEl.value),
@@ -782,12 +775,12 @@
         });
       };
 
-      const sendFinalReportWebhook = async (
+      const sendWebhookWithIdentity = async ({
         html,
-        webhookUrl = FINAL_REPORT_WEBHOOK_URL,
-        activityLabel = "Final report",
-        includeAssessorIdentity = false
-      ) => {
+        webhookUrl,
+        activityLabel,
+        includeAssessorIdentity = false,
+      }) => {
         const identity = getWebhookIdentityFromTranscript();
         const payload = {
           FullName: identity.fullName,
@@ -843,9 +836,9 @@
           previewFrame.srcdoc = html;
           log(`Report generated: ${validation.questionCount} question article(s).`);
           if (sendWebhook) {
-            await sendFinalReportWebhook(html);
+            log("generateReport sendWebhook=true ignored on assessor page; submit/finalise are handled by the configured assessor submit webhook inside the report.");
           }
-          setStatus(sendWebhook ? "Draft report generated and webhook sent." : "Draft report generated.", "ok");
+          setStatus("Draft report generated.", "ok");
           return html;
         } catch (error) {
           setStatus(error?.message || "Unable to generate report.", "error");
@@ -854,14 +847,18 @@
         }
       };
 
-      let submitWebhookQueue = Promise.resolve();
       window.addEventListener("message", (event) => {
         if (event.source !== previewFrame.contentWindow) return;
         const currentReportHtml = typeof event.data.html === "string" ? event.data.html : "";
         if (!currentReportHtml) return;
 
         if (event.data?.type === "rpl-assessor-send-pdf") {
-          sendFinalReportWebhook(currentReportHtml, SEND_PDF_WEBHOOK_URL, "Send PDF", true)
+          sendWebhookWithIdentity({
+            html: currentReportHtml,
+            webhookUrl: SEND_PDF_WEBHOOK_URL,
+            activityLabel: "Send PDF",
+            includeAssessorIdentity: true,
+          })
             .then(() => {
               setStatus("PDF report webhook sent.", "ok");
               previewFrame.contentWindow?.postMessage({ type: "rpl-assessor-send-pdf-result", ok: true }, "*");
@@ -880,30 +877,16 @@
 
         if (event.data?.type !== "rpl-assessor-submission-saved") return;
 
-        submitWebhookQueue = submitWebhookQueue
-          .catch(() => undefined)
-          .then(async () => {
-            await sendFinalReportWebhook(currentReportHtml);
-            setStatus("Assessor response saved and draft report webhook sent.", "ok");
-          })
-          .catch((error) => {
-            setStatus(error?.message || "Unable to send the updated draft report webhook.", "error");
-            log(error?.stack || error?.message || String(error));
-          });
+        const submitType = cleanValue(event.data?.submitType || "submission");
+        const questionNumber = cleanValue(event.data?.questionNumber || "");
+        const submitLabel = questionNumber ? `${submitType} ${questionNumber}` : submitType;
+        setStatus(`Assessor ${submitLabel} saved.`, "ok");
+        log(`Assessor submission saved via configured submit webhook (${submitLabel}).`);
       });
 
       const initialiseAssessorPage = async () => {
         applyUrlStudentContext();
         preloadInputsFromStudentContext();
-
-        setStatus("Running initial submit webhook...");
-        try {
-          await sendInitialSubmitEquivalentWebhook();
-          setStatus("Initial submit webhook sent.", "ok");
-        } catch (error) {
-          log(error?.stack || error?.message || String(error));
-          setStatus("Initial submit webhook failed, continuing startup.");
-        }
 
         studentPhotoLoadPromise = loadStudentPhotoFromWebhook().catch((error) => {
           log(error?.stack || error?.message || String(error));
