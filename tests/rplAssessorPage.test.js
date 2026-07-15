@@ -31,7 +31,7 @@ test("assessor page automatically loads comments, generates the report, and hand
   assert.ok(initialiseBody);
   assert.match(initialiseBody[1], /await loadTranscriptFromUrlContext\(\)/);
   assert.match(initialiseBody[1], /await loadAssessorCommentsFromWebhook\(\)/);
-  assert.match(initialiseBody[1], /await generateReport\(\{ sendWebhook: true \}\)/);
+  assert.match(initialiseBody[1], /await generateReport\(\{ sendWebhook: false \}\)/);
   assert.match(page, /event\.data\?\.type !== "rpl-assessor-submission-saved"/);
   assert.match(page, /await sendFinalReportWebhook\(currentReportHtml\)/);
 });

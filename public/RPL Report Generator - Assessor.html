@@ -898,7 +898,9 @@
           log(error?.stack || error?.message || String(error));
         }
 
-        await generateReport({ sendWebhook: true });
+        // Initial page load should only build the draft preview.
+        // Webhooks are sent on explicit assessor save/PDF actions.
+        await generateReport({ sendWebhook: false });
       };
 
       if (!reportModule) {
