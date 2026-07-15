@@ -33,13 +33,18 @@ test("assessor page automatically loads comments, generates the report, and hand
   assert.match(initialiseBody[1], /await loadAssessorCommentsFromWebhook\(\)/);
   assert.match(initialiseBody[1], /await generateReport\(\{ sendWebhook: false \}\)/);
   assert.match(page, /event\.data\?\.type !== "rpl-assessor-submission-saved"/);
-  assert.match(page, /await sendFinalReportWebhook\(currentReportHtml\)/);
+  assert.match(page, /setStatus\(`Assessor \$\{submitLabel\} saved\.`, "ok"\)/);
+  assert.match(page, /Assessor submission saved via configured submit webhook/);
 });
 
 test("Send PDF posts the button-free live report to the dedicated webhook", () => {
   assert.match(page, /const SEND_PDF_WEBHOOK_URL = "https:\/\/default63871d3cd05d49fa86b6420054699f\.b4\.environment\.api\.powerplatform\.com:443\/powerautomate\/automations\/direct\/cu\/06\/workflows\/ad445c5a35534861933f60ee864eecfa\/triggers\/manual\/paths\/invoke\?/);
   assert.match(page, /event\.data\?\.type === "rpl-assessor-send-pdf"/);
-  assert.match(page, /sendFinalReportWebhook\(currentReportHtml, SEND_PDF_WEBHOOK_URL, "Send PDF", true\)/);
+  assert.match(page, /sendWebhookWithIdentity\(\{/);
+  assert.match(page, /html: currentReportHtml/);
+  assert.match(page, /webhookUrl: SEND_PDF_WEBHOOK_URL/);
+  assert.match(page, /activityLabel: "Send PDF"/);
+  assert.match(page, /includeAssessorIdentity: true/);
   assert.match(page, /FullName: identity\.fullName/);
   assert.match(page, /ContactID: identity\.contactId/);
   assert.match(page, /FinalReport: html/);
