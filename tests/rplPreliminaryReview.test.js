@@ -339,14 +339,23 @@ test("renders assessor-mode sign-off fields and keeps assessor identity read-onl
 
   assert.match(html, /id="assessor-name"[^>]*value="Taylor &amp; Co"[^>]*readonly/);
   assert.match(html, /id="assessor-email"[^>]*value="taylor@example\.com"[^>]*readonly/);
-  assert.match(html, /name="interview-outcome" value="NOT SATISFACTORY" checked/);
-  assert.match(html, /name="interview-outcome" value="SATISFACTORY"/);
+  const interviewOutcomeCell = html.match(/<tr><th scope="row">Interview Outcome<\/th><td>([\s\S]*?)<\/td><\/tr>/);
+  assert.ok(interviewOutcomeCell);
+  assert.match(interviewOutcomeCell[1], /name="interview-outcome" value="SATISFACTORY"/);
+  assert.match(interviewOutcomeCell[1], /name="interview-outcome" value="NOT SATISFACTORY"/);
+  assert.ok(interviewOutcomeCell[1].indexOf('value="SATISFACTORY"') < interviewOutcomeCell[1].indexOf('value="NOT SATISFACTORY"'));
   assert.match(html, /<th scope="row">Assessor Comments<\/th>/);
   assert.match(html, /id="assessor-comments"/);
   assert.match(html, /<th scope="row">Signature - Please type your name<\/th>/);
   assert.match(html, /id="assessor-date-time"[^>]*readonly/);
   assert.match(html, /signoff\.assessorComments =/);
   assert.match(html, /signoff\.assessorDateTime =/);
+  assert.match(html, /function updateAssessorWorkflowState\(\)/);
+  assert.match(html, /areQuestionStatusesComplete\(\) && areQuestionNotesComplete\(\)/);
+  assert.match(html, /assessorCommentsEl\.disabled = !interviewComplete/);
+  assert.match(html, /assessorSignatureEl\.disabled = !commentsComplete/);
+  assert.match(html, /finaliseBtn\.disabled = !signatureComplete/);
+  assert.match(html, /sendPdfBtn\.disabled = !signatureComplete/);
   assert.match(html, /var NOTIFY_PARENT_ON_SUBMIT = true/);
   assert.match(html, /type: "rpl-assessor-submission-saved"/);
   assert.match(html, /notifyParentOfSavedSubmission\("question", qNum\)/);

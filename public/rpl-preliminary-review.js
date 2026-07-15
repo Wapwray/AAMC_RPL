@@ -1516,8 +1516,8 @@ Rules:
 
     const renderInterviewOutcome = () => `
       <fieldset class="interview-outcome" style="margin:0;padding:0;border:0;display:flex;gap:24px;align-items:center;flex-wrap:wrap;">
-        <label style="display:inline-flex;align-items:center;gap:7px;font-weight:700;"><input type="radio" name="interview-outcome" value="NOT SATISFACTORY" checked> Not Satisfactory</label>
         <label style="display:inline-flex;align-items:center;gap:7px;font-weight:700;"><input type="radio" name="interview-outcome" value="SATISFACTORY"> Satisfactory</label>
+        <label style="display:inline-flex;align-items:center;gap:7px;font-weight:700;"><input type="radio" name="interview-outcome" value="NOT SATISFACTORY"> Not Satisfactory</label>
       </fieldset>`;
 
     const renderSignoffRows = () => assessorMode ? `
@@ -1859,9 +1859,82 @@ Do you want to proceed?</p>
           if (input) input.checked = true;
         }
 
+        function setDisabledForElements(elements, disabled) {
+          if (!elements) return;
+          elements.forEach(function(element) {
+            if (!element) return;
+            element.disabled = Boolean(disabled);
+          });
+        }
+
+        function getQuestionArticles() {
+          return Array.from(document.querySelectorAll("article.question-card[data-question-number]"));
+        }
+
+        function areQuestionStatusesComplete() {
+          var questions = getQuestionArticles();
+          if (!questions.length) return false;
+          return questions.every(function(article) {
+            var qNum = String(article.getAttribute("data-question-number") || "").trim();
+            if (!qNum) return false;
+            return Boolean(document.querySelector('input[name="assessor-eval-' + qNum + '"]:checked'));
+          });
+        }
+
+        function areQuestionNotesComplete() {
+          var questions = getQuestionArticles();
+          if (!questions.length) return false;
+          return questions.every(function(article) {
+            var qNum = String(article.getAttribute("data-question-number") || "").trim();
+            if (!qNum) return false;
+            var notesEl = document.getElementById("assessor-notes-" + qNum);
+            return Boolean(notesEl && String(notesEl.value || "").trim());
+          });
+        }
+
+        function hasInterviewOutcomeSelection() {
+          return Boolean(document.querySelector('input[name="interview-outcome"]:checked'));
+        }
+
+        function hasAssessorCommentsEntry() {
+          var commentsEl = document.getElementById("assessor-comments");
+          return Boolean(commentsEl && String(commentsEl.value || "").trim());
+        }
+
+        function hasAssessorSignatureEntry() {
+          var signatureEl = document.getElementById("assessor-signature");
+          return Boolean(signatureEl && String(signatureEl.value || "").trim());
+        }
+
+        function updateAssessorWorkflowState() {
+          if (!ASSESSOR_MODE) return;
+
+          var signoffReady = areQuestionStatusesComplete() && areQuestionNotesComplete();
+          var interviewOutcomeInputs = Array.from(document.querySelectorAll('input[name="interview-outcome"]'));
+          var assessorCommentsEl = document.getElementById("assessor-comments");
+          var assessorSignatureEl = document.getElementById("assessor-signature");
+          var finaliseBtn = document.getElementById("globalSubmitBtn");
+          var sendPdfBtn = document.getElementById("sendPdfBtn");
+
+          setDisabledForElements(interviewOutcomeInputs, !signoffReady);
+
+          var interviewComplete = signoffReady && hasInterviewOutcomeSelection();
+          if (assessorCommentsEl) assessorCommentsEl.disabled = !interviewComplete;
+
+          var commentsComplete = interviewComplete && hasAssessorCommentsEntry();
+          if (assessorSignatureEl) assessorSignatureEl.disabled = !commentsComplete;
+
+          var signatureComplete = commentsComplete && hasAssessorSignatureEntry();
+          if (finaliseBtn) finaliseBtn.disabled = !signatureComplete;
+          if (sendPdfBtn) sendPdfBtn.disabled = !signatureComplete;
+        }
+
         function applyAssessorPrefill() {
           var prefill = normalizeAssessorPrefill();
-          if (!prefill) return;
+          if (!prefill) {
+            updateAssessorWorkflowState();
+            return;
+          }
 
           var questions = Array.isArray(prefill.questions) ? prefill.questions : [];
           questions.forEach(function(item) {
@@ -1881,6 +1954,7 @@ Do you want to proceed?</p>
             setFieldValue("assessor-comments", signoff.assessorComments || "");
           }
           setFieldValue("assessor-signature", signoff.assessorSignature || "");
+          updateAssessorWorkflowState();
         }
 
         function buildSubmitPayload(submitType, triggerQuestionNumber) {
@@ -2018,6 +2092,24 @@ Do you want to proceed?</p>
           });
         });
 
+        document.querySelectorAll('input[name^="assessor-eval-"]').forEach(function(input) {
+          input.addEventListener("change", updateAssessorWorkflowState);
+        });
+
+        document.querySelectorAll('textarea[id^="assessor-notes-"]').forEach(function(textarea) {
+          textarea.addEventListener("input", updateAssessorWorkflowState);
+        });
+
+        document.querySelectorAll('input[name="interview-outcome"]').forEach(function(input) {
+          input.addEventListener("change", updateAssessorWorkflowState);
+        });
+
+        var assessorCommentsEl = document.getElementById("assessor-comments");
+        if (assessorCommentsEl) assessorCommentsEl.addEventListener("input", updateAssessorWorkflowState);
+
+        var assessorSignatureEl = document.getElementById("assessor-signature");
+        if (assessorSignatureEl) assessorSignatureEl.addEventListener("input", updateAssessorWorkflowState);
+
         var globalBtn = document.getElementById("globalSubmitBtn");
         if (globalBtn) {
           globalBtn.addEventListener("click", function() {
@@ -2072,6 +2164,7 @@ Do you want to proceed?</p>
         var assessorDateTimeEl = document.getElementById("assessor-date-time");
         if (assessorDateTimeEl) assessorDateTimeEl.value = new Date().toLocaleString();
         applyAssessorPrefill();
+        updateAssessorWorkflowState();
       })();
     </script>
   </body>
