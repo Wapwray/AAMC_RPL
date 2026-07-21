@@ -19,7 +19,7 @@ test("buildAssessmentPrompt requires combined-attempt consistency", () => {
   assert.match(prompt, /same overallAssessment whether it appears in one long answer or is split across multiple attempts/);
   assert.match(prompt, /Return valid JSON only/);
   assert.match(prompt, /Never quote, paraphrase, list, or reveal hint content/);
-  assert.match(prompt, /Use it only to decide whether pressing Show Hint would help/);
+  assert.match(prompt, /Use it to check whether the learner has addressed all required points/);
   assert.match(prompt, /Privately compare the learner's attempts against the hint as a checklist/);
   assert.match(prompt, /Never copy hint facts, examples, terminology, suggested wording, or implied answers/);
 });
@@ -60,7 +60,7 @@ test("buildDeepseekAssessmentPrompt calibrates partial evidence feedback", () =>
   });
 
   assert.match(prompt, /Deepseek calibration rules/);
-  assert.match(prompt, /If the learner gives any relevant evidence, put it in covered/);
+  assert.match(prompt, /If the learner gives relevant evidence, include it in covered/);
   assert.match(prompt, /some additional detail is required/);
   assert.match(prompt, /one internal stakeholder affected by the change/);
   assert.match(prompt, /one external stakeholder affected by the change/);
