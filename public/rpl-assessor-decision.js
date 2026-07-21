@@ -233,23 +233,25 @@ Critical consistency rule:
 - The same evidence must receive the same overallAssessment whether it appears in one long answer or is split across multiple attempts.
 - Do not ask for repetition or extra detail just because the response is a single long answer.
 - A later attempt may add evidence that was missing from an earlier attempt. The learner has up to ${maxAttempts} attempts to build their complete response. Do not ask the learner to repeat evidence they have already provided in a previous attempt.
-- If any required part of the question, objective, or hint-aligned expectation is still missing in the combined evidence, mark ADDITIONAL EVIDENCE MAY BE NEEDED.
+- If required parts of the question/objective are still missing in the combined evidence, mark ADDITIONAL EVIDENCE MAY BE NEEDED.
 
 Assessment rules:
-- Evaluate against the full requirement set from the question text, objective, and hint together.
+- Evaluate primarily against the question text and objective.
+- Ensure the learner's combined response directly answers the specific question asked, not just adjacent or generic commentary.
 - Use candidateMetadata.industry and candidateMetadata.jobTitle as assessment context to judge whether examples and terminology are appropriate to the learner's role and sector.
 - Use industry/job-title context to interpret evidence relevance and depth expectations, but do not fail a response only for wording differences if competency evidence is clear.
-- Treat the hint as an additional required assessment input (not supplementary). Never quote, paraphrase, list, or reveal hint content in any returned field.
-- The hint is the same content the learner can access with the Show Hint button. Use it to check whether the learner has addressed all required points.
-- Privately compare the learner's attempts against the hint as a checklist. Use covered to acknowledge only the parts of the learner's own wording that align with the question, objective, or hint.
+- Treat the hint as directional guidance for expected tone and general response direction (not a strict checklist). Never quote, paraphrase, list, or reveal hint content in any returned field.
+- The hint is the same content the learner can access with the Show Hint button. Use it to guide expectations about broad coverage and level of detail, without requiring every hint detail.
+- Privately compare the learner's attempts against the hint for thematic alignment. Use covered to acknowledge parts of the learner's own wording that align with the question, objective, or hint direction.
 - When the learner's response partly aligns with the hint, acknowledge that aligned evidence in covered using the learner's own general idea, not the hint's wording.
 - If the hint would help with a missing part of the response, set hintWouldHelp to true and keep missing generic enough that it does not reveal the hint or a model answer.
 - Never copy hint facts, examples, terminology, suggested wording, or implied answers into covered, missing, or assessorRationale.
-- Missing items must be based on the visible question, objective, and hint expectations without revealing hint content. If a missing item would require hint-only detail, use a broad phrase such as "the remaining required part of the response" and set hintWouldHelp to true.
+- Missing items must be based on the question and objective, with hint used only to shape broad direction/level of detail without revealing hint content. If detail is missing, use broad phrases and set hintWouldHelp to true.
 - Do not introduce requirements that are not present in the question, objective, or reasonably implied by them.
-- Mark LIKELY SUFFICIENT only when the combined response addresses the full objective and all required question/hint-aligned expectations with clear, relevant evidence.
+- Mark LIKELY SUFFICIENT when the combined response addresses the full objective with clear, relevant evidence, even if not every hint detail is present.
 - Mark ADDITIONAL EVIDENCE MAY BE NEEDED when any required part is missing, unclear, or too shallow.
 - Ask for added detail where needed, but keep missing items concise and not overly deep (prefer 1-3 focused items).
+- Require enough practical detail to evidence competency, but do not require exhaustive or extreme detail.
 - For regulatory-change questions, day-to-day impact can be shown by changed work processes such as updated forms, added compliance checks, training, consultant review, client explanations, changed time allocation, or changed client conversations. Do not require a separate phrase such as "day-to-day" if the practical work impact is already clear.
 - For product or service impact questions, product/service impact can be shown by changed lender policy, risk appetite, pricing, servicing, borrowing capacity, product features, product availability, lender selection, or recommendation scope. Do not require a separate explicit phrase such as "impact on products or services" if a concrete product, lender, policy, pricing, servicing, or recommendation change is already clear.
 - If the response is LIKELY SUFFICIENT, missing must be an empty array.
@@ -317,11 +319,11 @@ Critical consistency rules:
 - Treat all attempts as one combined response.
 - The same evidence must receive the same overallAssessment whether it appears in one long answer or is split across multiple attempts.
 - A later attempt may add evidence that was missing from an earlier attempt. The learner has up to ${maxAttempts} attempts to build their complete response.
-- Mark LIKELY SUFFICIENT only when the combined evidence addresses the full objective and all required question/hint-aligned expectations, even if wording is informal.
+- Mark LIKELY SUFFICIENT when the combined evidence addresses the full objective, even if wording is informal and not every hint detail is present.
 - Do not ask the learner to repeat evidence they have already provided in a previous attempt.
 
 Deepseek calibration rules:
-- Be evidence-aware and fair, not lenient. If the learner gives relevant evidence, include it in covered, but do not mark LIKELY SUFFICIENT unless all required parts are addressed.
+- Be evidence-aware and fair, not lenient. If the learner gives relevant evidence, include it in covered, but do not mark LIKELY SUFFICIENT unless the core objective requirements are addressed.
 - For a partly correct answer, return ADDITIONAL EVIDENCE MAY BE NEEDED, but still acknowledge what was covered.
 - Prefer "some additional detail is required" style outcomes over "not enough evidence" style outcomes when any relevant evidence exists.
 - Do not use harsh or absolute wording in assessorRationale such as "could not identify enough evidence", "failed to", "does not demonstrate", or "insufficient evidence" when covered contains any item.
@@ -338,18 +340,20 @@ Warmth and answer-safety rules:
 - When any relevant evidence exists, make assessorRationale balanced: briefly acknowledge the useful evidence before noting the remaining gap.
 
 Assessment rules:
-- Evaluate against the full requirement set from the question text, objective, and hint together.
+- Evaluate primarily against the question text and objective.
+- Ensure the learner's combined response directly answers the specific question asked, not just adjacent or generic commentary.
 - Use candidateMetadata.industry and candidateMetadata.jobTitle as assessment context to judge whether examples and terminology are appropriate to the learner's role and sector.
 - Use industry/job-title context to interpret evidence relevance and depth expectations, but do not fail a response only for wording differences if competency evidence is clear.
-- Treat the hint as an additional required assessment input (not supplementary). Never quote, paraphrase, list, or reveal hint content in any returned field.
-- Compare the learner's own response against the hint privately, then use covered to reflect the parts of the learner's response that already align.
+- Treat the hint as directional guidance for expected tone and general response direction (not a strict checklist). Never quote, paraphrase, list, or reveal hint content in any returned field.
+- Compare the learner's own response against the hint privately for thematic alignment, then use covered to reflect the parts of the learner's response that already align.
 - If the hint would help with a missing part of the response, set hintWouldHelp to true and keep missing generic enough that it does not reveal the hint or a model answer.
 - Never copy hint facts, examples, terminology, suggested wording, or implied answers into covered, missing, or assessorRationale.
-- Missing items must be based on the visible question, objective, and hint expectations without revealing hint content. If a missing item would require hint-only detail, use a broad phrase such as "the remaining required part of the response" and set hintWouldHelp to true.
+- Missing items must be based on the question and objective, with hint used only to shape broad direction/level of detail without revealing hint content. If detail is missing, use broad phrases and set hintWouldHelp to true.
 - Do not introduce requirements that are not present in the question, objective, or reasonably implied by them.
-- Mark LIKELY SUFFICIENT only when the combined response addresses the full objective and all required question/hint-aligned expectations with clear, relevant evidence.
+- Mark LIKELY SUFFICIENT when the combined response addresses the full objective with clear, relevant evidence, even if not every hint detail is present.
 - Mark ADDITIONAL EVIDENCE MAY BE NEEDED when any required part is missing, unclear, or too shallow.
 - Ask for added detail where needed, but keep missing items concise and not overly deep (prefer 1-3 focused items).
+- Require enough practical detail to evidence competency, but do not require exhaustive or extreme detail.
 - For regulatory-change questions, day-to-day impact can be shown by changed work processes such as updated forms, added compliance checks, training, consultant review, client explanations, changed time allocation, or changed client conversations. Do not require a separate phrase such as "day-to-day" if the practical work impact is already clear.
 - For product or service impact questions, product/service impact can be shown by changed lender policy, risk appetite, pricing, servicing, borrowing capacity, product features, product availability, lender selection, or recommendation scope. Do not require a separate explicit phrase such as "impact on products or services" if a concrete product, lender, policy, pricing, servicing, or recommendation change is already clear.
 - If the response is LIKELY SUFFICIENT, missing must be an empty array.
