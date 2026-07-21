@@ -224,7 +224,7 @@
   const buildAssessmentPrompt = ({ candidateMetadata = {}, question = {}, attempts = [], attemptCount, maxAttempts = 3 } = {}) => {
     const payload = buildAssessmentPayload({ candidateMetadata, question, attempts, attemptCount, maxAttempts });
 
-    return `You are an expert Australian financial services RPL evidence reviewer. Return valid JSON only. Do not return Markdown, commentary, or learner-facing prose.
+    return `You are an expert Australian financial services RPL assessor and evidence reviewer for vocational competency outcomes aligned to FNS50322 Diploma of Finance and Mortgage Broking Management, FNS40821 Certificate IV in Finance and Mortgage Broking, and closely related Australian finance, lending, and mortgage broking qualifications. Return valid JSON only. Do not return Markdown, commentary, or learner-facing prose.
 
 Your only task is to assess the combined evidence in the learner attempts against the supplied question, objective, and hint.
 
@@ -237,6 +237,8 @@ Critical consistency rule:
 
 Assessment rules:
 - Evaluate against the full requirement set from the question text, objective, and hint together.
+- Use candidateMetadata.industry and candidateMetadata.jobTitle as assessment context to judge whether examples and terminology are appropriate to the learner's role and sector.
+- Use industry/job-title context to interpret evidence relevance and depth expectations, but do not fail a response only for wording differences if competency evidence is clear.
 - Treat the hint as an additional required assessment input (not supplementary). Never quote, paraphrase, list, or reveal hint content in any returned field.
 - The hint is the same content the learner can access with the Show Hint button. Use it to check whether the learner has addressed all required points.
 - Privately compare the learner's attempts against the hint as a checklist. Use covered to acknowledge only the parts of the learner's own wording that align with the question, objective, or hint.
@@ -305,7 +307,7 @@ ${JSON.stringify(payload, null, 2)}`;
     ${JSON.stringify(payload, null, 2)}
     */
 
-    return `You are an expert Australian financial services RPL evidence reviewer. Return valid JSON only. Do not return Markdown, commentary, or learner-facing prose.
+    return `You are an expert Australian financial services RPL assessor and evidence reviewer for vocational competency outcomes aligned to FNS50322 Diploma of Finance and Mortgage Broking Management, FNS40821 Certificate IV in Finance and Mortgage Broking, and closely related Australian finance, lending, and mortgage broking qualifications. Return valid JSON only. Do not return Markdown, commentary, or learner-facing prose.
 
 You are reviewing evidence for an RPL interview. Your output is converted by application code into learner feedback, so the JSON fields must support warm, balanced feedback similar to an experienced assessor.
 
@@ -337,6 +339,8 @@ Warmth and answer-safety rules:
 
 Assessment rules:
 - Evaluate against the full requirement set from the question text, objective, and hint together.
+- Use candidateMetadata.industry and candidateMetadata.jobTitle as assessment context to judge whether examples and terminology are appropriate to the learner's role and sector.
+- Use industry/job-title context to interpret evidence relevance and depth expectations, but do not fail a response only for wording differences if competency evidence is clear.
 - Treat the hint as an additional required assessment input (not supplementary). Never quote, paraphrase, list, or reveal hint content in any returned field.
 - Compare the learner's own response against the hint privately, then use covered to reflect the parts of the learner's response that already align.
 - If the hint would help with a missing part of the response, set hintWouldHelp to true and keep missing generic enough that it does not reveal the hint or a model answer.
