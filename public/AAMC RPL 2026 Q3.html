@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AAMC RPL Quiz - Q3</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: #f4f6f9;
+        color: #0f172a;
+      }
+
+      .boot {
+        min-height: 100%;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+
+      .bootCard {
+        width: min(680px, 100%);
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+      }
+
+      .bootTitle {
+        margin: 0 0 8px;
+        font-size: 18px;
+      }
+
+      .bootText {
+        margin: 0;
+        color: #475569;
+        line-height: 1.5;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="boot">
+      <section class="bootCard">
+        <h1 class="bootTitle">Loading AAMC RPL 2026 Q3...</h1>
+        <p class="bootText">Applying Q3 updates: debug removal, safer question parsing, and request timeout hardening.</p>
+      </section>
+    </main>
+
+    <script>
+      const SOURCE_FILE = "AAMC RPL 2026.html";
+
+      const replaceOnce = (text, matcher, replacement) => {
+        const next = text.replace(matcher, replacement);
+        return next;
+      };
+
+      const removeDebugPanelMarkup = (html) => {
+        return html.replace(/<div class="checkResponseDebug"[\s\S]*?<\/pre>\s*<\/div>/g, "");
+      };
+
+      const removeDebugFunctions = (html) => {
+        let next = html;
+
+        next = replaceOnce(
+          next,
+          /const clearCheckResponseDebug = \(message = "Waiting for Check Response\.\.\."\) => \{[\s\S]*?\n      \};\n\n      const appendCheckResponseDebug = \(label, payload\) => \{[\s\S]*?\n      \};/,
+          'const clearCheckResponseDebug = () => {};\n\n      const appendCheckResponseDebug = () => {};'
+        );
+
+        next = replaceOnce(
+          next,
+          /const withCheckResponseTiming = async \(label, task\) => \{[\s\S]*?\n      \};/,
+          'const withCheckResponseTiming = async (_label, task) => task();'
+        );
+
+        next = next.replace(/\n\s*clearCheckResponseDebugBtn\?\.addEventListener\("click", \(\) => \{[\s\S]*?\n\s*\}\);/g, "");
+
+        return next;
+      };
+
+      const patchParseListItems = (html) => {
+        const replacement = `const parseListItems = (json) => {
+        if (!json || (json.listitems === undefined && json.listItems === undefined && json.items === undefined)) {
+          return { items: [], error: "Response does not include listitems." };
+        }
+
+        const raw = json.listitems ?? json.listItems ?? json.items;
+        if (Array.isArray(raw)) {
+          return { items: raw, error: raw.length ? null : "No questions returned." };
+        }
+
+        if (typeof raw === "string") {
+          try {
+            const parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed)) {
+              return { items: [], error: "listitems is not an array." };
+            }
+            return { items: parsed, error: parsed.length ? null : "No questions returned." };
+          } catch (parseError) {
+            return { items: [], error: parseError?.message || String(parseError) };
+          }
+        }
+
+        return { items: [], error: "Unsupported listitems payload shape." };
+      };`;
+
+        return replaceOnce(
+          html,
+          /const parseListItems = \(json\) => \{[\s\S]*?\n      \};/,
+          replacement
+        );
+      };
+
+      const patchTimeouts = (html) => {
+        let next = html;
+
+        next = next.replace(
+          /const response = await fetch\(questionsUrl, \{\n\s*method: "POST",\n\s*headers: \{ "Content-Type": "application\/json" \},\n\s*\}\);/,
+          'const response = await fetchWithTimeout(questionsUrl, {\n          method: "POST",\n          headers: { "Content-Type": "application/json" },\n        }, 15000);'
+        );
+
+        next = next.replace(
+          /const response = await fetch\(url, \{\n\s*method: "POST",\n\s*headers: \{ "Content-Type": "application\/json" \},\n\s*body: JSON\.stringify\(payload\),\n\s*\}\);/g,
+          'const response = await fetchWithTimeout(url, {\n            method: "POST",\n            headers: { "Content-Type": "application/json" },\n            body: JSON.stringify(payload),\n          }, 20000);'
+        );
+
+        return next;
+      };
+
+      const patchTitle = (html) => {
+        let next = html.replace(/<title>[\s\S]*?<\/title>/, "<title>AAMC RPL Quiz - Q3</title>");
+        next = next.replace(/AAMC RPL Quiz - V1\.0/g, "AAMC RPL Quiz - Q3");
+        next = next.replace(/V3\.0-Ornith/g, "Q3");
+        return next;
+      };
+
+      const removeDebugSectionStyles = (html) => {
+        return html
+          .replace(/\.checkResponseDebug\s*\{[\s\S]*?\}\s*\.checkResponseDebugHeader\s*\{[\s\S]*?\}\s*\.checkResponseDebugHeader button\s*\{[\s\S]*?\}\s*\.checkResponseDebugLog\s*\{[\s\S]*?\}/, "");
+      };
+
+      const applyQ3Transforms = (html) => {
+        let next = html;
+        next = patchTitle(next);
+        next = removeDebugPanelMarkup(next);
+        next = removeDebugFunctions(next);
+        next = removeDebugSectionStyles(next);
+        next = patchParseListItems(next);
+        next = patchTimeouts(next);
+        return next;
+      };
+
+      const boot = async () => {
+        try {
+          const response = await fetch(SOURCE_FILE, { cache: "no-store" });
+          if (!response.ok) {
+            throw new Error(`Failed to load source file: ${response.status} ${response.statusText}`);
+          }
+          const sourceHtml = await response.text();
+          const q3Html = applyQ3Transforms(sourceHtml);
+          document.open();
+          document.write(q3Html);
+          document.close();
+        } catch (error) {
+          const message = error?.message || String(error);
+          document.body.innerHTML = `\n            <main class="boot">\n              <section class="bootCard">\n                <h1 class="bootTitle">Q3 Load Failed</h1>\n                <p class="bootText">${message.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>\n              </section>\n            </main>\n          `;
+        }
+      };
+
+      boot();
+    </script>
+  </body>
+</html>
