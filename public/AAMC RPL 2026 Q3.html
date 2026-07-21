@@ -138,6 +138,29 @@
         return next;
       };
 
+      const patchResponseClearOnAttempt = (html) => {
+        return html.replace(
+          /currentAttempts \+= 1;\n\s*currentResponses\.push\(answer\);\n\s*const currentQuestion = questions\[currentIndex\];/,
+          'currentAttempts += 1;\n        currentResponses.push(answer);\n        answerInputEl.value = "";\n        const currentQuestion = questions[currentIndex];'
+        );
+      };
+
+      const patchTranscriptPayloads = (html) => {
+        let next = html;
+
+        next = next.replace(
+          /FullTranscript: fullTranscript,\n\s*FullTranscriptJSON: buildFullTranscriptJson\(\),/,
+          'FullTranscript: buildFullTranscript(),\n          FullTranscriptJson: buildFullTranscriptJson(),\n          FullTranscriptJSON: buildFullTranscriptJson(),'
+        );
+
+        next = next.replace(
+          /FullTranscript: fullTranscript \|\| buildFullTranscript\(\),\n\s*FullTranscriptJson: buildFullTranscriptJson\(\),/,
+          'FullTranscript: buildFullTranscript(),\n              FullTranscriptJson: buildFullTranscriptJson(),\n              FullTranscriptJSON: buildFullTranscriptJson(),'
+        );
+
+        return next;
+      };
+
       const removeDebugSectionStyles = (html) => {
         return html
           .replace(/\.checkResponseDebug\s*\{[\s\S]*?\}\s*\.checkResponseDebugHeader\s*\{[\s\S]*?\}\s*\.checkResponseDebugHeader button\s*\{[\s\S]*?\}\s*\.checkResponseDebugLog\s*\{[\s\S]*?\}/, "");
@@ -151,6 +174,8 @@
         next = removeDebugSectionStyles(next);
         next = patchParseListItems(next);
         next = patchTimeouts(next);
+        next = patchResponseClearOnAttempt(next);
+        next = patchTranscriptPayloads(next);
         return next;
       };
 
