@@ -351,7 +351,8 @@ test("renders assessor-mode sign-off fields and keeps assessor identity read-onl
   assert.match(html, /signoff\.assessorComments =/);
   assert.match(html, /signoff\.assessorDateTime =/);
   assert.match(html, /function updateAssessorWorkflowState\(\)/);
-  assert.match(html, /areQuestionStatusesComplete\(\) && areQuestionNotesComplete\(\)/);
+  assert.match(html, /areQuestionStatusesComplete\(\)/);
+  assert.match(html, /areQuestionNotesComplete\(\)/);
   assert.match(html, /assessorCommentsEl\.disabled = !interviewComplete/);
   assert.match(html, /assessorSignatureEl\.disabled = !commentsComplete/);
   assert.match(html, /finaliseBtn\.disabled = !signatureComplete/);
