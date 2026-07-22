@@ -1035,6 +1035,7 @@ Rules:
                 <td>${escapeHtml(valueOrMissing(question.section))}</td>
                 <td>${escapeHtml(truncateForTable(question.questionAsked))}</td>
                 <td><span class="status-badge ${statusClassName(question.shortStatus)}">${escapeHtml(question.shortStatus)}</span></td>
+                <td id="status-assessor-eval-${escapeAttribute(question.questionNumber)}"><span class="status-badge status-missing">Not Reviewed</span></td>
               </tr>`).join("");
 
   const buildConversationTranscriptText = (question) => {
@@ -1258,13 +1259,14 @@ Rules:
       </section>
 
       <section class="status-summary-section" aria-labelledby="statusTableTitle">
-        <h2 id="statusTableTitle">Preliminary Status by Question</h2>
+        <h2 id="statusTableTitle">Status by Question</h2>
         <table class="status-table">
           <colgroup>
             <col style="width: 10mm;">
             <col style="width: 28mm;">
             <col>
             <col style="width: 38mm;">
+            <col style="width: 34mm;">
           </colgroup>
           <thead>
             <tr>
@@ -1272,6 +1274,7 @@ Rules:
               <th scope="col">Section</th>
               <th scope="col">Question (short)</th>
               <th scope="col">Preliminary status</th>
+              <th scope="col">Assessor Evaluation</th>
             </tr>
           </thead>
           <tbody>${renderStatusTableRows(questions)}
@@ -1620,6 +1623,7 @@ Rules:
       .question-submit-btn:hover { background: #095c8b !important; }
       .submit-status.success { color: #166534; }
       .submit-status.error { color: #991b1b; }
+      .submit-status.locked { color: #92400e; }
       .signoff-actions { margin-top: 12px; display: flex; justify-content: flex-end; gap: 12px; align-items: center; flex-wrap: wrap; }
       .global-submit-btn { background: #0b6ea9; color: #fff; border: none; border-radius: 999px; padding: 12px 24px; font-size: 15px; font-weight: 700; cursor: pointer; }
       .global-submit-btn:hover { background: #095c8b; }
@@ -1683,13 +1687,14 @@ Rules:
       </section>
 
       <section class="status-summary-section" aria-labelledby="statusTableTitle">
-        <h2 id="statusTableTitle">Preliminary Status by Question</h2>
+        <h2 id="statusTableTitle">Status by Question</h2>
         <table class="status-table">
           <colgroup>
             <col style="width: 10mm;">
             <col style="width: 28mm;">
             <col>
             <col style="width: 38mm;">
+            <col style="width: 34mm;">
           </colgroup>
           <thead>
             <tr>
@@ -1697,6 +1702,7 @@ Rules:
               <th scope="col">Section</th>
               <th scope="col">Question (short)</th>
               <th scope="col">Preliminary status</th>
+              <th scope="col">Assessor Evaluation</th>
             </tr>
           </thead>
           <tbody>${renderStatusTableRows(questions)}
@@ -1754,6 +1760,7 @@ Do you want to proceed?</p>
         var ASSESSOR_MODE = ${assessorMode ? "true" : "false"};
         var NOTIFY_PARENT_ON_SUBMIT = ${notifyParentOnSubmit ? "true" : "false"};
         var ASSESSOR_PREFILL = ${assessorPrefillFromOptions ? JSON.stringify(assessorPrefillFromOptions) : "null"};
+        var questionSubmissionState = Object.create(null);
 
         function deriveGivenName() {
           if (givenName && String(givenName).trim()) return String(givenName).trim();
@@ -1768,6 +1775,68 @@ Do you want to proceed?</p>
             el.textContent = text;
             el.className = "submit-status " + (className || "");
           }
+        }
+
+        function getQuestionNumberOrder() {
+          return getQuestionArticles().map(function(article) {
+            return String(article.getAttribute("data-question-number") || "").trim();
+          }).filter(Boolean);
+        }
+
+        function getPreviousQuestionNumber(qNum) {
+          var order = getQuestionNumberOrder();
+          var target = String(qNum || "").trim();
+          var index = order.indexOf(target);
+          if (index <= 0) return "";
+          return order[index - 1] || "";
+        }
+
+        function isQuestionSubmitted(qNum) {
+          var key = String(qNum || "").trim();
+          return Boolean(key && questionSubmissionState[key] === true);
+        }
+
+        function areAllQuestionsSubmitted() {
+          var order = getQuestionNumberOrder();
+          if (!order.length) return false;
+          return order.every(function(qNum) {
+            return isQuestionSubmitted(qNum);
+          });
+        }
+
+        function isPreviousQuestionSubmitted(qNum) {
+          var previous = getPreviousQuestionNumber(qNum);
+          if (!previous) return true;
+          return isQuestionSubmitted(previous);
+        }
+
+        function isQuestionReadyToSubmit(qNum) {
+          var evalEl = document.querySelector('input[name="assessor-eval-' + qNum + '"]:checked');
+          var notesEl = document.getElementById("assessor-notes-" + qNum);
+          var hasNotes = Boolean(notesEl && String(notesEl.value || "").trim());
+          return Boolean(evalEl && hasNotes);
+        }
+
+        function getEvaluationDisplayText(value) {
+          var normalized = normalizeEvaluationValue(value);
+          if (normalized === "SATISFACTORY") return "Satisfactory";
+          if (normalized === "NOT SATISFACTORY") return "Not Satisfactory";
+          return "Not Reviewed";
+        }
+
+        function setStatusTableAssessorEvaluation(qNum, value) {
+          var cell = document.getElementById("status-assessor-eval-" + qNum);
+          if (!cell) return;
+          var normalized = normalizeEvaluationValue(value);
+          if (normalized === "SATISFACTORY") {
+            cell.innerHTML = '<span class="status-badge status-likely">Satisfactory</span>';
+            return;
+          }
+          if (normalized === "NOT SATISFACTORY") {
+            cell.innerHTML = '<span class="status-badge status-gap">Not Satisfactory</span>';
+            return;
+          }
+          cell.innerHTML = '<span class="status-badge status-missing">Not Reviewed</span>';
         }
 
         function collectQuestionData(qNum) {
@@ -1909,7 +1978,37 @@ Do you want to proceed?</p>
         function updateAssessorWorkflowState() {
           if (!ASSESSOR_MODE) return;
 
-          var signoffReady = areQuestionStatusesComplete() && areQuestionNotesComplete();
+          var questionArticles = getQuestionArticles();
+          questionArticles.forEach(function(article) {
+            var qNum = String(article.getAttribute("data-question-number") || "").trim();
+            if (!qNum) return;
+
+            var isSubmitted = isQuestionSubmitted(qNum);
+            var previousSubmitted = isPreviousQuestionSubmitted(qNum);
+            var lockedBySequence = !isSubmitted && !previousSubmitted;
+            var radios = Array.from(article.querySelectorAll('input[name="assessor-eval-' + qNum + '"]'));
+            var notesEl = document.getElementById("assessor-notes-" + qNum);
+            var submitBtn = article.querySelector('.question-submit-btn[data-question-number="' + qNum + '"]');
+
+            setDisabledForElements(radios, lockedBySequence || isSubmitted);
+            if (notesEl) notesEl.disabled = lockedBySequence || isSubmitted;
+
+            if (submitBtn) {
+              var canSubmit = !lockedBySequence && !isSubmitted && isQuestionReadyToSubmit(qNum);
+              submitBtn.disabled = !canSubmit;
+            }
+
+            if (isSubmitted) {
+              setQuestionStatus(qNum, "Saved", "success");
+            } else if (lockedBySequence) {
+              var previous = getPreviousQuestionNumber(qNum);
+              setQuestionStatus(qNum, previous ? ("Locked until Question " + previous + " is submitted") : "Locked", "locked");
+            } else {
+              setQuestionStatus(qNum, "", "");
+            }
+          });
+
+          var signoffReady = areAllQuestionsSubmitted();
           var interviewOutcomeInputs = Array.from(document.querySelectorAll('input[name="interview-outcome"]'));
           var assessorCommentsEl = document.getElementById("assessor-comments");
           var assessorSignatureEl = document.getElementById("assessor-signature");
@@ -1942,6 +2041,12 @@ Do you want to proceed?</p>
             if (!qNum) return;
             setQuestionEvaluation(qNum, item.assessorEvaluation || "");
             setFieldValue("assessor-notes-" + qNum, item.assessorNotes || "");
+            if (normalizeEvaluationValue(item.assessorEvaluation || "") && String(item.assessorNotes || "").trim()) {
+              questionSubmissionState[qNum] = true;
+              setStatusTableAssessorEvaluation(qNum, item.assessorEvaluation || "");
+            } else {
+              setStatusTableAssessorEvaluation(qNum, "");
+            }
           });
 
           var signoff = prefill.signoff && typeof prefill.signoff === "object" ? prefill.signoff : {};
@@ -2013,6 +2118,15 @@ Do you want to proceed?</p>
 
         function submitQuestion(qNum) {
           if (!SUBMIT_URL) { setQuestionStatus(qNum, "No submit URL configured", "error"); return; }
+          if (!isPreviousQuestionSubmitted(qNum)) {
+            var previous = getPreviousQuestionNumber(qNum);
+            setQuestionStatus(qNum, previous ? ("Complete Question " + previous + " first.") : "Complete previous question first.", "error");
+            return;
+          }
+          if (!isQuestionReadyToSubmit(qNum)) {
+            setQuestionStatus(qNum, "Select status and enter assessor notes before submitting.", "error");
+            return;
+          }
           setQuestionStatus(qNum, "Submitting...", "");
           var data = buildSubmitPayload("question", qNum);
           fetch(SUBMIT_URL, {
@@ -2021,7 +2135,11 @@ Do you want to proceed?</p>
             body: JSON.stringify(data)
           }).then(function(resp) {
             if (resp.ok) {
+              questionSubmissionState[String(qNum)] = true;
+              var submittedData = collectQuestionData(qNum);
+              setStatusTableAssessorEvaluation(qNum, submittedData.assessorEvaluation || "");
               setQuestionStatus(qNum, "Saved", "success");
+              updateAssessorWorkflowState();
               notifyParentOfSavedSubmission("question", qNum);
             } else {
               setQuestionStatus(qNum, "Error " + resp.status, "error");
@@ -2163,6 +2281,11 @@ Do you want to proceed?</p>
 
         var assessorDateTimeEl = document.getElementById("assessor-date-time");
         if (assessorDateTimeEl) assessorDateTimeEl.value = new Date().toLocaleString();
+        getQuestionNumberOrder().forEach(function(qNum) {
+          if (!isQuestionSubmitted(qNum)) {
+            setStatusTableAssessorEvaluation(qNum, "");
+          }
+        });
         applyAssessorPrefill();
         updateAssessorWorkflowState();
       })();
