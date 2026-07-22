@@ -5186,6 +5186,9 @@ END_REVIEW>>>`;
         const nextQuestionValue = isLastQuestion
           ? "XXX"
           : String(getQuestionNumber(questions[currentIndex + 1], currentIndex + 1));
+        const transcriptCurrentQuestionValue = isLastQuestion
+          ? String(getCurrentQuestionNumber())
+          : nextQuestionValue;
         const payload = {
           FullName: ctx.fullName,
           ContactID: String(ctx.contactId),
@@ -5245,7 +5248,7 @@ END_REVIEW>>>`;
               GivenName: ctx.givenName,
               FullTranscript: fullTranscript || buildFullTranscript(),
               FullTranscriptJson: buildFullTranscriptJson(),
-              CurrentQuestion: nextQuestionValue,
+              CurrentQuestion: transcriptCurrentQuestionValue,
             };
             logAssessmentDebug("Transcript webhook", "Sending payload");
             logAssessmentDebug("Transcript webhook payload", transcriptWebhookPayload);
