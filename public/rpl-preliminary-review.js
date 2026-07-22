@@ -1130,7 +1130,7 @@ Rules:
             <section class="assessor-evaluation">
               <h4>Assessor Evaluation - Status</h4>
               ${renderResponseBox("", "assessor-evaluation-box")}
-              <h4>Assessor Notes</h4>
+              <h4>Assessor Comments</h4>
               ${renderResponseBox("", "assessor-notes")}
             </section>`;
 
