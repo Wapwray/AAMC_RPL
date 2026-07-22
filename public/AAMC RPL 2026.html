@@ -5299,12 +5299,17 @@ END_REVIEW>>>`;
         logNextDebug("Next Question saves queued", { isLastQuestion, nextQuestionValue, currentIndex });
         if (isLastQuestion) {
           nextQuestionInFlight = false;
-          setCompletedState();
+          setStatus("Finalising assessment...");
           logNextDebug("Last question - completing", "calling runFinalReview");
           try {
             await runFinalReview({ sendWebhook: true, showCompletion: true });
-          } catch {
-            return;
+          } catch (error) {
+            // Always transition to completion after the webhook attempt to avoid leaving
+            // students on the final question screen when report delivery fails.
+            showCompletionScreen();
+            const message = error?.message || "Final report webhook failed.";
+            setStatus(`Assessment completed. ${message}`);
+            logNextDebug("Final review error (completion fallback)", message);
           }
           return;
         }
