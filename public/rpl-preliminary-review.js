@@ -1761,6 +1761,9 @@ Do you want to proceed?</p>
         var NOTIFY_PARENT_ON_SUBMIT = ${notifyParentOnSubmit ? "true" : "false"};
         var ASSESSOR_PREFILL = ${assessorPrefillFromOptions ? JSON.stringify(assessorPrefillFromOptions) : "null"};
         var questionSubmissionState = Object.create(null);
+        var questionLastSavedState = Object.create(null);
+        var assessorFinalised = false;
+        var assessorFinalisedAt = "";
 
         function deriveGivenName() {
           if (givenName && String(givenName).trim()) return String(givenName).trim();
@@ -1817,6 +1820,33 @@ Do you want to proceed?</p>
           return Boolean(evalEl && hasNotes);
         }
 
+        function buildQuestionStateSnapshot(qNum) {
+          var data = collectQuestionData(qNum);
+          return {
+            assessorEvaluation: normalizeEvaluationValue(data.assessorEvaluation || ""),
+            assessorNotes: String(data.assessorNotes || "").trim(),
+          };
+        }
+
+        function isQuestionDirtySinceLastSave(qNum) {
+          var key = String(qNum || "").trim();
+          if (!key || !isQuestionSubmitted(key)) return false;
+          var current = buildQuestionStateSnapshot(key);
+          var previous = questionLastSavedState[key] || { assessorEvaluation: "", assessorNotes: "" };
+          return current.assessorEvaluation !== previous.assessorEvaluation || current.assessorNotes !== previous.assessorNotes;
+        }
+
+        function getLatestActiveQuestionNumber() {
+          var order = getQuestionNumberOrder();
+          for (var i = 0; i < order.length; i += 1) {
+            var qNum = order[i];
+            if (!isQuestionSubmitted(qNum) && isPreviousQuestionSubmitted(qNum)) {
+              return qNum;
+            }
+          }
+          return "";
+        }
+
         function getEvaluationDisplayText(value) {
           var normalized = normalizeEvaluationValue(value);
           if (normalized === "SATISFACTORY") return "Satisfactory";
@@ -1862,6 +1892,8 @@ Do you want to proceed?</p>
           if (ASSESSOR_MODE) {
             signoff.assessorComments = (document.getElementById("assessor-comments") || {}).value || "";
             signoff.assessorDateTime = dateTimeEl ? dateTimeEl.value : "";
+            signoff.assessorFinalised = assessorFinalised;
+            signoff.assessorFinalisedAt = assessorFinalisedAt || "";
           }
           return signoff;
         }
@@ -1979,30 +2011,40 @@ Do you want to proceed?</p>
           if (!ASSESSOR_MODE) return;
 
           var questionArticles = getQuestionArticles();
+          var activeQuestionNumber = getLatestActiveQuestionNumber();
           questionArticles.forEach(function(article) {
             var qNum = String(article.getAttribute("data-question-number") || "").trim();
             if (!qNum) return;
 
             var isSubmitted = isQuestionSubmitted(qNum);
             var previousSubmitted = isPreviousQuestionSubmitted(qNum);
-            var lockedBySequence = !isSubmitted && !previousSubmitted;
+            var lockedBySequence = !previousSubmitted;
+            var isActiveQuestion = Boolean(activeQuestionNumber && qNum === activeQuestionNumber);
+            var isDirty = isQuestionDirtySinceLastSave(qNum);
             var radios = Array.from(article.querySelectorAll('input[name="assessor-eval-' + qNum + '"]'));
             var notesEl = document.getElementById("assessor-notes-" + qNum);
             var submitBtn = article.querySelector('.question-submit-btn[data-question-number="' + qNum + '"]');
 
-            setDisabledForElements(radios, lockedBySequence || isSubmitted);
-            if (notesEl) notesEl.disabled = lockedBySequence || isSubmitted;
+            setDisabledForElements(radios, assessorFinalised || lockedBySequence);
+            if (notesEl) notesEl.disabled = assessorFinalised || lockedBySequence;
 
             if (submitBtn) {
-              var canSubmit = !lockedBySequence && !isSubmitted && isQuestionReadyToSubmit(qNum);
+              var canSubmit = !assessorFinalised
+                && !lockedBySequence
+                && isQuestionReadyToSubmit(qNum)
+                && (isActiveQuestion || isDirty);
               submitBtn.disabled = !canSubmit;
             }
 
-            if (isSubmitted) {
-              setQuestionStatus(qNum, "Saved", "success");
+            if (assessorFinalised) {
+              setQuestionStatus(qNum, "Finalised", "success");
             } else if (lockedBySequence) {
               var previous = getPreviousQuestionNumber(qNum);
               setQuestionStatus(qNum, previous ? ("Locked until Question " + previous + " is submitted") : "Locked", "locked");
+            } else if (isSubmitted && isDirty) {
+              setQuestionStatus(qNum, "Edited after save - submit to update", "");
+            } else if (isSubmitted) {
+              setQuestionStatus(qNum, "Saved", "success");
             } else {
               setQuestionStatus(qNum, "", "");
             }
@@ -2015,17 +2057,17 @@ Do you want to proceed?</p>
           var finaliseBtn = document.getElementById("globalSubmitBtn");
           var sendPdfBtn = document.getElementById("sendPdfBtn");
 
-          setDisabledForElements(interviewOutcomeInputs, !signoffReady);
+          setDisabledForElements(interviewOutcomeInputs, assessorFinalised || !signoffReady);
 
           var interviewComplete = signoffReady && hasInterviewOutcomeSelection();
-          if (assessorCommentsEl) assessorCommentsEl.disabled = !interviewComplete;
+          if (assessorCommentsEl) assessorCommentsEl.disabled = assessorFinalised || !interviewComplete;
 
           var commentsComplete = interviewComplete && hasAssessorCommentsEntry();
-          if (assessorSignatureEl) assessorSignatureEl.disabled = !commentsComplete;
+          if (assessorSignatureEl) assessorSignatureEl.disabled = assessorFinalised || !commentsComplete;
 
           var signatureComplete = commentsComplete && hasAssessorSignatureEntry();
-          if (finaliseBtn) finaliseBtn.disabled = !signatureComplete;
-          if (sendPdfBtn) sendPdfBtn.disabled = !signatureComplete;
+          if (finaliseBtn) finaliseBtn.disabled = assessorFinalised || !signatureComplete;
+          if (sendPdfBtn) sendPdfBtn.disabled = assessorFinalised ? false : !signatureComplete;
         }
 
         function applyAssessorPrefill() {
@@ -2043,6 +2085,7 @@ Do you want to proceed?</p>
             setFieldValue("assessor-notes-" + qNum, item.assessorNotes || "");
             if (normalizeEvaluationValue(item.assessorEvaluation || "") && String(item.assessorNotes || "").trim()) {
               questionSubmissionState[qNum] = true;
+              questionLastSavedState[qNum] = buildQuestionStateSnapshot(qNum);
               setStatusTableAssessorEvaluation(qNum, item.assessorEvaluation || "");
             } else {
               setStatusTableAssessorEvaluation(qNum, "");
@@ -2059,6 +2102,8 @@ Do you want to proceed?</p>
             setFieldValue("assessor-comments", signoff.assessorComments || "");
           }
           setFieldValue("assessor-signature", signoff.assessorSignature || "");
+          assessorFinalised = Boolean(signoff.assessorFinalised || signoff.assessorFinalisedAt);
+          assessorFinalisedAt = signoff.assessorFinalisedAt ? String(signoff.assessorFinalisedAt) : "";
           updateAssessorWorkflowState();
         }
 
@@ -2118,6 +2163,10 @@ Do you want to proceed?</p>
 
         function submitQuestion(qNum) {
           if (!SUBMIT_URL) { setQuestionStatus(qNum, "No submit URL configured", "error"); return; }
+          if (assessorFinalised) {
+            setQuestionStatus(qNum, "Report has been finalised and is now read-only.", "locked");
+            return;
+          }
           if (!isPreviousQuestionSubmitted(qNum)) {
             var previous = getPreviousQuestionNumber(qNum);
             setQuestionStatus(qNum, previous ? ("Complete Question " + previous + " first.") : "Complete previous question first.", "error");
@@ -2135,8 +2184,13 @@ Do you want to proceed?</p>
             body: JSON.stringify(data)
           }).then(function(resp) {
             if (resp.ok) {
-              questionSubmissionState[String(qNum)] = true;
+              var key = String(qNum);
+              questionSubmissionState[key] = true;
               var submittedData = collectQuestionData(qNum);
+              questionLastSavedState[key] = {
+                assessorEvaluation: normalizeEvaluationValue(submittedData.assessorEvaluation || ""),
+                assessorNotes: String(submittedData.assessorNotes || "").trim(),
+              };
               setStatusTableAssessorEvaluation(qNum, submittedData.assessorEvaluation || "");
               setQuestionStatus(qNum, "Saved", "success");
               updateAssessorWorkflowState();
@@ -2158,21 +2212,31 @@ Do you want to proceed?</p>
           }
           if (btn) btn.disabled = true;
           if (statusEl) { statusEl.textContent = "Submitting all comments..."; statusEl.className = "global-status"; }
+          var finalisedStamp = new Date().toISOString();
+          assessorFinalised = true;
+          assessorFinalisedAt = finalisedStamp;
           var data = buildSubmitPayload("all");
           fetch(SUBMIT_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(data)
           }).then(function(resp) {
-            if (btn) btn.disabled = false;
             if (resp.ok) {
               if (statusEl) { statusEl.textContent = "All comments submitted successfully."; statusEl.className = "global-status success"; }
+              updateAssessorWorkflowState();
               notifyParentOfSavedSubmission("all", "");
             } else {
+              assessorFinalised = false;
+              assessorFinalisedAt = "";
+              if (btn) btn.disabled = false;
+              updateAssessorWorkflowState();
               if (statusEl) { statusEl.textContent = "Error " + resp.status; statusEl.className = "global-status error"; }
             }
           }).catch(function(err) {
+            assessorFinalised = false;
+            assessorFinalisedAt = "";
             if (btn) btn.disabled = false;
+            updateAssessorWorkflowState();
             if (statusEl) { statusEl.textContent = "Error: " + (err.message || "failed"); statusEl.className = "global-status error"; }
           });
         }

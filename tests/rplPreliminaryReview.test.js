@@ -353,10 +353,14 @@ test("renders assessor-mode sign-off fields and keeps assessor identity read-onl
   assert.match(html, /function updateAssessorWorkflowState\(\)/);
   assert.match(html, /areQuestionStatusesComplete\(\)/);
   assert.match(html, /areQuestionNotesComplete\(\)/);
-  assert.match(html, /assessorCommentsEl\.disabled = !interviewComplete/);
-  assert.match(html, /assessorSignatureEl\.disabled = !commentsComplete/);
-  assert.match(html, /finaliseBtn\.disabled = !signatureComplete/);
-  assert.match(html, /sendPdfBtn\.disabled = !signatureComplete/);
+  assert.match(html, /var activeQuestionNumber = getLatestActiveQuestionNumber\(\)/);
+  assert.match(html, /var isDirty = isQuestionDirtySinceLastSave\(qNum\)/);
+  assert.match(html, /assessorCommentsEl\.disabled = assessorFinalised \|\| !interviewComplete/);
+  assert.match(html, /assessorSignatureEl\.disabled = assessorFinalised \|\| !commentsComplete/);
+  assert.match(html, /finaliseBtn\.disabled = assessorFinalised \|\| !signatureComplete/);
+  assert.match(html, /sendPdfBtn\.disabled = assessorFinalised \? false : !signatureComplete/);
+  assert.match(html, /signoff\.assessorFinalised = assessorFinalised/);
+  assert.match(html, /signoff\.assessorFinalisedAt = assessorFinalisedAt \|\| ""/);
   assert.match(html, /var NOTIFY_PARENT_ON_SUBMIT = true/);
   assert.match(html, /type: "rpl-assessor-submission-saved"/);
   assert.match(html, /notifyParentOfSavedSubmission\("question", qNum\)/);
