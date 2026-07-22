@@ -1564,8 +1564,8 @@ Rules:
             <section class="assessor-evaluation">
               <h4>Assessor Evaluation - Status</h4>
               ${renderAssessorEvaluationOptions(question.questionNumber)}
-              <h4>Assessor Notes</h4>
-              ${renderEditableField(`assessor-notes-${question.questionNumber}`, "Assessor notes", "Enter your notes here...", "80px")}
+              <h4>Assessor Comments</h4>
+              ${renderEditableField(`assessor-notes-${question.questionNumber}`, "Assessor comments", "Enter your comments here...", "80px")}
               <button type="button" class="question-submit-btn" data-question-number="${escapeAttribute(question.questionNumber)}" style="margin-top:10px;background:#0b6ea9;color:#fff;border:none;border-radius:999px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;">Submit</button>
               <span class="submit-status" id="submit-status-${question.questionNumber}" style="margin-left:10px;font-size:12px;color:#64748b;"></span>
             </section>
@@ -1621,6 +1621,8 @@ Rules:
       .assessor-evaluation { border: 1px solid #cbd5e1; border-radius: 6px; padding: 12px; background: #f8fafc; margin-top: 12px; }
       .assessor-input:focus, .assessor-signoff-input:focus { outline: 2px solid #0b6ea9; border-color: #0b6ea9; }
       .question-submit-btn:hover { background: #095c8b !important; }
+      .question-submit-btn.is-disabled { background: #94a3b8 !important; color: #e2e8f0 !important; cursor: not-allowed !important; }
+      .question-submit-btn.is-disabled:hover { background: #94a3b8 !important; }
       .submit-status.success { color: #166534; }
       .submit-status.error { color: #991b1b; }
       .submit-status.locked { color: #92400e; }
@@ -1746,6 +1748,15 @@ Do you want to proceed?</p>
           <div class="confirm-actions">
             <button type="button" class="confirm-no-btn" id="finaliseConfirmNo">No</button>
             <button type="button" class="confirm-yes-btn" id="finaliseConfirmYes">Yes</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="confirm-backdrop" id="assessorPopupBackdrop" hidden>
+        <div class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="assessorPopupMessage">
+          <p class="confirm-message" id="assessorPopupMessage"></p>
+          <div class="confirm-actions">
+            <button type="button" class="confirm-yes-btn" id="assessorPopupClose">Close</button>
           </div>
         </div>
       </div>
@@ -2033,7 +2044,9 @@ Do you want to proceed?</p>
                 && !lockedBySequence
                 && isQuestionReadyToSubmit(qNum)
                 && (isActiveQuestion || isDirty);
-              submitBtn.disabled = !canSubmit;
+              submitBtn.disabled = assessorFinalised;
+              submitBtn.classList.toggle("is-disabled", !canSubmit);
+              submitBtn.setAttribute("aria-disabled", canSubmit ? "false" : "true");
             }
 
             if (assessorFinalised) {
@@ -2167,13 +2180,21 @@ Do you want to proceed?</p>
             setQuestionStatus(qNum, "Report has been finalised and is now read-only.", "locked");
             return;
           }
+          var activeQuestion = getLatestActiveQuestionNumber();
+          var isDirty = isQuestionDirtySinceLastSave(qNum);
+          if (!isDirty && activeQuestion && String(qNum) !== String(activeQuestion)) {
+            setQuestionStatus(qNum, "Only the latest active question can be submitted.", "locked");
+            setAssessorPopupOpen(true, "This question is not currently active. Please complete and submit Question " + activeQuestion + " first.");
+            return;
+          }
           if (!isPreviousQuestionSubmitted(qNum)) {
             var previous = getPreviousQuestionNumber(qNum);
             setQuestionStatus(qNum, previous ? ("Complete Question " + previous + " first.") : "Complete previous question first.", "error");
             return;
           }
           if (!isQuestionReadyToSubmit(qNum)) {
-            setQuestionStatus(qNum, "Select status and enter assessor notes before submitting.", "error");
+            setQuestionStatus(qNum, "Select status and enter assessor comments before submitting.", "error");
+            setAssessorPopupOpen(true, "Please select Satisfactory or Not Satisfactory and enter Assessor Comments before submitting.");
             return;
           }
           setQuestionStatus(qNum, "Submitting...", "");
@@ -2245,6 +2266,18 @@ Do you want to proceed?</p>
           var backdrop = document.getElementById("finaliseConfirmBackdrop");
           if (!backdrop) return;
           if (open) {
+            backdrop.removeAttribute("hidden");
+          } else {
+            backdrop.setAttribute("hidden", "hidden");
+          }
+        }
+
+        function setAssessorPopupOpen(open, message) {
+          var backdrop = document.getElementById("assessorPopupBackdrop");
+          var messageEl = document.getElementById("assessorPopupMessage");
+          if (!backdrop || !messageEl) return;
+          if (open) {
+            messageEl.textContent = String(message || "Please complete the required fields before submitting.");
             backdrop.removeAttribute("hidden");
           } else {
             backdrop.setAttribute("hidden", "hidden");
@@ -2323,9 +2356,26 @@ Do you want to proceed?</p>
           });
         }
 
+        var assessorPopupCloseBtn = document.getElementById("assessorPopupClose");
+        if (assessorPopupCloseBtn) {
+          assessorPopupCloseBtn.addEventListener("click", function() {
+            setAssessorPopupOpen(false);
+          });
+        }
+
+        var assessorPopupBackdrop = document.getElementById("assessorPopupBackdrop");
+        if (assessorPopupBackdrop) {
+          assessorPopupBackdrop.addEventListener("click", function(event) {
+            if (event.target === assessorPopupBackdrop) {
+              setAssessorPopupOpen(false);
+            }
+          });
+        }
+
         document.addEventListener("keydown", function(event) {
           if (event.key === "Escape") {
             setFinaliseDialogOpen(false);
+            setAssessorPopupOpen(false);
           }
         });
 

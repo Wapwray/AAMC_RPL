@@ -300,7 +300,7 @@ test("renders approved report labels, escaped verbatim responses, and one row/ar
   assert.equal(html.includes("AI follow-up exchange"), false);
   assert.equal(html.includes("AI INTERVIEW RESPONSE"), false);
   assert.equal(html.includes("Assessor Evaluation - Status"), true);
-  assert.equal(html.includes("Assessor Notes"), true);
+  assert.equal(html.includes("Assessor Comments"), true);
   assert.equal(html.includes("to be completed by assessor"), true);
   assert.equal(html.includes("Final assessment outcome"), false);
   assert.equal(html.includes("Interview Outcome"), true);
