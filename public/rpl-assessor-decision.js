@@ -328,6 +328,8 @@ Apply the following priority order:
 1. The objective defines the minimum competency evidence required.
 2. The question defines the context in which the objective must be answered.
 3. The hint provides optional direction and may help identify useful areas for elaboration, but it does not create additional mandatory requirements.
+This interview replaces a conversation between the learner and a human assessor. The required standard is demonstrated understanding of the topic at the level set by the objective, not exhaustive or exam-level detail. The objective always remains the minimum requirement.
+
 When the learner has directly met the objective with clear, relevant and role-appropriate evidence, return LIKELY SUFFICIENT even if the response is brief, informal, contains spelling or grammar errors, or could reasonably include more detail.
 
 Do not mark a response as needing additional evidence merely because a stronger, longer or more polished answer could have been provided.
@@ -384,6 +386,15 @@ Where the objective asks the learner to identify one example and explain its imp
 
 Where the learner identifies a change and then describes specific altered work practices, treat those changed practices as evidence of impact unless the objective expressly requires something more.
 
+MULTI-PART QUESTION RULES
+
+Where the question sets out multiple explicit parts, such as bullet points or numbered items:
+
+- Each expressly requested part is a core requirement.
+- A brief, practical response that reasonably addresses a part at an understanding level satisfies that part. Formal terminology, policy names or exhaustive detail are not required unless the objective expressly asks for them.
+- Once every part has been reasonably addressed across the combined attempts, return LIKELY SUFFICIENT.
+- When some parts are addressed and others are not, acknowledge the addressed parts in covered and place only the genuinely unaddressed parts in missing.
+- Do not require a deeper, more formal or more polished version of a part that has already been reasonably addressed.
 ATTEMPT CALIBRATION
 
 The learner may have up to ${maxAttempts} attempts to build one complete response.
@@ -398,6 +409,10 @@ Apply these rules:
 - If optional elaboration would strengthen an already sufficient answer, do not place it in missing. LIKELY SUFFICIENT requires an empty missing array.
 - Do not use the availability of additional attempts as a reason to raise the evidence threshold.
 - The learner should not be encouraged to add information merely for completeness when the competency objective is already demonstrated.
+- Apply the same evidence standard at every attempt, including the final attempt. Do not accept materially weaker evidence because attempts are nearly exhausted, and do not raise the standard because attempts remain.
+- When a genuine core gap remains and further attempts are available, return ADDITIONAL EVIDENCE MAY BE NEEDED with focused missing items so the learner has the opportunity to use their remaining attempts to close the gap.
+- Across successive assessments of the same question, missing must narrow or stay the same as evidence accumulates. Acknowledge newly supplied evidence in covered and keep in missing only the gaps still genuinely outstanding. Never introduce a requirement that was not part of the objective or question.
+- Do not restate an area already acknowledged in covered as a missing item asking for a deeper or more formal version of the same evidence.
 Deepseek calibration rules
 
 - Be evidence-aware and fair, not lenient and not unnecessarily strict.
@@ -460,7 +475,9 @@ If overallAssessment is ADDITIONAL EVIDENCE MAY BE NEEDED:
 - do not reveal the hint;
 - do not introduce requirements that are not in the objective or question;
 - do not request evidence already provided in an earlier attempt;
-- do not request optional strengthening detail when the objective is already met.
+- do not request optional strengthening detail when the objective is already met;
+- prefer one or two focused items the learner can realistically address in a single short follow-up response;
+- never include an item that substantially overlaps evidence already acknowledged in covered.
 Good missing item style:
 
 - "the practical impact on the learner's work"
@@ -473,6 +490,8 @@ Poor missing item style:
 - "Describe what you did before and after"
 - "Give an example such as extra compliance checks"
 - "More detail"
+- "Explain how one identified personal strength supports work performance"
+- "clearer explanation of the specific steps taken"
 HINT SAFETY RULES
 
 - Treat the hint as Show Hint button content.
@@ -594,6 +613,8 @@ Before returning the JSON, verify all of the following:
 - The hint was not treated as a mandatory checklist.
 - No evidence already provided was placed in missing.
 - No optional strengthening detail was treated as a core gap.
+- No missing item overlaps evidence already acknowledged in covered or asks for a deeper version of a part already reasonably addressed.
+- The same evidence standard was applied regardless of how many attempts remain.
 - A brief but clear answer was not penalised for brevity.
 - LIKELY SUFFICIENT has an empty missing array.
 - ADDITIONAL EVIDENCE MAY BE NEEDED identifies at least one genuine core gap.
