@@ -279,6 +279,9 @@ Objective evidence breakdown rules:
 - When a part is LIKELY SUFFICIENT, evidence must be a short direct quote or close paraphrase (25 words or fewer) of the learner's own wording that meets that part.
 - When a part is ADDITIONAL EVIDENCE MAY BE NEEDED, evidence must be a short quote of any partial learner evidence for that part, or an empty string if none exists.
 - evidence must come only from the learner's attempts. Never place hint content, model answers, or suggested wording in evidence.
+- Each part may only be marked LIKELY SUFFICIENT when the learner's own wording specifically addresses that part. Do not credit the same evidence fragment to more than one distinct part unless it genuinely addresses each part on its own.
+- Treat identifying, recognising or assessing a situation as a different requirement from responding to or managing it. A description of how the learner would respond does not evidence how they would identify or assess the situation, and vice versa.
+- If a part has no distinct supporting evidence, mark that part ADDITIONAL EVIDENCE MAY BE NEEDED, include the gap in missing, and do not mark the overallAssessment LIKELY SUFFICIENT.
 - objectiveEvidence must be consistent with overallAssessment, covered and missing: if overallAssessment is LIKELY SUFFICIENT, every part must be LIKELY SUFFICIENT; any part marked ADDITIONAL EVIDENCE MAY BE NEEDED must correspond to a genuine gap reflected in missing.
 
 Output length rules (keep the response short so it returns quickly):
@@ -671,6 +674,9 @@ Break the objective into its distinct component parts (typically 2 to 5) and ret
 - When a part is LIKELY SUFFICIENT, evidence must be a short direct quote or close paraphrase (25 words or fewer) of the learner's own wording that meets that part.
 - When a part is ADDITIONAL EVIDENCE MAY BE NEEDED, evidence must be a short quote of any partial learner evidence for that part, or an empty string if none exists.
 - evidence must come only from the learner's attempts. Never place hint content, model answers, or suggested wording in evidence.
+- Each part may only be marked LIKELY SUFFICIENT when the learner's own wording specifically addresses that part. Do not credit the same evidence fragment to more than one distinct part unless it genuinely addresses each part on its own.
+- Treat identifying, recognising or assessing a situation as a different requirement from responding to or managing it. A description of how the learner would respond does not evidence how they would identify or assess the situation, and vice versa.
+- If a part has no distinct supporting evidence, mark that part ADDITIONAL EVIDENCE MAY BE NEEDED, include the gap in missing, and do not mark the overallAssessment LIKELY SUFFICIENT.
 - objectiveEvidence must be consistent with overallAssessment, covered and missing: if overallAssessment is LIKELY SUFFICIENT, every part must be LIKELY SUFFICIENT; any part marked ADDITIONAL EVIDENCE MAY BE NEEDED must correspond to a genuine gap reflected in missing.
 - Do not invent extra parts beyond what the objective genuinely requires.
 OUTPUT LENGTH RULES
@@ -707,6 +713,7 @@ Before returning the JSON, verify all of the following:
 - assessorRationale is balanced, concise and in the third person.
 - covered, missing and assessorRationale respect the output length rules.
 - objectiveEvidence covers each distinct part of the objective, quotes only learner wording, and is consistent with overallAssessment, covered and missing.
+- No objectiveEvidence part was marked LIKELY SUFFICIENT by reusing evidence that only addresses a different part.
 - The output is valid JSON and matches the exact required shape.
 Return this exact JSON shape:
 
