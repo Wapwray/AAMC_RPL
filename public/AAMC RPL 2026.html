@@ -5021,7 +5021,7 @@ END_REVIEW>>>`;
             `Recording upload (question ${questionNumber}, attempt ${attemptNumber})`,
             () => withCheckResponseTiming("Recording upload", () => sendRecordingOnEvaluate(attemptNumber, questionNumber))
           );
-          const responseText = await withCheckResponseTiming("AI assessment", () => callTextModel(prompt, { mode: "assessor", temperature: 0, max_tokens: 450, debugLabel: "Check Response" }));
+          const responseText = await withCheckResponseTiming("AI assessment", () => callTextModel(prompt, { mode: "assessor", temperature: 0, max_tokens: 700, debugLabel: "Check Response" }));
           appendCheckResponseDebug("AI response parsed", {
             responseCharacterCount: responseText.length,
           });

@@ -192,10 +192,21 @@
       ""
     );
 
+    const objectiveEvidence = Array.isArray(rawDecision?.objectiveEvidence)
+      ? rawDecision.objectiveEvidence
+          .map((item) => ({
+            objectivePart: normalizeWhitespace(item?.objectivePart || item?.part || ""),
+            status: normaliseAssessmentStatus(item?.status) || STATUS_ADDITIONAL_EVIDENCE,
+            evidence: normalizeWhitespace(item?.evidence || ""),
+          }))
+          .filter((item) => item.objectivePart)
+      : [];
+
     return {
       overallAssessment: status,
       covered,
       missing,
+      objectiveEvidence,
       hintWouldHelp: Boolean(rawDecision?.hintWouldHelp),
       professionalConductConcern: Boolean(rawDecision?.professionalConductConcern),
       assessorRationale,
@@ -261,18 +272,35 @@ Assessment rules:
 - For product or service impact questions, product/service impact can be shown by changed lender policy, risk appetite, pricing, servicing, borrowing capacity, product features, product availability, lender selection, or recommendation scope. Do not require a separate explicit phrase such as "impact on products or services" if a concrete product, lender, policy, pricing, servicing, or recommendation change is already clear.
 - If the response is LIKELY SUFFICIENT, missing must be an empty array.
 
+Objective evidence breakdown rules:
+- Break the objective into its distinct component parts (typically 2 to 5) and return one objectiveEvidence item per part.
+- objectivePart must be a short neutral label for that part of the objective, 10 words or fewer.
+- Each part's status must be LIKELY SUFFICIENT or ADDITIONAL EVIDENCE MAY BE NEEDED, judged for that part alone using the same evidence standards as the overall assessment.
+- When a part is LIKELY SUFFICIENT, evidence must be a short direct quote or close paraphrase (25 words or fewer) of the learner's own wording that meets that part.
+- When a part is ADDITIONAL EVIDENCE MAY BE NEEDED, evidence must be a short quote of any partial learner evidence for that part, or an empty string if none exists.
+- evidence must come only from the learner's attempts. Never place hint content, model answers, or suggested wording in evidence.
+- objectiveEvidence must be consistent with overallAssessment, covered and missing: if overallAssessment is LIKELY SUFFICIENT, every part must be LIKELY SUFFICIENT; any part marked ADDITIONAL EVIDENCE MAY BE NEEDED must correspond to a genuine gap reflected in missing.
+
 Output length rules (keep the response short so it returns quickly):
 - covered: at most 3 items, each 12 words or fewer.
 - missing: at most 3 items, each 12 words or fewer.
 - assessorRationale: one sentence of 30 words or fewer.
+- objectiveEvidence: at most 5 parts; each objectivePart 10 words or fewer; each evidence quote 25 words or fewer.
 - Do not restate the question, objective, hint, or the learner's full wording; summarise in your own brief phrasing.
-- Keep the entire JSON response under 160 words.
+- Keep the entire JSON response under 300 words.
 
 Return this exact JSON shape:
 {
   "overallAssessment": "LIKELY SUFFICIENT | ADDITIONAL EVIDENCE MAY BE NEEDED",
   "covered": ["short neutral evidence point"],
   "missing": ["short neutral missing requirement"],
+  "objectiveEvidence": [
+    {
+      "objectivePart": "short label for one component part of the objective",
+      "status": "LIKELY SUFFICIENT | ADDITIONAL EVIDENCE MAY BE NEEDED",
+      "evidence": "short quote or close paraphrase from the learner's own response, or empty string if none"
+    }
+  ],
   "hintWouldHelp": false,
   "professionalConductConcern": false,
   "assessorRationale": "one concise assessor-facing reason for the status, about the learner in third person, not addressed to the learner",
@@ -634,6 +662,17 @@ Use low confidence when:
 - the question, objective or attempts are ambiguous;
 - the learner response is difficult to interpret;
 - important metadata or evidence appears missing.
+OBJECTIVE EVIDENCE BREAKDOWN RULES
+
+Break the objective into its distinct component parts (typically 2 to 5) and return one objectiveEvidence item per part so a human assessor can quickly see which parts are evidenced:
+
+- objectivePart must be a short neutral label for that part of the objective, 10 words or fewer.
+- Each part's status must be LIKELY SUFFICIENT or ADDITIONAL EVIDENCE MAY BE NEEDED, judged for that part alone using the same evidence standards as the overall assessment.
+- When a part is LIKELY SUFFICIENT, evidence must be a short direct quote or close paraphrase (25 words or fewer) of the learner's own wording that meets that part.
+- When a part is ADDITIONAL EVIDENCE MAY BE NEEDED, evidence must be a short quote of any partial learner evidence for that part, or an empty string if none exists.
+- evidence must come only from the learner's attempts. Never place hint content, model answers, or suggested wording in evidence.
+- objectiveEvidence must be consistent with overallAssessment, covered and missing: if overallAssessment is LIKELY SUFFICIENT, every part must be LIKELY SUFFICIENT; any part marked ADDITIONAL EVIDENCE MAY BE NEEDED must correspond to a genuine gap reflected in missing.
+- Do not invent extra parts beyond what the objective genuinely requires.
 OUTPUT LENGTH RULES
 
 Keep the returned JSON short so it can be produced quickly:
@@ -641,9 +680,10 @@ Keep the returned JSON short so it can be produced quickly:
 - covered: at most 3 items, each 12 words or fewer.
 - missing: at most 3 items, each 12 words or fewer.
 - assessorRationale: one sentence of 30 words or fewer.
+- objectiveEvidence: at most 5 parts; each objectivePart 10 words or fewer; each evidence quote 25 words or fewer.
 - Do not restate the question, objective, hint, or the learner's full wording; summarise each point in your own brief phrasing.
 - Do not repeat the same evidence point in multiple covered items when attempts overlap; merge overlapping attempts into single items.
-- Keep the entire JSON response under 160 words.
+- Keep the entire JSON response under 300 words.
 FINAL CONSISTENCY CHECK
 
 Before returning the JSON, verify all of the following:
@@ -666,6 +706,7 @@ Before returning the JSON, verify all of the following:
 - professionalConductConcern is true only when the combined attempts may have displayed inappropriate, unprofessional or unethical behaviour, and false otherwise.
 - assessorRationale is balanced, concise and in the third person.
 - covered, missing and assessorRationale respect the output length rules.
+- objectiveEvidence covers each distinct part of the objective, quotes only learner wording, and is consistent with overallAssessment, covered and missing.
 - The output is valid JSON and matches the exact required shape.
 Return this exact JSON shape:
 
@@ -677,6 +718,13 @@ Return this exact JSON shape:
 "missing": [
 "short neutral missing requirement as a noun phrase"
 ],
+"objectiveEvidence": [
+{
+"objectivePart": "short label for one component part of the objective",
+"status": "LIKELY SUFFICIENT | ADDITIONAL EVIDENCE MAY BE NEEDED",
+"evidence": "short quote or close paraphrase from the learner's own response, or empty string if none"
+}
+],
 "hintWouldHelp": false,
 "professionalConductConcern": false,
 "assessorRationale": "one concise assessor-facing reason for the status, about the learner in third person and not addressed to the learner",
@@ -687,11 +735,27 @@ Input:
 ${JSON.stringify(payload, null, 2)}`;
   };
 
+  const formatObjectiveEvidence = (items) => {
+    if (!Array.isArray(items) || !items.length) return "";
+    const lines = items.map((item) => {
+      if (item.status === STATUS_LIKELY_SUFFICIENT) {
+        return item.evidence
+          ? `- ${item.objectivePart}: Likely sufficient — "${item.evidence}"`
+          : `- ${item.objectivePart}: Likely sufficient.`;
+      }
+      return item.evidence
+        ? `- ${item.objectivePart}: Additional evidence may be needed — partial evidence: "${item.evidence}"`
+        : `- ${item.objectivePart}: Additional evidence may be needed — no clear evidence provided.`;
+    });
+    return `\nObjective evidence:\n${lines.join("\n")}`;
+  };
+
   const buildAssessorSummary = (decision, context = {}) => {
     const givenName = normalizeWhitespace(context.givenName) || "The learner";
     const conductNote = decision.professionalConductConcern
       ? " Note: the learner may have displayed inappropriate or unprofessional behaviour in this response; assessor review is recommended."
       : "";
+    const objectiveEvidenceText = formatObjectiveEvidence(decision.objectiveEvidence);
     if (decision.assessorRationale) {
       const rationale = decision.assessorRationale
         .replace(/^the learner\s+/i, "")
@@ -700,15 +764,15 @@ ${JSON.stringify(payload, null, 2)}`;
         .replace(new RegExp(`^${givenName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*,?\\s*`, "i"), "")
         .replace(/\byou\b/gi, "the learner")
         .replace(/\byour\b/gi, "the learner's");
-      return `${givenName} ${rationale.charAt(0).toLowerCase()}${rationale.slice(1)}${conductNote}`.trim();
+      return `${givenName} ${rationale.charAt(0).toLowerCase()}${rationale.slice(1)}${conductNote}${objectiveEvidenceText}`.trim();
     }
 
     const covered = formatList(decision.covered, "relevant evidence");
     if (decision.overallAssessment === STATUS_LIKELY_SUFFICIENT) {
-      return `${givenName} provided evidence covering ${covered}. This addresses the question requirements.${conductNote}`;
+      return `${givenName} provided evidence covering ${covered}. This addresses the question requirements.${conductNote}${objectiveEvidenceText}`;
     }
     const missing = formatList(decision.missing, "the remaining question requirements");
-    return `${givenName} provided evidence covering ${covered}. Additional evidence may be needed about ${missing}.${conductNote}`;
+    return `${givenName} provided evidence covering ${covered}. Additional evidence may be needed about ${missing}.${conductNote}${objectiveEvidenceText}`;
   };
 
   const buildLearnerGuidance = (decision, context = {}) => {
