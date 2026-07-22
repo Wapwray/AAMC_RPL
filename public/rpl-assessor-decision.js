@@ -197,6 +197,7 @@
       covered,
       missing,
       hintWouldHelp: Boolean(rawDecision?.hintWouldHelp),
+      professionalConductConcern: Boolean(rawDecision?.professionalConductConcern),
       assessorRationale,
       confidence: normalizeWhitespace(rawDecision?.confidence || ""),
       shouldContinue: status === STATUS_LIKELY_SUFFICIENT || attemptCount >= maxAttempts,
@@ -240,6 +241,10 @@ Assessment rules:
 - Ensure the learner's combined response directly answers the specific question asked, not just adjacent or generic commentary.
 - Use candidateMetadata.industry and candidateMetadata.jobTitle as assessment context to judge whether examples and terminology are appropriate to the learner's role and sector.
 - Use industry/job-title context to interpret evidence relevance and depth expectations, but do not fail a response only for wording differences if competency evidence is clear.
+- Treat appropriate and professional behaviour, judged against what is expected of a competent person working as candidateMetadata.jobTitle in the candidateMetadata.industry industry in Australia, as an implicit core requirement of every question.
+- Do not credit described actions, strategies or attitudes that a competent professional in the learner's role would consider unprofessional, disrespectful, discriminatory, unethical or contrary to the client's best interests as valid evidence, even if they superficially relate to the question topic. Never acknowledge such conduct in covered.
+- If any attempt shows disregard for client best interests, ethical duties or legal obligations relevant to the learner's role, the overallAssessment must be ADDITIONAL EVIDENCE MAY BE NEEDED regardless of other evidence, and missing must include a short noun phrase identifying the professional-conduct gap (for example "an approach consistent with professional and ethical practice in the learner's role").
+- Set professionalConductConcern to true when any attempt may have displayed inappropriate, unprofessional, discriminatory or unethical behaviour, racist, sexist, homophobic or misogynistic language, or disregard for client best interests or legal obligations; set it to false otherwise. Do not set it to true merely for informal language, brevity or a weak but good-faith answer.
 - Treat the hint as directional guidance for expected tone and general response direction (not a strict checklist). Never quote, paraphrase, list, or reveal hint content in any returned field.
 - The hint is the same content the learner can access with the Show Hint button. Use it to guide expectations about broad coverage and level of detail, without requiring every hint detail.
 - Privately compare the learner's attempts against the hint for thematic alignment. Use covered to acknowledge parts of the learner's own wording that align with the question, objective, or hint direction.
@@ -262,6 +267,7 @@ Return this exact JSON shape:
   "covered": ["short neutral evidence point"],
   "missing": ["short neutral missing requirement"],
   "hintWouldHelp": false,
+  "professionalConductConcern": false,
   "assessorRationale": "one concise assessor-facing reason for the status, about the learner in third person, not addressed to the learner",
   "confidence": "high | medium | low"
 }
@@ -365,7 +371,8 @@ Return ADDITIONAL EVIDENCE MAY BE NEEDED only when:
 - the response discusses a related topic but does not directly answer the question;
 - the learner identifies a subject but does not explain the required impact, action, process, outcome or example;
 - an important statement is unclear or unsupported to the extent that competency cannot reasonably be inferred;
-- the evidence consists only of generic claims with no practical role-relevant content.
+- the evidence consists only of generic claims with no practical role-relevant content;
+- the response includes conduct, strategies or attitudes inconsistent with professional and ethical practice for the learner's role and industry.
 Do not return ADDITIONAL EVIDENCE MAY BE NEEDED merely because:
 
 - the answer is short;
@@ -385,6 +392,21 @@ Do not confuse brevity with lack of competency evidence.
 Where the objective asks the learner to identify one example and explain its impact, one clear example with one clear practical impact may be enough.
 
 Where the learner identifies a change and then describes specific altered work practices, treat those changed practices as evidence of impact unless the objective expressly requires something more.
+
+PROFESSIONAL CONDUCT REQUIREMENT
+
+All evidence is assessed against the standard of appropriate and professional behaviour expected of a competent person working as candidateMetadata.jobTitle in the candidateMetadata.industry industry in Australia. This professional-conduct standard is an implicit core requirement of every question, in addition to the stated objective.
+
+- Do not accept described actions, strategies or attitudes as valid competency evidence when a competent professional in the learner's role would consider them inappropriate, unprofessional, disrespectful, demeaning, discriminatory, unethical or contrary to the client's best interests, even if they superficially relate to the question topic.
+- Never acknowledge inappropriate or unprofessional conduct in covered. The covered array must contain only evidence a competent assessor in the learner's industry would accept as appropriate professional practice.
+- Examples of conduct that must never be credited as evidence include: raising the voice at a client instead of providing genuine communication support; relying on gestures or simplistic workarounds in place of professionally recognised support measures; mocking, stereotyping or blaming a client for a communication barrier or vulnerability; racist, sexist, homophobic, misogynistic or otherwise discriminatory or derogatory language about any person or group; stating that a client's understanding is not the learner's problem or responsibility; prioritising personal gain, commission or completing the sale over the client's interests; expressing willingness to ignore ethical duties or legal obligations; refusing reasonable support, adjustment or referral.
+- If any attempt shows disregard for client best interests, ethical duties or legal obligations relevant to the learner's role, the overallAssessment must be ADDITIONAL EVIDENCE MAY BE NEEDED regardless of other evidence provided, and confidence in that status should normally be high.
+- In that case, missing must include a short noun phrase identifying the professional-conduct gap, such as "an approach consistent with professional and ethical practice in the learner's role", alongside any other genuine core gaps.
+- assessorRationale may neutrally note that parts of the response were not consistent with the professional practice expected in the learner's role, while remaining calm, factual and in the third person.
+- Set professionalConductConcern to true when any attempt may have displayed inappropriate, unprofessional, disrespectful, discriminatory or unethical behaviour, racist, sexist, homophobic or misogynistic language, or disregard for client best interests, ethical duties or legal obligations. Set it to false otherwise. Apply a "may have" threshold: a reasonable assessor would want to review the conduct, even if it is not conclusively inappropriate.
+- Discriminatory or derogatory language, including racist, sexist, homophobic or misogynistic remarks about clients, colleagues or any person or group, always requires professionalConductConcern to be true and must never be credited as evidence.
+- Do not set professionalConductConcern to true merely for informal language, brevity, spelling errors or a weak but good-faith answer.
+- Apply these rules to every question and section, not only questions expressly about ethics.
 
 MULTI-PART QUESTION RULES
 
@@ -447,6 +469,7 @@ The covered array must:
 - avoid assessor judgment such as "correctly", "successfully", "adequately" or "demonstrates competency";
 - avoid revealing information drawn only from the hint;
 - avoid adding regulatory facts, examples or terminology not supplied by the learner;
+- exclude any statements describing inappropriate, unprofessional or unethical conduct, which must not be presented back to the learner as accepted evidence;
 - contain distinct evidence points without unnecessary duplication.
 Good covered item style:
 
@@ -614,6 +637,8 @@ Before returning the JSON, verify all of the following:
 - No evidence already provided was placed in missing.
 - No optional strengthening detail was treated as a core gap.
 - No missing item overlaps evidence already acknowledged in covered or asks for a deeper version of a part already reasonably addressed.
+- No inappropriate, unprofessional or unethical conduct was credited in covered or used to support LIKELY SUFFICIENT.
+- Any disregard for client best interests, ethical duties or legal obligations resulted in ADDITIONAL EVIDENCE MAY BE NEEDED with a professional-conduct gap in missing.
 - The same evidence standard was applied regardless of how many attempts remain.
 - A brief but clear answer was not penalised for brevity.
 - LIKELY SUFFICIENT has an empty missing array.
@@ -621,6 +646,7 @@ Before returning the JSON, verify all of the following:
 - covered contains only learner-supplied evidence.
 - missing contains no examples, commands, model wording or hint content.
 - hintWouldHelp is consistent with the assessment.
+- professionalConductConcern is true only when the combined attempts may have displayed inappropriate, unprofessional or unethical behaviour, and false otherwise.
 - assessorRationale is balanced, concise and in the third person.
 - The output is valid JSON and matches the exact required shape.
 Return this exact JSON shape:
@@ -634,6 +660,7 @@ Return this exact JSON shape:
 "short neutral missing requirement as a noun phrase"
 ],
 "hintWouldHelp": false,
+"professionalConductConcern": false,
 "assessorRationale": "one concise assessor-facing reason for the status, about the learner in third person and not addressed to the learner",
 "confidence": "high | medium | low"
 }
@@ -644,6 +671,9 @@ ${JSON.stringify(payload, null, 2)}`;
 
   const buildAssessorSummary = (decision, context = {}) => {
     const givenName = normalizeWhitespace(context.givenName) || "The learner";
+    const conductNote = decision.professionalConductConcern
+      ? " Note: the learner may have displayed inappropriate or unprofessional behaviour in this response; assessor review is recommended."
+      : "";
     if (decision.assessorRationale) {
       const rationale = decision.assessorRationale
         .replace(/^the learner\s+/i, "")
@@ -652,15 +682,15 @@ ${JSON.stringify(payload, null, 2)}`;
         .replace(new RegExp(`^${givenName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*,?\\s*`, "i"), "")
         .replace(/\byou\b/gi, "the learner")
         .replace(/\byour\b/gi, "the learner's");
-      return `${givenName}, ${rationale.charAt(0).toLowerCase()}${rationale.slice(1)}`.trim();
+      return `${givenName}, ${rationale.charAt(0).toLowerCase()}${rationale.slice(1)}${conductNote}`.trim();
     }
 
     const covered = formatList(decision.covered, "relevant evidence");
     if (decision.overallAssessment === STATUS_LIKELY_SUFFICIENT) {
-      return `${givenName}, provided evidence covering ${covered}. This addresses the question requirements.`;
+      return `${givenName}, provided evidence covering ${covered}. This addresses the question requirements.${conductNote}`;
     }
     const missing = formatList(decision.missing, "the remaining question requirements");
-    return `${givenName}, provided evidence covering ${covered}. Additional evidence may be needed about ${missing}.`;
+    return `${givenName}, provided evidence covering ${covered}. Additional evidence may be needed about ${missing}.${conductNote}`;
   };
 
   const buildLearnerGuidance = (decision, context = {}) => {

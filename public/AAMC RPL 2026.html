@@ -142,6 +142,53 @@
         font-size: 11px;
         line-height: 1.4;
       }
+      .aiDebugPanel {
+        width: 100%;
+        border: 1px solid #cbd5e1;
+        border-radius: 12px;
+        background: #111827;
+        color: #d1fae5;
+        min-height: 160px;
+        max-height: 260px;
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        overflow: hidden;
+      }
+      .aiDebugPanelHeader {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 8px 10px;
+        border-bottom: 1px solid rgba(209, 250, 229, 0.25);
+        font-size: 12px;
+        font-weight: 700;
+        color: #ecfdf5;
+      }
+      .aiDebugPanelHeader .aiDebugTotals {
+        font-weight: 400;
+        font-size: 11px;
+        color: #a7f3d0;
+        margin-left: auto;
+      }
+      .aiDebugPanelHeader button {
+        width: auto;
+        padding: 5px 10px;
+        border-radius: 999px;
+        font-size: 11px;
+        background: #ffffff;
+        color: #111827;
+      }
+      .aiDebugLog {
+        margin: 0;
+        padding: 10px;
+        overflow: auto;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        font-family: Consolas, "Courier New", monospace;
+        font-size: 11px;
+        line-height: 1.4;
+      }
       .evaluateSideWrap {
         align-self: start;
         width: 100%;
@@ -928,6 +975,14 @@
                     </div>
                     <pre id="checkResponseDebugLog" class="checkResponseDebugLog">Waiting for Check Response...</pre>
                   </div>
+                  <div class="aiDebugPanel" aria-live="polite">
+                    <div class="aiDebugPanelHeader">
+                      <span>AI Behaviour Debug</span>
+                      <span class="aiDebugTotals" id="aiDebugTotals">0 calls | 0 tokens</span>
+                      <button id="clearAiDebugBtn" type="button" class="secondary">Clear</button>
+                    </div>
+                    <pre id="aiDebugLog" class="aiDebugLog">No AI calls yet.</pre>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1071,6 +1126,9 @@
       const answerInputEl = document.getElementById("answerInput");
       const checkResponseDebugLogEl = document.getElementById("checkResponseDebugLog");
       const clearCheckResponseDebugBtn = document.getElementById("clearCheckResponseDebugBtn");
+      const aiDebugLogEl = document.getElementById("aiDebugLog");
+      const aiDebugTotalsEl = document.getElementById("aiDebugTotals");
+      const clearAiDebugBtn = document.getElementById("clearAiDebugBtn");
       const dictateBtn = document.getElementById("dictateBtn");
       const playbackBtn = document.getElementById("playbackBtn");
       const dictationMeterEl = document.getElementById("dictationMeter");
@@ -2723,6 +2781,115 @@ Job Title: ${jobTitleValue || "N/A"}
 
       const getElapsedMs = (startedAt) => Math.round(performance.now() - startedAt);
 
+      // --- AI behaviour debug panel ----------------------------------------------
+      const aiDebugSession = { calls: 0, errors: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, totalLatencyMs: 0 };
+
+      const estimateTokens = (text) => Math.ceil(String(text || "").length / 4);
+
+      const updateAiDebugTotals = () => {
+        if (!aiDebugTotalsEl) return;
+        const avgLatency = aiDebugSession.calls ? Math.round(aiDebugSession.totalLatencyMs / aiDebugSession.calls) : 0;
+        aiDebugTotalsEl.textContent =
+          `${aiDebugSession.calls} calls | ${aiDebugSession.totalTokens} tokens ` +
+          `(${aiDebugSession.promptTokens} in / ${aiDebugSession.completionTokens} out) | avg ${avgLatency}ms` +
+          (aiDebugSession.errors ? ` | ${aiDebugSession.errors} errors` : "");
+      };
+
+      const clearAiDebugLog = (message = "No AI calls yet.") => {
+        if (aiDebugLogEl) aiDebugLogEl.textContent = message;
+      };
+
+      const appendAiDebugEntry = (title, fields) => {
+        if (!aiDebugLogEl) return;
+        const timestamp = new Date().toLocaleTimeString();
+        const lines = Object.entries(fields || {})
+          .filter(([, value]) => value !== undefined && value !== null && value !== "")
+          .map(([key, value]) => `  ${key}: ${typeof value === "object" ? JSON.stringify(value) : value}`);
+        const entry = `[${timestamp}] ${title}\n${lines.join("\n")}`;
+        const currentText = aiDebugLogEl.textContent || "";
+        const resetText = currentText.trim() === "No AI calls yet." ? "" : currentText.replace(/\s+$/, "");
+        aiDebugLogEl.textContent = resetText ? `${resetText}\n\n${entry}` : entry;
+        aiDebugLogEl.scrollTop = aiDebugLogEl.scrollHeight;
+      };
+
+      clearAiDebugBtn?.addEventListener("click", () => {
+        aiDebugSession.calls = 0;
+        aiDebugSession.errors = 0;
+        aiDebugSession.promptTokens = 0;
+        aiDebugSession.completionTokens = 0;
+        aiDebugSession.totalTokens = 0;
+        aiDebugSession.totalLatencyMs = 0;
+        updateAiDebugTotals();
+        clearAiDebugLog();
+      });
+
+      // --- Background save queue -------------------------------------------------
+      // Webhook writes to Power Automate/SharePoint are serialised through this queue
+      // so the UI can unlock as soon as feedback is ready while saves continue in the
+      // background. Order is preserved; a persistent failure halts the queue and is
+      // retried automatically before the next question so no data is lost.
+      const saveQueue = [];
+      let saveQueueWorker = null;
+      let saveQueueFailure = null;
+      const SAVE_TASK_RETRIES = 2;
+
+      const processSaveQueue = async () => {
+        while (saveQueue.length) {
+          const task = saveQueue[0];
+          try {
+            const result = await task.run();
+            if (result === false) {
+              throw new Error(`${task.label} did not complete.`);
+            }
+            saveQueueFailure = null;
+            task.resolve(true);
+            saveQueue.shift();
+          } catch (err) {
+            task.attemptsMade += 1;
+            if (task.attemptsMade <= SAVE_TASK_RETRIES) {
+              logNextDebug("Background save retry", { label: task.label, attempt: task.attemptsMade, error: err?.message || String(err) });
+              await new Promise((resolve) => setTimeout(resolve, 800 * task.attemptsMade));
+              continue;
+            }
+            saveQueueFailure = { label: task.label, message: err?.message || String(err) };
+            logNextDebug("Background save halted", saveQueueFailure);
+            setStatus(`Warning: ${task.label} has not saved yet. It will be retried before the next question.`);
+            break;
+          }
+        }
+        saveQueueWorker = null;
+      };
+
+      const startSaveQueue = () => {
+        if (!saveQueueWorker && saveQueue.length) {
+          saveQueueWorker = processSaveQueue();
+        }
+        return saveQueueWorker || Promise.resolve();
+      };
+
+      const queueSaveTask = (label, run) => {
+        let resolveTask;
+        const promise = new Promise((resolve) => { resolveTask = resolve; });
+        saveQueue.push({ label, run, resolve: resolveTask, attemptsMade: 0 });
+        startSaveQueue();
+        return promise;
+      };
+
+      const flushSaveQueue = async () => {
+        for (let round = 0; round < 2 && saveQueue.length; round += 1) {
+          saveQueue.forEach((task) => { task.attemptsMade = 0; });
+          await startSaveQueue();
+        }
+        return saveQueue.length === 0;
+      };
+
+      window.addEventListener("beforeunload", (event) => {
+        if (saveQueue.length) {
+          event.preventDefault();
+          event.returnValue = "";
+        }
+      });
+
       const withCheckResponseTiming = async (label, task) => {
         const startedAt = performance.now();
         appendCheckResponseDebug(`${label} started`);
@@ -4324,6 +4491,7 @@ END_REVIEW>>>`;
           "Content-Type": "application/json",
           "x-rpl-mode": mode,
         };
+        const aiCallStartedAt = performance.now();
         
         if (debugLabel) {
           logCheckResponseDebug(`${debugLabel} request`, {
@@ -4353,6 +4521,17 @@ END_REVIEW>>>`;
           const text = await response.text();
           logDebug(`AI error ${response.status}: ${response.statusText} ${text}`);
           if (debugLabel) logCheckResponseDebug(`${debugLabel} error body`, text || "(empty)");
+          aiDebugSession.calls += 1;
+          aiDebugSession.errors += 1;
+          aiDebugSession.totalLatencyMs += getElapsedMs(aiCallStartedAt);
+          updateAiDebugTotals();
+          appendAiDebugEntry(`${debugLabel || "AI call"} FAILED`, {
+            mode,
+            "HTTP status": `${response.status} ${response.statusText}`,
+            "latency": `${getElapsedMs(aiCallStartedAt)}ms`,
+            "prompt chars": prompt?.length ?? 0,
+            "error body": (text || "(empty)").substring(0, 300),
+          });
           
           // Enhanced debug info for 502 errors
           if (response.status === 502) {
@@ -4370,6 +4549,41 @@ END_REVIEW>>>`;
         logDebug("AI response received.");
         logDebugDetail("AI response JSON", json);
         if (debugLabel) logCheckResponseDebug(`${debugLabel} response JSON`, json);
+        try {
+          const latencyMs = getElapsedMs(aiCallStartedAt);
+          const rawResp = json?.raw || {};
+          const usage = rawResp?.usage || json?.usage || {};
+          const promptTokens = Number(usage.prompt_tokens ?? usage.input_tokens) || 0;
+          const completionTokens = Number(usage.completion_tokens ?? usage.output_tokens) || 0;
+          const totalTokens = Number(usage.total_tokens) || (promptTokens + completionTokens);
+          const choice = Array.isArray(rawResp?.choices) ? rawResp.choices[0] : null;
+          const responseText = json?.content || json?.response || json?.text || choice?.message?.content || "";
+          const reasoningTokens = Number(usage?.completion_tokens_details?.reasoning_tokens) || 0;
+          const cachedTokens = Number(usage?.prompt_tokens_details?.cached_tokens) || 0;
+          aiDebugSession.calls += 1;
+          aiDebugSession.promptTokens += promptTokens;
+          aiDebugSession.completionTokens += completionTokens;
+          aiDebugSession.totalTokens += totalTokens;
+          aiDebugSession.totalLatencyMs += latencyMs;
+          updateAiDebugTotals();
+          appendAiDebugEntry(debugLabel || "AI call", {
+            mode,
+            model: rawResp?.model,
+            "latency": `${latencyMs}ms`,
+            "tokens": totalTokens ? `${totalTokens} total (${promptTokens} prompt / ${completionTokens} completion)` : "(not reported)",
+            "reasoning tokens": reasoningTokens || undefined,
+            "cached prompt tokens": cachedTokens || undefined,
+            "finish reason": choice?.finish_reason,
+            "temperature": temperature,
+            "max_tokens": maxTokens,
+            "prompt chars": prompt?.length ?? 0,
+            "prompt tokens (est.)": promptTokens ? undefined : estimateTokens(prompt),
+            "response chars": responseText.length,
+            "tokens/sec": completionTokens && latencyMs ? Math.round((completionTokens / latencyMs) * 1000) : undefined,
+          });
+        } catch (debugError) {
+          logDebugDetail("AI debug panel error", debugError?.message || String(debugError));
+        }
         const content = json?.content || json?.response || json?.text;
         if (typeof content === "string" && content.trim()) return content.trim();
         const raw = json?.raw || {};
@@ -4803,63 +5017,57 @@ END_REVIEW>>>`;
             characterCount: prompt.length,
             attemptCount: currentResponses.length,
           });
-          const [recordingSaved, responseText] = await Promise.all([
-            withCheckResponseTiming("Recording upload", () => sendRecordingOnEvaluate(attemptNumber, questionNumber)),
-            withCheckResponseTiming("AI assessment", () => callTextModel(prompt, { mode: "assessor", temperature: 0, max_tokens: 450, debugLabel: "Check Response" })),
-          ]);
+          const recordingSavePromise = queueSaveTask(
+            `Recording upload (question ${questionNumber}, attempt ${attemptNumber})`,
+            () => withCheckResponseTiming("Recording upload", () => sendRecordingOnEvaluate(attemptNumber, questionNumber))
+          );
+          const responseText = await withCheckResponseTiming("AI assessment", () => callTextModel(prompt, { mode: "assessor", temperature: 0, max_tokens: 450, debugLabel: "Check Response" }));
           appendCheckResponseDebug("AI response parsed", {
             responseCharacterCount: responseText.length,
           });
           const assessorFeedback = buildAssessorFeedbackFromResponse(responseText, currentAttempts);
           const showNextQuestionOnly = assessorFeedback.shouldContinue;
           addChatEntry(assessorFeedback.displayText, "ai", assessorFeedback.transcriptAttemptText);
-          if (!showNextQuestionOnly) {
-            hideThinkingOverlay();
-          }
-          setStatus("Feedback ready. Saving transcript...");
+          hideThinkingOverlay();
           attemptRecord.feedback = assessorFeedback.transcriptAttemptText;
           const entry = ensureTranscriptQuestion(currentIndex, questionText, { objective: objectiveText, hint: hintText, section: sectionText });
           entry.questionText = questionText;
           entry.attempts.push(attemptRecord);
           entry.summary = assessorFeedback.assessorSummary;
           entry.overallAssessment = assessorFeedback.overallAssessment;
-          await transcriptMergePromise;
-          fullTranscript = buildFullTranscript();
-          window.RPLFullTranscript = fullTranscript;
           const nextAttemptForWebhook = Math.min(MAX_ATTEMPTS, attemptNumber + 1);
-          logNextDebug("Check Response - sending webhooks", { attemptNumber, nextAttemptForWebhook, currentAttempts, recordingSaved });
-          const [backupSaved, attemptAndTranscriptSaved] = await Promise.all([
-            withCheckResponseTiming("Transcript backup webhook", () => sendTranscriptBackupOnEvaluate({ attemptNumber, questionNumber })),
-            withCheckResponseTiming("Attempt transcript webhook", () => sendCurrentAttemptOnEvaluate(nextAttemptForWebhook, questionNumber)),
-          ]);
-          appendCheckResponseDebug("Check Response save stage completed", {
-            durationMs: getElapsedMs(checkResponseStartedAt),
-            recordingSaved,
-            backupSaved,
-            attemptAndTranscriptSaved,
-          });
-          logNextDebug("Webhook results", { recordingSaved, backupSaved, attemptAndTranscriptSaved });
-          const saveWarning = !recordingSaved
-            ? "the recording upload did not complete"
-            : !attemptAndTranscriptSaved
-            ? "the attempt/transcript update did not complete"
-            : !backupSaved
-              ? "the transcript backup did not complete"
-              : "";
-          if (saveWarning) {
-            setStatus(`Feedback ready, but ${saveWarning}. Please try Check Response again before continuing.`);
-            finalButtonState = { nextDisabled: true, evaluateDisabled: true };
-            return;
-          }
+          logNextDebug("Check Response - queueing background saves", { attemptNumber, nextAttemptForWebhook, currentAttempts });
+          queueSaveTask(
+            `Transcript save (question ${questionNumber}, attempt ${attemptNumber})`,
+            async () => {
+              await transcriptMergePromise;
+              transcriptMergeAttempted = false;
+              fullTranscript = buildFullTranscript();
+              window.RPLFullTranscript = fullTranscript;
+              const [backupSaved, attemptAndTranscriptSaved] = await Promise.all([
+                sendTranscriptBackupOnEvaluate({ attemptNumber, questionNumber }),
+                sendCurrentAttemptOnEvaluate(nextAttemptForWebhook, questionNumber),
+              ]);
+              const recordingSaved = await recordingSavePromise;
+              appendCheckResponseDebug("Check Response save stage completed", {
+                durationMs: getElapsedMs(checkResponseStartedAt),
+                recordingSaved,
+                backupSaved,
+                attemptAndTranscriptSaved,
+              });
+              logNextDebug("Webhook results", { recordingSaved, backupSaved, attemptAndTranscriptSaved });
+              return backupSaved && attemptAndTranscriptSaved;
+            }
+          );
           if (showNextQuestionOnly) {
-            logNextDebug("Check Response - showNextQuestionOnly path", { showNextQuestionOnly, saveWarning, currentAttempts });
+            logNextDebug("Check Response - showNextQuestionOnly path", { showNextQuestionOnly, currentAttempts });
             setStatus("Feedback ready. Press Next to continue.");
             setAttemptLockState(true);
             finalButtonState = { nextDisabled: false, evaluateDisabled: true };
             logNextDebug("After setAttemptLockState(true) in showNextQuestionOnly", { attemptLocked, nextBtnDisabled: nextBtn?.disabled });
             return;
           }
-          logNextDebug("Check Response - feedback shown path", { showNextQuestionOnly: false, currentAttempts, saveWarning });
+          logNextDebug("Check Response - feedback shown path", { showNextQuestionOnly: false, currentAttempts });
           answerInputEl.value = "";
           updateEvaluateButtonState();
           nextBtn.disabled = false;
@@ -4906,7 +5114,6 @@ END_REVIEW>>>`;
             evaluateBtn.disabled = true;
           }
           hideThinkingOverlay();
-          transcriptMergeAttempted = false;
           appendCheckResponseDebug("Check Response finished", {
             totalDurationMs: getElapsedMs(checkResponseStartedAt),
             nextDisabled: nextBtn?.disabled,
@@ -4938,8 +5145,21 @@ END_REVIEW>>>`;
         logNextDebug("Next Question proceeding", "Starting handler - setting nextQuestionInFlight=true");
         nextQuestionInFlight = true;
         nextBtn.disabled = true;
-        setStatus("Saving transcript and moving to next question...");
-        showThinkingOverlay("Processing");
+
+        // Ensure any background saves from Check Response have completed before recording progress.
+        if (saveQueue.length) {
+          setStatus("Finishing saving your responses...");
+          showThinkingOverlay("Saving");
+          const flushed = await flushSaveQueue();
+          hideThinkingOverlay();
+          if (!flushed) {
+            setStatus(`Some responses have not finished saving (${saveQueueFailure?.label || "save pending"}). Please press Next Question again to retry.`);
+            nextQuestionInFlight = false;
+            nextBtn.disabled = false;
+            return;
+          }
+        }
+        setStatus("Moving to next question...");
 
         const ctx = getStudentContext();
         const isLastQuestion = currentIndex + 1 >= questions.length;
@@ -4957,11 +5177,8 @@ END_REVIEW>>>`;
         logAssessmentDebug("Next payload", payload);
         logNextDebug("Next Question payload", { isLastQuestion, nextQuestionValue, currentIndex });
         try {
-          const transcriptSaved = await sendTranscriptOnNext();
-          logNextDebug("sendTranscriptOnNext result", { transcriptSaved });
-          if (!transcriptSaved) {
-            throw new Error("Transcript save did not complete. Please try Next again.");
-          }
+          // Snapshot the current question state now, then let the webhook writes run in the background.
+          const transcriptSnapshotPromise = sendTranscriptOnNext();
 
           const postNextQuestionPayload = async (body) => {
             const response = await fetch(NEXT_QUESTION_WEBHOOK_URL, {
@@ -5030,7 +5247,7 @@ END_REVIEW>>>`;
             return true;
           };
 
-          const resetAttemptPromise = isLastQuestion
+          const sendResetAttemptWebhook = () => (isLastQuestion
             ? Promise.resolve(true)
             : sendCurrentAttemptOnEvaluate(1, nextQuestionValue, "Attempt reset webhook")
               .then((saved) => {
@@ -5040,15 +5257,34 @@ END_REVIEW>>>`;
                   throw new Error("Attempt reset webhook did not complete.");
                 }
                 return true;
-              });
+              }));
 
-          logNextDebug("Next Question - sending webhook batch", { isLastQuestion, nextQuestionValue });
-          await Promise.all([
-            sendTranscriptWebhook(),
-            sendNextWebhook(),
-            resetAttemptPromise,
-          ]);
-          logNextDebug("Next Question webhook batch complete", { isLastQuestion, nextQuestionValue });
+          logNextDebug("Next Question - queueing webhook batch", { isLastQuestion, nextQuestionValue });
+          queueSaveTask(`Question progress save (question ${nextQuestionValue})`, async () => {
+            const transcriptSaved = await transcriptSnapshotPromise;
+            logNextDebug("sendTranscriptOnNext result", { transcriptSaved });
+            if (!transcriptSaved) {
+              throw new Error("Transcript snapshot did not complete.");
+            }
+            await Promise.all([
+              sendTranscriptWebhook(),
+              sendNextWebhook(),
+              sendResetAttemptWebhook(),
+            ]);
+            logNextDebug("Next Question webhook batch complete", { isLastQuestion, nextQuestionValue });
+            return true;
+          });
+
+          if (isLastQuestion) {
+            // Completion must not proceed until every save has been written.
+            setStatus("Saving final transcript...");
+            showThinkingOverlay("Processing");
+            const flushed = await flushSaveQueue();
+            hideThinkingOverlay();
+            if (!flushed) {
+              throw new Error(`Final save did not complete (${saveQueueFailure?.label || "save pending"}). Please press Next Question again to retry.`);
+            }
+          }
         } catch (error) {
           logDebugDetail("Next question error", error?.message || String(error));
           logAssessmentDebug("Next error", error?.message || String(error));
@@ -5060,8 +5296,7 @@ END_REVIEW>>>`;
           logNextDebug("Next Question error recovery", { nextQuestionInFlight, nextBtnDisabled: nextBtn?.disabled });
           return;
         }
-        hideThinkingOverlay();
-        logNextDebug("Next Question webhooks complete", { isLastQuestion, nextQuestionValue, currentIndex });
+        logNextDebug("Next Question saves queued", { isLastQuestion, nextQuestionValue, currentIndex });
         if (isLastQuestion) {
           nextQuestionInFlight = false;
           setCompletedState();
