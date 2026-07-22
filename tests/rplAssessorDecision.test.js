@@ -63,7 +63,7 @@ test("buildDeepseekAssessmentPrompt calibrates partial evidence feedback", () =>
   assert.match(prompt, /Deepseek calibration rules/);
   assert.match(prompt, /learner gives .*relevant evidence/i);
   assert.match(prompt, /\b(include|put)\b.*\bcovered\b/i);
-  assert.match(prompt, /some additional detail is required/);
+  assert.match(prompt, /some additional detail may be required/i);
   assert.match(prompt, /one internal stakeholder affected by the change/);
   assert.match(prompt, /one external stakeholder affected by the change/);
   assert.match(prompt, /mentions stakeholders received updates about impacts of the change/);
