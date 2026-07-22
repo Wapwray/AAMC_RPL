@@ -261,6 +261,13 @@ Assessment rules:
 - For product or service impact questions, product/service impact can be shown by changed lender policy, risk appetite, pricing, servicing, borrowing capacity, product features, product availability, lender selection, or recommendation scope. Do not require a separate explicit phrase such as "impact on products or services" if a concrete product, lender, policy, pricing, servicing, or recommendation change is already clear.
 - If the response is LIKELY SUFFICIENT, missing must be an empty array.
 
+Output length rules (keep the response short so it returns quickly):
+- covered: at most 3 items, each 12 words or fewer.
+- missing: at most 3 items, each 12 words or fewer.
+- assessorRationale: one sentence of 30 words or fewer.
+- Do not restate the question, objective, hint, or the learner's full wording; summarise in your own brief phrasing.
+- Keep the entire JSON response under 160 words.
+
 Return this exact JSON shape:
 {
   "overallAssessment": "LIKELY SUFFICIENT | ADDITIONAL EVIDENCE MAY BE NEEDED",
@@ -627,6 +634,16 @@ Use low confidence when:
 - the question, objective or attempts are ambiguous;
 - the learner response is difficult to interpret;
 - important metadata or evidence appears missing.
+OUTPUT LENGTH RULES
+
+Keep the returned JSON short so it can be produced quickly:
+
+- covered: at most 3 items, each 12 words or fewer.
+- missing: at most 3 items, each 12 words or fewer.
+- assessorRationale: one sentence of 30 words or fewer.
+- Do not restate the question, objective, hint, or the learner's full wording; summarise each point in your own brief phrasing.
+- Do not repeat the same evidence point in multiple covered items when attempts overlap; merge overlapping attempts into single items.
+- Keep the entire JSON response under 160 words.
 FINAL CONSISTENCY CHECK
 
 Before returning the JSON, verify all of the following:
@@ -648,6 +665,7 @@ Before returning the JSON, verify all of the following:
 - hintWouldHelp is consistent with the assessment.
 - professionalConductConcern is true only when the combined attempts may have displayed inappropriate, unprofessional or unethical behaviour, and false otherwise.
 - assessorRationale is balanced, concise and in the third person.
+- covered, missing and assessorRationale respect the output length rules.
 - The output is valid JSON and matches the exact required shape.
 Return this exact JSON shape:
 
@@ -682,15 +700,15 @@ ${JSON.stringify(payload, null, 2)}`;
         .replace(new RegExp(`^${givenName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*,?\\s*`, "i"), "")
         .replace(/\byou\b/gi, "the learner")
         .replace(/\byour\b/gi, "the learner's");
-      return `${givenName}, ${rationale.charAt(0).toLowerCase()}${rationale.slice(1)}${conductNote}`.trim();
+      return `${givenName} ${rationale.charAt(0).toLowerCase()}${rationale.slice(1)}${conductNote}`.trim();
     }
 
     const covered = formatList(decision.covered, "relevant evidence");
     if (decision.overallAssessment === STATUS_LIKELY_SUFFICIENT) {
-      return `${givenName}, provided evidence covering ${covered}. This addresses the question requirements.${conductNote}`;
+      return `${givenName} provided evidence covering ${covered}. This addresses the question requirements.${conductNote}`;
     }
     const missing = formatList(decision.missing, "the remaining question requirements");
-    return `${givenName}, provided evidence covering ${covered}. Additional evidence may be needed about ${missing}.${conductNote}`;
+    return `${givenName} provided evidence covering ${covered}. Additional evidence may be needed about ${missing}.${conductNote}`;
   };
 
   const buildLearnerGuidance = (decision, context = {}) => {

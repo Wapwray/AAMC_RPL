@@ -107,7 +107,7 @@ test("likely sufficient feedback displays only the continue sentence but stores 
   assert.equal(feedback.displayText, "Thank you for your responses, Bel. Please press the Next Question button to continue.");
   assert.match(feedback.transcriptAttemptText, /Preliminary Status: LIKELY SUFFICIENT/);
   assert.doesNotMatch(feedback.assessorSummary, /\byou\b|\byour\b/i);
-  assert.match(feedback.assessorSummary, /^Bel,/);
+  assert.match(feedback.assessorSummary, /^Bel identified/);
 });
 
 test("additional evidence guidance is learner-facing and does not leak hint content", () => {
