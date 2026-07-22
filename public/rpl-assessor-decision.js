@@ -398,7 +398,7 @@ Apply these rules:
 - If optional elaboration would strengthen an already sufficient answer, do not place it in missing. LIKELY SUFFICIENT requires an empty missing array.
 - Do not use the availability of additional attempts as a reason to raise the evidence threshold.
 - The learner should not be encouraged to add information merely for completeness when the competency objective is already demonstrated.
-DEEPSEEK CALIBRATION RULES
+Deepseek calibration rules
 
 - Be evidence-aware and fair, not lenient and not unnecessarily strict.
 - Give full credit to relevant evidence clearly contained in the learner's own words.
