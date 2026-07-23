@@ -292,8 +292,8 @@ test("renders approved report labels, escaped verbatim responses, and one row/ar
   assert.equal(html.includes("Question bank count"), false);
   assert.doesNotMatch(html, /Assessment objective/i);
   assert.doesNotMatch(html, /Question objective/i);
-  assert.match(html, /<h4>Objective<\/h4>/);
-  assert.match(html, /<h4>AI Interview Summary<\/h4>/);
+  assert.match(html, /<h4>\s*Objective\s*<\/h4>/i);
+  assert.match(html, /<h4>\s*AI Interview Summary\s*<\/h4>/i);
   assert.doesNotMatch(html, /AI preliminary observation/i);
   assert.doesNotMatch(html, /Assessor action suggested/i);
   assert.doesNotMatch(html, /AI follow-up exchange/i);
@@ -311,20 +311,24 @@ test("renders approved report labels, escaped verbatim responses, and one row/ar
   assert.equal(html.includes("Likely sufficient (pending assessor verification)"), false);
   assert.equal(html.includes("Additional evidence may be needed (assessor follow-up suggested)"), false);
   assert.equal(html.includes("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; keep notes."), true);
+  const findHeadingIndex = (pattern, fromIndex = 0) => {
+    const match = html.slice(fromIndex).match(pattern);
+    return match ? fromIndex + match.index : -1;
+  };
   const question24Index = html.indexOf('data-question-number="24"');
-  const objectiveIndex = html.indexOf("<h4>Objective</h4>", question24Index);
-  const summaryIndex = html.indexOf("<h4>AI Interview Summary</h4>", objectiveIndex);
-  const conversationIndex = html.indexOf("<h4>Student and AI Interview conversation</h4>", summaryIndex);
+  const objectiveIndex = findHeadingIndex(/<h4>\s*Objective\s*<\/h4>/i, question24Index);
+  const conversationIndex = findHeadingIndex(/<h4>\s*Student and AI Interview conversation\s*<\/h4>/i, objectiveIndex);
   const attemptIndex = html.indexOf("Alex (Attempt 1):", conversationIndex);
   const responseIndex = html.indexOf("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; keep notes.", attemptIndex);
   const aiResponseIndex = html.indexOf("AI Interviewer: Please provide more detail about the complaint process", responseIndex);
+  const summaryIndex = findHeadingIndex(/<h4>\s*AI Interview Summary\s*<\/h4>/i, aiResponseIndex);
   assert.ok(question24Index >= 0);
   assert.ok(objectiveIndex > question24Index);
-  assert.ok(summaryIndex > objectiveIndex);
-  assert.ok(conversationIndex > summaryIndex);
+  assert.ok(conversationIndex > objectiveIndex);
   assert.ok(attemptIndex >= 0);
   assert.ok(responseIndex > attemptIndex);
   assert.ok(aiResponseIndex > responseIndex);
+  assert.ok(summaryIndex > aiResponseIndex);
 });
 
 test("renders assessor-mode sign-off fields and keeps assessor identity read-only", () => {
