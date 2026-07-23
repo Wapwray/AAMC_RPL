@@ -96,7 +96,7 @@
 
     <script>
       const SOURCE_FILE = "AAMC RPL 2026.html";
-      const RUNTIME_VERSION = "1.7.6";
+      const RUNTIME_VERSION = "1.8";
 
       const replaceOnce = (text, matcher, replacement) => {
         const next = text.replace(matcher, replacement);
@@ -106,6 +106,23 @@
       const setBootStatus = (message) => {
         const el = document.getElementById("bootStatus");
         if (el) el.textContent = message;
+      };
+
+      const boot = async () => {
+        try {
+          setBootStatus("Opening Auto Tester page...");
+          window.location.href = SOURCE_FILE;
+        } catch (error) {
+          const message = error?.message || String(error);
+          document.body.innerHTML = `
+            <main class="boot">
+              <section class="bootCard">
+                <h1 class="bootTitle">Q3 Auto Tester Load Failed</h1>
+                <p class="bootText">${message.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>
+              </section>
+            </main>
+          `;
+        }
       };
 
       const removeDebugPanelMarkup = (html) => {
@@ -183,9 +200,9 @@
 
       const patchTitle = (html) => {
         let next = html.replace(/<title>[\s\S]*?<\/title>/, "<title>AAMC RPL Quiz - Q3 Auto Tester</title>");
-        next = next.replace(/AAMC RPL Quiz - V1\.0/g, "AAMC RPL Quiz - V1.7 Auto Tester");
-        next = next.replace(/AAMC RPL Quiz - V1\.7/g, "AAMC RPL Quiz - V1.7 Auto Tester");
-        next = next.replace(/V3\.0-Ornith/g, "V1.7 Auto Tester");
+        next = next.replace(/AAMC RPL Quiz - V1\.0/g, "AAMC RPL Quiz - V1.8 Auto Tester");
+        next = next.replace(/AAMC RPL Quiz - V1\.7/g, "AAMC RPL Quiz - V1.8 Auto Tester");
+        next = next.replace(/V3\.0-Ornith/g, "V1.8 Auto Tester");
         return next;
       };
 
@@ -217,43 +234,6 @@
           .replace(/\.checkResponseDebug\s*\{[\s\S]*?\}\s*\.checkResponseDebugHeader\s*\{[\s\S]*?\}\s*\.checkResponseDebugHeader button\s*\{[\s\S]*?\}\s*\.checkResponseDebugLog\s*\{[\s\S]*?\}/, "");
       };
 
-      const injectAutoTesterRuntime = (html) => {
-        const closeTag = "</scr" + "ipt>";
-        const runtimeTag = '<script src="/rpl-q3-auto-tester-runtime.js?v=' + RUNTIME_VERSION + '">' + closeTag;
-        return html.replace(/<\/body>/i, `${runtimeTag}\n</body>`);
-      };
-
-      const applyQ3AutoTesterTransforms = (html) => {
-        let next = html;
-        next = patchTitle(next);
-        next = removeDebugPanelMarkup(next);
-        next = removeDebugFunctions(next);
-        next = removeDebugSectionStyles(next);
-        next = patchParseListItems(next);
-        next = patchTimeouts(next);
-        next = patchResponseClearOnAttempt(next);
-        next = patchTranscriptPayloads(next);
-        next = injectAutoTesterRuntime(next);
-        return next;
-      };
-
-      const boot = async () => {
-        try {
-          const response = await fetch(SOURCE_FILE, { cache: "no-store" });
-          if (!response.ok) {
-            throw new Error(`Failed to load source file: ${response.status} ${response.statusText}`);
-          }
-          const sourceHtml = await response.text();
-          const pageHtml = applyQ3AutoTesterTransforms(sourceHtml);
-          document.open();
-          document.write(pageHtml);
-          document.close();
-        } catch (error) {
-          const message = error?.message || String(error);
-          document.body.innerHTML = `\n            <main class="boot">\n              <section class="bootCard">\n                <h1 class="bootTitle">Q3 Auto Tester Load Failed</h1>\n                <p class="bootText">${message.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>\n              </section>\n            </main>\n          `;
-        }
-      };
-
       const wireBootGate = () => {
         const fileInput = document.getElementById("bootTranscriptFile");
         const continueBtn = document.getElementById("bootContinueBtn");
@@ -280,7 +260,6 @@
 
         continueBtn?.addEventListener("click", async () => {
           continueBtn.disabled = true;
-          setBootStatus("Opening Auto Tester page...");
           await boot();
         });
       };
