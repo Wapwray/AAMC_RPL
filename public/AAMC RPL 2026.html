@@ -830,7 +830,7 @@
           <div class="aiModeToggleRow">
             <span class="aiModeLabel">Assessor:</span>
             <label class="aiModeToggle">
-              <input type="checkbox" id="deepseekModeToggle" />
+
               <span class="aiModeToggleKnob"></span>
             </label>
             <span class="aiModeLabel" id="aiModeLabelDisplay">Azure OpenAI</span>
@@ -4548,9 +4548,8 @@ Job Title: ${jobTitleValue || "N/A"}
         const objective = getQuestionObjective(question);
         const hintText = getQuestionHint(question);
         const ctx = getStudentContext();
-        const promptBuilder = useDeepseekMode && typeof getAssessorDecisionModule().buildDeepseekAssessmentPrompt === "function"
-          ? getAssessorDecisionModule().buildDeepseekAssessmentPrompt
-          : getAssessorDecisionModule().buildAssessmentPrompt;
+        // Always use Azure OpenAI mode prompt builder
+        const promptBuilder = getAssessorDecisionModule().buildAssessmentPrompt;
         return promptBuilder({
           candidateMetadata: {
             fullName: fullName || ctx.fullName,
@@ -4654,7 +4653,6 @@ END_REVIEW>>>`;
         if (debugLabel) {
           logCheckResponseDebug(`${debugLabel} request`, {
             mode,
-            useDeepseekMode,
             requestHeaders,
             requestBody,
           });
@@ -4697,7 +4695,7 @@ END_REVIEW>>>`;
           if (response.status === 502) {
             logDebugDetail("=== 502 BAD GATEWAY DIAGNOSTIC INFO ===");
             logDebugDetail("Mode header sent", mode);
-            logDebugDetail("useDeepseekMode flag", useDeepseekMode);
+            // Azure OpenAI mode always active
             logDebugDetail("Server response text (truncated)", text.substring(0, 300));
             logDebugDetail("=== END DIAGNOSTIC INFO ===");
           }
@@ -4841,6 +4839,22 @@ END_REVIEW>>>`;
           allQuestions = withOriginalQuestionNumbers(items);
           questions = filterQuestionsByManagedStaff(allQuestions, managedStaff);
           if (tableBtn) tableBtn.disabled = false;
+          
+          // Clear AI Log on fresh assessment start so each session has a clean log
+          currentIndex = 0;
+          currentResponses = [];
+          currentAttempts = 1;
+          aiPerformanceLogEntries = [];
+          clearPersistedAiPerformanceLog();
+          aiDebugSession.calls = 0;
+          aiDebugSession.errors = 0;
+          aiDebugSession.promptTokens = 0;
+          aiDebugSession.completionTokens = 0;
+          aiDebugSession.totalTokens = 0;
+          aiDebugSession.totalLatencyMs = 0;
+          clearAiDebugLog();
+          updateAiDebugTotals();
+          
           setupCard.classList.add("hidden");
           quizCard.classList.remove("hidden");
 
@@ -4933,32 +4947,14 @@ END_REVIEW>>>`;
         updateManagedStaffMessage();
       });
 
-      // Deepseek V4:Flash toggle — persists selection across sessions.
-      const DEEPSEEK_MODE_KEY = "rpl_deepseek_mode";
-      let useDeepseekMode = localStorage.getItem(DEEPSEEK_MODE_KEY) === "true";
-      const deepseekToggleEl = document.getElementById("deepseekModeToggle");
+      // Always use Azure OpenAI mode; Deepseek testing is incomplete
+      let useDeepseekMode = false;
       const aiModeLabelDisplayEl = document.getElementById("aiModeLabelDisplay");
-
-      const updateAiModeLabel = () => {
-        if (!aiModeLabelDisplayEl) return;
-        aiModeLabelDisplayEl.textContent = useDeepseekMode ? "Deepseek" : "Azure OpenAI";
-        aiModeLabelDisplayEl.style.color = useDeepseekMode ? "#6b3fa0" : "";
-      };
-
-      const syncDeepseekToggleState = () => {
-        if (!deepseekToggleEl) return;
-        deepseekToggleEl.checked = useDeepseekMode;
-        updateAiModeLabel();
-      };
-
-      deepseekToggleEl?.addEventListener("change", () => {
-        useDeepseekMode = deepseekToggleEl.checked;
-        localStorage.setItem(DEEPSEEK_MODE_KEY, String(useDeepseekMode));
-        updateAiModeLabel();
-      });
-
-      // Restore persisted state on load.
-      syncDeepseekToggleState();
+      
+      if (aiModeLabelDisplayEl) {
+        aiModeLabelDisplayEl.textContent = "Azure OpenAI";
+        aiModeLabelDisplayEl.style.color = "";
+      }
 
       welcomeResetBtn?.addEventListener("click", async () => {
         await runWelcomeReset();

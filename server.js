@@ -417,74 +417,47 @@ app.post("/api/analysis/chat", async (req, res) => {
   let apiKey, apiVersion, endpoint, deployment, modelName, useOpenAiV1;
   let authHeader = "api-key";
 
-  const isDeepseek = modeHeader === "deepseek";
+  const isFinal = modeHeader === "final";
+  const isAssessor = modeHeader === "assessor";
+
+  const envPrefix = isFinal ? "RPL_FINAL" : isAssessor ? "RPL_ASSESSOR" : "RPL_ROUTER";
+  const getModelEnv = (suffix) => process.env[`${envPrefix}_${suffix}`] || "";
+
+  apiKey = getModelEnv("API_KEY");
+  apiVersion = getModelEnv("API_VERSION");
+  endpoint = getModelEnv("AZURE_ENDPOINT");
+  deployment = getModelEnv("DEPLOYMENT");
+  modelName = getModelEnv("MODEL_NAME");
   
-  console.log(`[AI] isDeepseek=${isDeepseek}`);
-  const isFinal = !isDeepseek && modeHeader === "final";
-  const isAssessor = !isDeepseek && modeHeader === "assessor";
-
-  if (isDeepseek) {
-    const deepEndpoint = String(process.env["RPL_DEEPSEEK_MODEL_ENDPOINT"] || "").replace(/\/+$/, "");
-    const deepModelName = process.env["RPL_DEEPSEEK_MODEL_NAME"] || "deepseek-chat";
-    const deepApiVersion = process.env["RPL_DEEPSEEK_MODEL_VERSION"] || "v1";
-    const deepApiKey = process.env["RPL_DEEPSEEK_MODEL_API_KEY"] || "";
-
-    apiKey = deepApiKey;
-
-    if (!deepApiVersion) {
-      res.status(500).json({ error: "Missing RPL_DEEPSEEK_MODEL_VERSION environment variable." });
-      return;
-    }
-    if (!deepApiKey) {
-      res.status(500).json({ error: "Missing RPL_DEEPSEEK_MODEL_API_KEY environment variable." });
-      return;
-    }
-    endpoint = deepEndpoint;
-    modelName = deepModelName;
-    apiVersion = deepApiVersion;
-    deployment = deepModelName;
+  // Default to OpenAI v1 format (matches original working behavior).
+  useOpenAiV1 = true;  // Always true unless explicitly overridden
+  
+  // Allow override via API_STYLE env var or endpoint pattern
+  const apiStyleOverride = getModelEnv("API_STYLE").toLowerCase();
+  if (apiStyleOverride === "legacy" || apiStyleOverride === "azure-native") {
+    useOpenAiV1 = false;
+  } else if (/\/openai\/v\d$/i.test(String(endpoint || "").replace(/\/+$/, ""))) {
+    // Endpoint already ends with /openai/vN — no need to append again.
     useOpenAiV1 = true;
-    authHeader = "api-key";
-  } else {
-    const envPrefix = isFinal ? "RPL_FINAL" : isAssessor ? "RPL_ASSESSOR" : "RPL_ROUTER";
-    const getModelEnv = (suffix) => process.env[`${envPrefix}_${suffix}`] || "";
+  }
 
-    apiKey = getModelEnv("API_KEY");
-    apiVersion = getModelEnv("API_VERSION");
-    endpoint = getModelEnv("AZURE_ENDPOINT");
-    deployment = getModelEnv("DEPLOYMENT");
-    modelName = getModelEnv("MODEL_NAME");
-    
-    // Default to OpenAI v1 format for non-Deepseek modes (matches original working behavior).
-    useOpenAiV1 = true;  // Always true unless explicitly overridden
-    
-    // Allow override via API_STYLE env var or endpoint pattern
-    const apiStyleOverride = getModelEnv("API_STYLE").toLowerCase();
-    if (apiStyleOverride === "legacy" || apiStyleOverride === "azure-native") {
-      useOpenAiV1 = false;
-    } else if (/\/openai\/v\d$/i.test(String(endpoint || "").replace(/\/+$/, ""))) {
-      // Endpoint already ends with /openai/vN — no need to append again.
-      useOpenAiV1 = true;
-    }
+  // Validate required env vars based on mode
+  const missingVars = [];
+  if (!apiKey) missingVars.push("API_KEY");
+  if (!endpoint) missingVars.push("AZURE_ENDPOINT");
+  if (!deployment) missingVars.push("DEPLOYMENT");
+  if (!useOpenAiV1 && !apiVersion) missingVars.push("API_VERSION (required when API_STYLE is legacy/azure-native)");
 
-    // Validate required env vars based on mode
-    const missingVars = [];
-    if (!apiKey) missingVars.push("API_KEY");
-    if (!endpoint) missingVars.push("AZURE_ENDPOINT");
-    if (!deployment) missingVars.push("DEPLOYMENT");
-    if (!useOpenAiV1 && !apiVersion) missingVars.push("API_VERSION (required when API_STYLE is legacy/azure-native)");
-
-    if (missingVars.length > 0) {
-      console.error(`[AI] Missing env vars for ${envPrefix}:`);
-      console.error(`  API_KEY: ${!!apiKey}`);
-      console.error(`  AZURE_ENDPOINT: ${!!endpoint}`);
-      console.error(`  DEPLOYMENT: ${!!deployment}`);
-      console.error(`  useOpenAiV1: ${useOpenAiV1}, API_VERSION: ${!!apiVersion}`);
-      res.status(500).json({
-        error: `Missing required ${envPrefix}_* environment variables.`,
-      });
-      return;
-    }
+  if (missingVars.length > 0) {
+    console.error(`[AI] Missing env vars for ${envPrefix}:`);
+    console.error(`  API_KEY: ${!!apiKey}`);
+    console.error(`  AZURE_ENDPOINT: ${!!endpoint}`);
+    console.error(`  DEPLOYMENT: ${!!deployment}`);
+    console.error(`  useOpenAiV1: ${useOpenAiV1}, API_VERSION: ${!!apiVersion}`);
+    res.status(500).json({
+      error: `Missing required ${envPrefix}_* environment variables.`,
+    });
+    return;
   }
 
   const { prompt, temperature = 0.2, max_tokens = 300 } = req.body || {};
@@ -493,36 +466,26 @@ app.post("/api/analysis/chat", async (req, res) => {
     return;
   }
 
-  // Build URL based on mode (Deepseek vs Azure OpenAI)
+  // Build URL based on Azure OpenAI mode
   const endpointBase = String(endpoint || "").replace(/\/+$/, "");
   
   // Detect if this is a Responses API model (GPT-5.4-Mini)
   const isResponsesApiModel = String(modelName || deployment).toLowerCase().includes("gpt-5.4");
   
+  const normalizedBase = endpointBase
+    .replace(/\/api\/projects\/[^/]+$/i, "")
+    .replace(/\/openai(\/v\d+)?$/i, "");
+  
   let url;
-  if (isDeepseek) {
-    const deepVersion = String(apiVersion || "v1").replace(/^\/+|\/+$/g, "") || "v1";
-    const deepBase = endpointBase
-      .replace(/\/?chat\/completions$/i, "")
-      .replace(/\/?responses$/i, "")
-      .replace(/\/?openai\/v\d+$/i, "")
-      .replace(/\/?openai$/i, "");
-    url = `${deepBase}/openai/${deepVersion}/chat/completions`;
+  if (useOpenAiV1) {
+    // GPT-5.4-Mini uses /responses endpoint, others use /chat/completions
+    const endpointSuffix = isResponsesApiModel ? "responses" : "chat/completions";
+    url = `${normalizedBase}/openai/v1/${endpointSuffix}`;
   } else {
-    const normalizedBase = endpointBase
-      .replace(/\/api\/projects\/[^/]+$/i, "")
-      .replace(/\/openai(\/v\d+)?$/i, "");
-    
-    if (useOpenAiV1) {
-      // GPT-5.4-Mini uses /responses endpoint, others use /chat/completions
-      const endpointSuffix = isResponsesApiModel ? "responses" : "chat/completions";
-      url = `${normalizedBase}/openai/v1/${endpointSuffix}`;
-    } else {
-      url = `${normalizedBase}/openai/deployments/${encodeURIComponent(deployment)}/${isResponsesApiModel ? "responses" : "chat/completions"}?api-version=${encodeURIComponent(apiVersion)}`;
-    }
+    url = `${normalizedBase}/openai/deployments/${encodeURIComponent(deployment)}/${isResponsesApiModel ? "responses" : "chat/completions"}?api-version=${encodeURIComponent(apiVersion)}`;
   }
 
-  console.log(`[AI] Mode: ${modeHeader} | Deepseek: ${isDeepseek} | URL: ${url} | Model: ${modelName}`);
+  console.log(`[AI] Mode: ${modeHeader} | URL: ${url} | Model: ${modelName}`);
 
   const messages = [
     { role: "system", content: "You are a helpful assistant." },
@@ -532,11 +495,9 @@ app.post("/api/analysis/chat", async (req, res) => {
   const requestedMaxTokens = Number.isFinite(Number(max_tokens)) ? Number(max_tokens) : 300;
   const resolvedMaxTokens = isFinal
     ? Math.max(1200, requestedMaxTokens)
-    : isDeepseek
-      ? Math.max(300, requestedMaxTokens)
-      : isAssessor
-        ? Math.max(isResponsesApiModel ? 1200 : 450, requestedMaxTokens)
-        : Math.max(800, requestedMaxTokens);
+    : isAssessor
+      ? Math.max(isResponsesApiModel ? 1200 : 450, requestedMaxTokens)
+      : Math.max(800, requestedMaxTokens);
 
   // Build request body based on API type
   let body;
@@ -567,7 +528,7 @@ app.post("/api/analysis/chat", async (req, res) => {
   let upstreamStartedAt = 0;
   try {
     const authValue = apiKey;
-    const requestTimeoutMs = isDeepseek ? 90000 : 120000;
+    const requestTimeoutMs = 120000;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
     upstreamStartedAt = Date.now();

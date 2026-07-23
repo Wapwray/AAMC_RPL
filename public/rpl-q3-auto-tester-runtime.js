@@ -308,19 +308,9 @@
     }
   };
 
-  const detectDeepseekMode = () => {
-    try {
-      if (window.useDeepseekMode === true) return true;
-      if (localStorage.getItem("rpl_use_deepseek") === "true") return true;
-    } catch {}
-    return false;
-  };
-
+  // Deepseek mode testing is incomplete; always use Azure OpenAI mode
   const applyQuestionCooldown = async () => {
-    if (detectDeepseekMode()) {
-      addLog("Rate limit protection", "Deepseek mode: 15s cooldown");
-      await wait(15000);
-    }
+    // No additional rate limiting needed for Azure OpenAI mode
   };
 
   const runAutoTest = async () => {
