@@ -124,6 +124,12 @@
     return parts[0] || "";
   };
 
+  // Transcript attempts may be prefixed like "Attempt 1: ..." — strip the
+  // prefix so only the answer text is submitted.
+  const stripAttemptPrefix = (text) => {
+    return normalizeString(text).replace(/^attempt\s*\d+\s*(?:\([^)]*\))?\s*[:\-\u2013\u2014.]?\s*/i, "").trim();
+  };
+
   const parseTranscriptJson = (json) => {
     const candidate = json && typeof json === "object" ? (json.candidate || {}) : {};
     const fullName = normalizeString(candidate.fullName || json?.fullName || "");
@@ -139,7 +145,7 @@
       if (!questionNumber) return;
       const attempts = Array.isArray(question?.attempts)
         ? question.attempts
-            .map((attempt) => normalizeString(attempt?.answer || attempt?.responseText || attempt?.response || ""))
+            .map((attempt) => stripAttemptPrefix(attempt?.answer || attempt?.responseText || attempt?.response || ""))
             .filter(Boolean)
         : [];
       questionMap.set(questionNumber, attempts);
