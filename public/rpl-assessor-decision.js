@@ -822,6 +822,7 @@ ${JSON.stringify(payload, null, 2)}`;
     STATUS_LIKELY_SUFFICIENT,
     STATUS_ADDITIONAL_EVIDENCE,
     buildAssessmentPrompt,
+    buildDeepseekAssessmentPrompt,
     parseAssessmentResponse,
     normaliseAssessmentStatus,
     normaliseDecision,
