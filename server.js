@@ -545,11 +545,13 @@ app.post("/api/analysis/chat", async (req, res) => {
     body.max_tokens = resolvedMaxTokens;
   }
 
+  let upstreamStartedAt = 0;
   try {
     const authValue = apiKey;
     const requestTimeoutMs = isDeepseek ? 90000 : 120000;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
+    upstreamStartedAt = Date.now();
 
     try {
       console.log(`[AI] Auth header: ${authHeader} | Model: ${modelName}`);
@@ -564,6 +566,8 @@ app.post("/api/analysis/chat", async (req, res) => {
       });
 
       console.log(`[AI] Upstream status: ${response.status} | URL: ${url}`);
+      const upstreamLatencyMs = Math.max(0, Date.now() - upstreamStartedAt);
+      res.setHeader("x-ai-upstream-latency-ms", String(upstreamLatencyMs));
       if (!response.ok) {
         const text = await response.text();
         console.error(`[AI] Upstream error (${response.status}):`, text.substring(0, 500));
@@ -604,6 +608,10 @@ app.post("/api/analysis/chat", async (req, res) => {
       clearTimeout(timeout);
     }
   } catch (error) {
+    const upstreamLatencyMs = typeof upstreamStartedAt === "number" ? Math.max(0, Date.now() - upstreamStartedAt) : 0;
+    if (!res.headersSent && upstreamLatencyMs >= 0) {
+      res.setHeader("x-ai-upstream-latency-ms", String(upstreamLatencyMs));
+    }
     if (error?.name === "AbortError") {
       res.status(504).json({
         error: `AI request timed out after ${Math.round((isDeepseek ? 90000 : 120000) / 1000)} seconds.`,
