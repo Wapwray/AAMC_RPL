@@ -332,10 +332,13 @@
   const parseAssessorBotMessages = (rawBlockText, attemptsWithPositions) => {
     const messages = [];
     const messageRegex = /^\s*(AI Interviewer|AssessorBot)\s*:\s*(?:\r?\n)?([\s\S]*?)(?=^\s*(?:[^\r\n:]+?\s*\(Attempt\s+\d+\)\s*:|AI Interviewer\s*:|AssessorBot\s*:|Submitted\s*:|-{3,}\s*$|(?:Question|Q)\s*[A-Za-z0-9][\w.-]*\s*(?::|-)\s*)|(?![\s\S]))/gim;
+    const summaryLabelRegex = new RegExp(`^\\s*(?:${TRANSCRIPT_SUMMARY_LABELS.map(escapeRegExp).join('|')})\\s*:`, 'i');
     let match;
     while ((match = messageRegex.exec(rawBlockText))) {
       const messageText = stripStructuralNewlines(match[2] || "").trim();
       if (!messageText) continue;
+      // Skip messages that are actually summary labels
+      if (summaryLabelRegex.test(match[0])) continue;
       const priorAttempt = attemptsWithPositions
         .filter((attempt) => attempt._position < match.index)
         .slice(-1)[0];
@@ -1234,11 +1237,34 @@ Rules:
       .assessor-evaluation-box { min-height: 42px; }
       .assessor-evaluation { border: 1px solid #cbd5e1; border-radius: 6px; padding: 12px; background: #fff; }
       .field-value { min-height: 30px; border: 1px solid #999; border-radius: 4px; padding: 7px 9px; box-sizing: border-box; background: #fff; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word; }
-      .checkbox-static { display: inline-block; min-width: 1.2em; font-family: "Segoe UI Symbol", Arial, Helvetica, sans-serif; }
       @media print {
-        body { background: #fff; }
-        .report { width: 100%; max-width: 186mm; }
+        body { background: #fff; margin: 0; padding: 0; }
+        .report { width: 100%; max-width: 210mm; margin: 0; padding: 12mm 12mm; box-sizing: border-box; }
+        h1 { page-break-after: avoid; margin-bottom: 6mm; font-size: 24px; }
+        h2 { page-break-after: avoid; margin-top: 8mm; margin-bottom: 4mm; font-size: 16px; }
+        h3 { page-break-after: avoid; margin-bottom: 3mm; font-size: 14px; }
+        h4 { page-break-after: avoid; margin-top: 3mm; margin-bottom: 2mm; font-size: 12px; }
+        p { margin: 2mm 0; line-height: 1.4; }
+        .summary, .status-summary-section { page-break-after: avoid; margin-bottom: 6mm; }
+        .question-review-section { page-break-before: always; }
+        .question-card { break-inside: avoid; page-break-inside: avoid; margin-bottom: 6mm; padding: 6mm; }
+        .question-card section { margin-top: 3mm; page-break-inside: avoid; }
+        table { page-break-inside: avoid; margin: 2mm 0; }
+        th, td { padding: 3mm 4mm; font-size: 10pt; line-height: 1.3; }
+        .metadata-table, .status-table, .signoff-table { margin-bottom: 4mm; }
+        .status-table { font-size: 9pt; }
+        .warning-box, .coverage-warning { margin-bottom: 4mm; padding: 6mm; }
+        .disclaimer-list, .summary-list { margin: 2mm 0 0 8mm; }
+        .disclaimer-list li, .summary-list li { margin: 1mm 0; line-height: 1.3; }
+        .response-box, .verbatim, .formatted-summary { margin: 2mm 0; padding: 4mm; font-size: 10pt; line-height: 1.3; }
+        .response-box { min-height: auto; }
+        .candidate-attempt, .ai-interview-response { margin: 2mm 0; padding: 4mm; font-size: 10pt; }
+        .limitations { page-break-before: avoid; margin-top: 8mm; margin-bottom: 4mm; }
+        .confirmation { page-break-before: avoid; margin-bottom: 4mm; }
+        .signoff { page-break-before: avoid; margin-top: 8mm; }
+        .signoff-actions { display: none; }
         .question-card, .summary, .warning-box, .coverage-warning, .limitations, .confirmation, .signoff { border-color: #999; }
+        tr { page-break-inside: avoid; }
       }
     </style>
   </head>
@@ -1660,16 +1686,35 @@ Rules:
       .confirm-yes-btn { background: #0b6ea9; color: #fff; }
       .confirm-yes-btn:hover { background: #095c8b; }
       @media print {
-        body { background: #fff; }
-        .report { width: 100%; max-width: 186mm; padding: 0; }
-        .summary, .status-summary-section, .question-review-section, .assessor-questions-section, .limitations, .signoff { break-before: page; page-break-before: always; }
-        .question-review-section > .question-card:first-of-type, .assessor-questions-section > .question-card:first-of-type { break-inside: auto; page-break-inside: auto; }
-        .question-review-section > h2, .assessor-questions-section > h2 { break-after: avoid; page-break-after: avoid; }
-        .question-card, .summary, .warning-box, .coverage-warning, .limitations, .confirmation, .signoff { border-color: #999; }
+        body { background: #fff; margin: 0; padding: 0; }
+        .report { width: 100%; max-width: 210mm; margin: 0; padding: 12mm 12mm; box-sizing: border-box; }
+        h1 { page-break-after: avoid; margin-bottom: 6mm; font-size: 24px; }
+        h2 { page-break-after: avoid; margin-top: 8mm; margin-bottom: 4mm; font-size: 16px; }
+        h3 { page-break-after: avoid; margin-bottom: 3mm; font-size: 14px; }
+        h4 { page-break-after: avoid; margin-top: 3mm; margin-bottom: 2mm; font-size: 12px; }
+        p { margin: 2mm 0; line-height: 1.4; }
+        .summary, .status-summary-section { page-break-after: avoid; margin-bottom: 6mm; }
+        .question-review-section { page-break-before: always; }
+        .question-card { break-inside: avoid; page-break-inside: avoid; margin-bottom: 6mm; padding: 6mm; }
+        .question-card section { margin-top: 3mm; page-break-inside: avoid; }
+        table { page-break-inside: avoid; margin: 2mm 0; }
+        th, td { padding: 3mm 4mm; font-size: 10pt; line-height: 1.3; }
+        .metadata-table, .status-table, .signoff-table { margin-bottom: 4mm; }
+        .status-table { font-size: 9pt; }
+        .warning-box, .coverage-warning { margin-bottom: 4mm; padding: 6mm; }
+        .disclaimer-list, .summary-list { margin: 2mm 0 0 8mm; }
+        .disclaimer-list li, .summary-list li { margin: 1mm 0; line-height: 1.3; }
+        .response-box, .verbatim, .formatted-summary { margin: 2mm 0; padding: 4mm; font-size: 10pt; line-height: 1.3; }
+        .response-box { min-height: auto; }
+        .candidate-attempt, .ai-interview-response { margin: 2mm 0; padding: 4mm; font-size: 10pt; }
+        .limitations { page-break-before: avoid; margin-top: 8mm; margin-bottom: 4mm; }
+        .confirmation { page-break-before: avoid; margin-bottom: 4mm; }
+        .signoff { page-break-before: avoid; margin-top: 8mm; }
         .signoff-actions { display: none; }
         .question-submit-btn { display: none; }
         .confirm-backdrop { display: none !important; }
         .assessor-input, .assessor-signoff-input { border: 1px solid #999; }
+        tr { page-break-inside: avoid; }
       }
     </style>
   </head>
