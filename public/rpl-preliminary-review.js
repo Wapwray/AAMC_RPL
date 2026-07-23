@@ -1172,7 +1172,7 @@ Rules:
               ${renderConversation(question)}
             </section>
             <section>
-              <h4>Interview Summary</h4>
+              <h4>AI Interview Summary</h4>
               ${renderResponseBox(valueOrMissing(question.aiInterviewSummary))}
             </section>
             ${renderAssessorStaticSection(question)}
@@ -1597,7 +1597,7 @@ Rules:
               ${renderConversation(question)}
             </section>
             <section>
-              <h4>Interview Summary</h4>
+              <h4>AI Interview Summary</h4>
               ${renderResponseBox(valueOrMissing(question.aiInterviewSummary))}
             </section>
             <section class="assessor-evaluation">
