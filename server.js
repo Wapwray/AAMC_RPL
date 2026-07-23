@@ -515,8 +515,8 @@ app.post("/api/analysis/chat", async (req, res) => {
     
     if (useOpenAiV1) {
       // GPT-5.4-Mini uses /responses endpoint, others use /chat/completions
-      const endpoint_suffix = isResponsesApiModel ? "responses" : "chat/completions";
-      url = `${normalizedBase}/openai/v1/${endpoint_suffix}`;
+      const endpointSuffix = isResponsesApiModel ? "responses" : "chat/completions";
+      url = `${normalizedBase}/openai/v1/${endpointSuffix}`;
     } else {
       url = `${normalizedBase}/openai/deployments/${encodeURIComponent(deployment)}/${isResponsesApiModel ? "responses" : "chat/completions"}?api-version=${encodeURIComponent(apiVersion)}`;
     }
@@ -535,7 +535,7 @@ app.post("/api/analysis/chat", async (req, res) => {
     : isDeepseek
       ? Math.max(300, requestedMaxTokens)
       : isAssessor
-        ? Math.max(450, requestedMaxTokens)
+        ? Math.max(isResponsesApiModel ? 1200 : 450, requestedMaxTokens)
         : Math.max(800, requestedMaxTokens);
 
   // Build request body based on API type
@@ -545,7 +545,8 @@ app.post("/api/analysis/chat", async (req, res) => {
     body = {
       input: prompt,
       model: modelName || deployment,
-      max_completion_tokens: resolvedMaxTokens,
+      max_output_tokens: resolvedMaxTokens,
+      reasoning: { effort: "medium" },
     };
   } else {
     // Other models use Chat Completions API
@@ -600,9 +601,26 @@ app.post("/api/analysis/chat", async (req, res) => {
       
       // Handle Responses API (GPT-5.4-Mini)
       if (isResponsesApiModel && Array.isArray(payload?.output)) {
-        const firstOutput = payload.output[0];
-        if (typeof firstOutput === "string") return firstOutput;
-        if (typeof firstOutput?.text === "string") return firstOutput.text;
+        const parts = [];
+        for (const output of payload.output) {
+          if (typeof output === "string") {
+            parts.push(output);
+            continue;
+          }
+          if (typeof output?.text === "string") {
+            parts.push(output.text);
+          }
+          if (Array.isArray(output?.content)) {
+            for (const content of output.content) {
+              if (typeof content === "string") {
+                parts.push(content);
+              } else if (typeof content?.text === "string") {
+                parts.push(content.text);
+              }
+            }
+          }
+        }
+        if (parts.length) return parts.join("");
       }
       
       // Handle Chat Completions API
