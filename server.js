@@ -496,11 +496,15 @@ app.post("/api/analysis/chat", async (req, res) => {
   // Build URL based on mode (Deepseek vs Azure OpenAI)
   const endpointBase = String(endpoint || "").replace(/\/+$/, "");
   
+  // Detect if this is a Responses API model (GPT-5.4-Mini)
+  const isResponsesApiModel = String(modelName || deployment).toLowerCase().includes("gpt-5.4");
+  
   let url;
   if (isDeepseek) {
     const deepVersion = String(apiVersion || "v1").replace(/^\/+|\/+$/g, "") || "v1";
     const deepBase = endpointBase
       .replace(/\/?chat\/completions$/i, "")
+      .replace(/\/?responses$/i, "")
       .replace(/\/?openai\/v\d+$/i, "")
       .replace(/\/?openai$/i, "");
     url = `${deepBase}/openai/${deepVersion}/chat/completions`;
@@ -510,9 +514,11 @@ app.post("/api/analysis/chat", async (req, res) => {
       .replace(/\/openai(\/v\d+)?$/i, "");
     
     if (useOpenAiV1) {
-      url = `${normalizedBase}/openai/v1/chat/completions`;
+      // GPT-5.4-Mini uses /responses endpoint, others use /chat/completions
+      const endpoint_suffix = isResponsesApiModel ? "responses" : "chat/completions";
+      url = `${normalizedBase}/openai/v1/${endpoint_suffix}`;
     } else {
-      url = `${normalizedBase}/openai/deployments/${encodeURIComponent(deployment)}/chat/completions?api-version=${encodeURIComponent(apiVersion)}`;
+      url = `${normalizedBase}/openai/deployments/${encodeURIComponent(deployment)}/${isResponsesApiModel ? "responses" : "chat/completions"}?api-version=${encodeURIComponent(apiVersion)}`;
     }
   }
 
@@ -532,17 +538,29 @@ app.post("/api/analysis/chat", async (req, res) => {
         ? Math.max(450, requestedMaxTokens)
         : Math.max(800, requestedMaxTokens);
 
-  const body = {
-    messages,
-    model: modelName || deployment,
-  };
-  if (!useOpenAiV1) {
-    body.temperature = temperature;
-  }
-  if (useOpenAiV1) {
-    body.max_completion_tokens = resolvedMaxTokens;
+  // Build request body based on API type
+  let body;
+  if (isResponsesApiModel) {
+    // GPT-5.4-Mini uses Responses API
+    body = {
+      input: prompt,
+      model: modelName || deployment,
+      max_completion_tokens: resolvedMaxTokens,
+    };
   } else {
-    body.max_tokens = resolvedMaxTokens;
+    // Other models use Chat Completions API
+    body = {
+      messages,
+      model: modelName || deployment,
+    };
+    if (!useOpenAiV1) {
+      body.temperature = temperature;
+    }
+    if (useOpenAiV1) {
+      body.max_completion_tokens = resolvedMaxTokens;
+    } else {
+      body.max_tokens = resolvedMaxTokens;
+    }
   }
 
   let upstreamStartedAt = 0;
@@ -579,6 +597,15 @@ app.post("/api/analysis/chat", async (req, res) => {
 
     const extractContent = (payload) => {
       if (!payload) return "";
+      
+      // Handle Responses API (GPT-5.4-Mini)
+      if (isResponsesApiModel && Array.isArray(payload?.output)) {
+        const firstOutput = payload.output[0];
+        if (typeof firstOutput === "string") return firstOutput;
+        if (typeof firstOutput?.text === "string") return firstOutput.text;
+      }
+      
+      // Handle Chat Completions API
       const direct =
         payload?.choices?.[0]?.message?.content ||
         payload?.choices?.[0]?.text ||
