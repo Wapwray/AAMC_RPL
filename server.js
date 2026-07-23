@@ -527,7 +527,7 @@ app.post("/api/analysis/chat", async (req, res) => {
   const resolvedMaxTokens = isFinal
     ? Math.max(1200, requestedMaxTokens)
     : isDeepseek
-      ? Math.max(450, requestedMaxTokens)
+      ? Math.max(300, requestedMaxTokens)
       : isAssessor
         ? Math.max(450, requestedMaxTokens)
         : Math.max(800, requestedMaxTokens);
@@ -547,26 +547,31 @@ app.post("/api/analysis/chat", async (req, res) => {
 
   try {
     const authValue = apiKey;
+    const requestTimeoutMs = isDeepseek ? 90000 : 120000;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
 
-    console.log(`[AI] Auth header: ${authHeader} | Model: ${modelName}`);
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        [authHeader]: authValue,
-      },
-      body: JSON.stringify(body),
-    });
+    try {
+      console.log(`[AI] Auth header: ${authHeader} | Model: ${modelName}`);
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          [authHeader]: authValue,
+        },
+        signal: controller.signal,
+        body: JSON.stringify(body),
+      });
 
-    console.log(`[AI] Upstream status: ${response.status} | URL: ${url}`);
-    if (!response.ok) {
-      const text = await response.text();
-      console.error(`[AI] Upstream error (${response.status}):`, text.substring(0, 500));
-      res.status(response.status).send(text || "Azure OpenAI error");
-      return;
-    }
+      console.log(`[AI] Upstream status: ${response.status} | URL: ${url}`);
+      if (!response.ok) {
+        const text = await response.text();
+        console.error(`[AI] Upstream error (${response.status}):`, text.substring(0, 500));
+        res.status(response.status).send(text || "Azure OpenAI error");
+        return;
+      }
 
-    const json = await response.json();
+      const json = await response.json();
 
     const extractContent = (payload) => {
       if (!payload) return "";
@@ -593,9 +598,18 @@ app.post("/api/analysis/chat", async (req, res) => {
       return "";
     };
 
-    const content = extractContent(json);
-    res.json({ content, raw: json });
+      const content = extractContent(json);
+      res.json({ content, raw: json });
+    } finally {
+      clearTimeout(timeout);
+    }
   } catch (error) {
+    if (error?.name === "AbortError") {
+      res.status(504).json({
+        error: `AI request timed out after ${Math.round((isDeepseek ? 90000 : 120000) / 1000)} seconds.`,
+      });
+      return;
+    }
     res.status(500).json({ error: error?.message || String(error) });
   }
 });
