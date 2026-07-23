@@ -36,26 +36,77 @@
       }
 
       .bootText {
-        margin: 0;
+        margin: 0 0 12px;
         color: #475569;
         line-height: 1.5;
+      }
+
+      .bootField {
+        display: grid;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .bootField input[type="file"] {
+        max-width: 100%;
+      }
+
+      .bootActions {
+        margin-top: 8px;
+      }
+
+      .bootActions button {
+        border: 1px solid #94a3b8;
+        background: #0b6ea9;
+        color: #fff;
+        border-radius: 8px;
+        padding: 8px 12px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+
+      .bootActions button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .bootStatus {
+        margin: 10px 0 0;
+        min-height: 18px;
+        font-size: 12px;
+        color: #334155;
       }
     </style>
   </head>
   <body>
     <main class="boot">
       <section class="bootCard">
-        <h1 class="bootTitle">Loading AAMC RPL 2026 Q3 Auto Tester...</h1>
-        <p class="bootText">Applying Q3 updates plus transcript-driven automation for end-to-end testing.</p>
+        <h1 class="bootTitle">AAMC RPL 2026 Q3 Auto Tester</h1>
+        <p class="bootText">Upload a previous student transcript JSON before entering the assessment. The Auto Tester page will open after the file is validated.</p>
+        <div class="bootField">
+          <label for="bootTranscriptFile">Transcript .json file</label>
+          <input id="bootTranscriptFile" type="file" accept="application/json,.json" />
+        </div>
+        <div class="bootActions">
+          <button id="bootContinueBtn" type="button" disabled>Open Auto Tester Page</button>
+        </div>
+        <p id="bootStatus" class="bootStatus">Choose a transcript .json file to continue.</p>
       </section>
     </main>
 
     <script>
       const SOURCE_FILE = "AAMC RPL 2026.html";
+      const SESSION_JSON_KEY = "rpl_auto_tester_uploaded_json";
+      const RUNTIME_VERSION = "1.7.3";
 
       const replaceOnce = (text, matcher, replacement) => {
         const next = text.replace(matcher, replacement);
         return next;
+      };
+
+      const setBootStatus = (message) => {
+        const el = document.getElementById("bootStatus");
+        if (el) el.textContent = message;
       };
 
       const removeDebugPanelMarkup = (html) => {
@@ -168,7 +219,7 @@
       };
 
       const injectAutoTesterRuntime = (html) => {
-        const runtimeTag = '<script src="/rpl-q3-auto-tester-runtime.js"><\\/script>';
+        const runtimeTag = `<script src="/rpl-q3-auto-tester-runtime.js?v=${RUNTIME_VERSION}"><\\/script>`;
         return html.replace(/<\/body>/i, `${runtimeTag}\n</body>`);
       };
 
@@ -203,7 +254,49 @@
         }
       };
 
-      boot();
+      const wireBootGate = () => {
+        const fileInput = document.getElementById("bootTranscriptFile");
+        const continueBtn = document.getElementById("bootContinueBtn");
+        let selectedJsonText = "";
+
+        fileInput?.addEventListener("change", async (event) => {
+          const file = event.target?.files?.[0];
+          selectedJsonText = "";
+          continueBtn.disabled = true;
+          if (!file) {
+            setBootStatus("Choose a transcript .json file to continue.");
+            return;
+          }
+          try {
+            const text = await file.text();
+            JSON.parse(text);
+            selectedJsonText = text;
+            continueBtn.disabled = false;
+            setBootStatus(`Loaded ${file.name}. Click Open Auto Tester Page.`);
+          } catch (error) {
+            const message = error?.message || String(error);
+            setBootStatus(`Invalid JSON file: ${message}`);
+          }
+        });
+
+        continueBtn?.addEventListener("click", async () => {
+          if (!selectedJsonText) {
+            setBootStatus("Choose a transcript .json file first.");
+            return;
+          }
+          try {
+            sessionStorage.setItem(SESSION_JSON_KEY, selectedJsonText);
+          } catch {
+            setBootStatus("Could not cache the uploaded file in this browser session.");
+            return;
+          }
+          continueBtn.disabled = true;
+          setBootStatus("Opening Auto Tester page...");
+          await boot();
+        });
+      };
+
+      wireBootGate();
     </script>
   </body>
 </html>

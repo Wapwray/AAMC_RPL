@@ -1,6 +1,7 @@
 (() => {
   const REPORT_BASE = "https://aamc-rpl-live-ecgua6ceb4fkgfh0.australiaeast-01.azurewebsites.net/RPL%20Report%20Generator%20-%20Assessor.html";
   const CONTINUE_SIGNAL = /next question button to continue|press the next button to continue/i;
+  const SESSION_JSON_KEY = "rpl_auto_tester_uploaded_json";
 
   const state = {
     loaded: null,
@@ -382,6 +383,20 @@
     setRunningUi(false);
   };
 
+  const loadJsonFromText = (text, sourceLabel = "session") => {
+    const parsed = JSON.parse(text);
+    state.loaded = parseTranscriptJson(parsed);
+    const qCount = state.loaded.questionMap.size;
+    setStatus(`Loaded ${state.loaded.fullName} (${state.loaded.contactId}) with ${qCount} question(s).`);
+    addLog("JSON loaded", {
+      source: sourceLabel,
+      fullName: state.loaded.fullName,
+      contactId: state.loaded.contactId,
+      questions: qCount,
+    });
+    setRunningUi(false);
+  };
+
   const installPanel = () => {
     const style = document.createElement("style");
     style.textContent = panelCss;
@@ -447,6 +462,17 @@
     installPanel();
     wirePanel();
     setRunningUi(false);
+    try {
+      const startupJson = sessionStorage.getItem(SESSION_JSON_KEY);
+      if (startupJson) {
+        loadJsonFromText(startupJson, "boot");
+        sessionStorage.removeItem(SESSION_JSON_KEY);
+      }
+    } catch (error) {
+      const message = error?.message || String(error);
+      setStatus(`Startup JSON load failed: ${message}`);
+      addLog("Startup JSON load failed", message);
+    }
     addLog("Auto tester", "Ready");
     window.setInterval(ensureReportLink, 1000);
   };
