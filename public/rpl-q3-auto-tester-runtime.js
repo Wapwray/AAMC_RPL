@@ -295,6 +295,8 @@
     nextBtn.click();
     addLog("Next", before ? `from question ${before}` : "clicked");
 
+    await wait(500);
+
     const moved = await waitFor(() => {
       if (isCompletionVisible()) return true;
       const now = getCurrentQuestionNumber();
@@ -302,7 +304,22 @@
     }, 120000);
 
     if (!moved) {
-      throw new Error("Next Question did not advance to a new question.");
+      throw new Error(`Next Question button did not advance: was Q${before}, now Q${getCurrentQuestionNumber()}.`);
+    }
+  };
+
+  const detectDeepseekMode = () => {
+    try {
+      if (window.useDeepseekMode === true) return true;
+      if (localStorage.getItem("rpl_use_deepseek") === "true") return true;
+    } catch {}
+    return false;
+  };
+
+  const applyQuestionCooldown = async () => {
+    if (detectDeepseekMode()) {
+      addLog("Rate limit protection", "Deepseek mode: 15s cooldown");
+      await wait(15000);
     }
   };
 
@@ -339,6 +356,7 @@
       if (state.nextAttemptIndex >= attempts.length) {
         addLog("Attempt source", `No transcript attempt for Q${questionNumber}; moving next.`);
         await goNextQuestion();
+        await applyQuestionCooldown();
         continue;
       }
 
@@ -352,12 +370,14 @@
       if (result.shouldContinue) {
         addLog("System guidance", "Move to next question");
         await goNextQuestion();
+        await applyQuestionCooldown();
         continue;
       }
 
       if (state.nextAttemptIndex >= attempts.length) {
         addLog("System guidance", `Not yet sufficient and no more transcript attempts for Q${questionNumber}; moving next.`);
         await goNextQuestion();
+        await applyQuestionCooldown();
       }
     }
 
