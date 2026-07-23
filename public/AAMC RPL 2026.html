@@ -744,53 +744,7 @@
         color: var(--text);
       }
 
-      /* Deepseek toggle */
-      .aiModeToggleRow {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 12px;
-        margin-top: 6px;
-        padding: 8px 0;
-        font-size: 13px;
-      }
-      .aiModeToggleLabel {
-        color: var(--muted);
-        user-select: none;
-      }
-      .aiModeToggle {
-        position: relative;
-        width: 52px;
-        height: 28px;
-        background: #dbe7f2;
-        border-radius: 999px;
-        cursor: pointer;
-        border: 1px solid #c7d9e8;
-        display: inline-block;
-      }
-      .aiModeToggle input {
-        position: absolute;
-        opacity: 0;
-        width: 0;
-        height: 0;
-      }
-      .aiModeToggleKnob {
-        position: absolute;
-        top: 3px;
-        left: 3px;
-        width: 22px;
-        height: 22px;
-        background: #ffffff;
-        border-radius: 50%;
-        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.2);
-        transition: transform 0.2s ease;
-      }
-      .aiModeToggle input:checked + .aiModeToggleKnob {
-        transform: translateX(24px);
-      }
-      .aiModeToggle:has(input:checked) {
-        background: #6b3fa0;
-      }
+      /* Deepseek toggle - removed, using Azure OpenAI mode only */
       .aiModeLabel {
         font-weight: 600;
         color: var(--text);
@@ -827,13 +781,8 @@
             </div>
           </div>
 
-          <div class="aiModeToggleRow">
-            <span class="aiModeLabel">Assessor:</span>
-            <label class="aiModeToggle">
-
-              <span class="aiModeToggleKnob"></span>
-            </label>
-            <span class="aiModeLabel" id="aiModeLabelDisplay">Azure OpenAI</span>
+          <div style="margin-top: 12px; padding: 8px 0; text-align: center; font-size: 12px; color: var(--muted);">
+            <strong>Assessor Mode: Azure OpenAI</strong>
           </div>
         </div>
       </div>
@@ -2711,6 +2660,14 @@ Job Title: ${jobTitleValue || "N/A"}
       const ensureCompleteTranscriptQuestions = async () => {
         if (transcriptMergeAttempted) return;
         transcriptMergeAttempted = true;
+        
+        // Only attempt to merge persisted transcript if this is a resume session
+        // On fresh assessment start, skip this to avoid 502 errors on Q1A1
+        if (!resumeCurrentQuestionNumber) {
+          logAssessmentDebug("Transcript merge", "Fresh assessment start - skipping persisted transcript merge.");
+          return;
+        }
+        
         logAssessmentDebug("Transcript merge", "Fetching persisted transcript to prevent overwrite on restart.");
         try {
           const persistedTranscript = await fetchPersistedTranscript();

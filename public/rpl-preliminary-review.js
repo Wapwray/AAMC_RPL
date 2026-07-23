@@ -337,8 +337,8 @@
     while ((match = messageRegex.exec(rawBlockText))) {
       const messageText = stripStructuralNewlines(match[2] || "").trim();
       if (!messageText) continue;
-      // Skip messages that are actually summary labels
-      if (summaryLabelRegex.test(match[0])) continue;
+      // Skip messages that are actually summary labels (check the message content, not the full match)
+      if (summaryLabelRegex.test(match[2])) continue;
       const priorAttempt = attemptsWithPositions
         .filter((attempt) => attempt._position < match.index)
         .slice(-1)[0];
