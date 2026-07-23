@@ -370,25 +370,12 @@ test("renders assessor-mode sign-off fields and keeps assessor identity read-onl
   assert.match(html, /@page \{ size: A4 portrait; margin: 12mm; \}/);
   assert.match(html, /\.report \{ width: 100%; max-width: 186mm;/);
   assert.match(html, /<section class="status-summary-section" aria-labelledby="statusTableTitle">/);
-  
-  // Verify page-break behavior for each required section (resilient to selector ordering)
-  const requiredSections = [
-    "summary",
-    "status-summary-section",
-    "question-review-section",
-    "assessor-questions-section",
-    "limitations",
-    "signoff",
-  ];
-  for (const cls of requiredSections) {
-    const pattern = new RegExp(
-      `\\.${cls}[^\\{]*\\{[^\\}]*break-before:\\s*page;[^\\}]*page-break-before:\\s*always;`,
-      "m"
-    );
-    assert.match(html, pattern, `Expected page-break rules for .${cls}`);
-  }
-  
-  assert.match(html, /\.question-review-section > \.question-card:first-of-type, \.assessor-questions-section > \.question-card:first-of-type \{ break-inside: auto; page-break-inside: auto; \}/);
+
+  // A4 print optimization: question review starts on a new page; trailing sections avoid forced breaks.
+  assert.match(html, /\.question-review-section\s*\{[^}]*page-break-before:\s*always;[^}]*\}/);
+  assert.match(html, /\.limitations\s*\{[^}]*page-break-before:\s*avoid;[^}]*\}/);
+  assert.match(html, /\.signoff\s*\{[^}]*page-break-before:\s*avoid;[^}]*\}/);
+  assert.match(html, /\.question-card\s*\{[^}]*break-inside:\s*avoid;[^}]*page-break-inside:\s*avoid;[^}]*\}/);
   assert.equal(review.validateReportHtmlCoverage(model, html).valid, true);
 });
 
