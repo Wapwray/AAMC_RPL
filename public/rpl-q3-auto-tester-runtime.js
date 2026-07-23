@@ -7,6 +7,7 @@
     loaded: null,
     running: false,
     stopped: false,
+    autoStartPending: false,
     currentQuestion: null,
     nextAttemptIndex: 0,
     logLines: [],
@@ -361,6 +362,21 @@
     setStatus(state.stopped ? "Stopped." : "Completed. Report link added to final screen.");
   };
 
+  const startAutoTestIfReady = async (sourceLabel = "manual") => {
+    if (state.running || !state.loaded) return;
+    state.autoStartPending = false;
+    addLog("Auto tester", `Auto-starting from ${sourceLabel}`);
+    try {
+      await runAutoTest();
+    } catch (error) {
+      const message = error?.message || String(error);
+      setStatus(`Auto test failed: ${message}`);
+      addLog("Auto test failed", message);
+      state.running = false;
+      setRunningUi(false);
+    }
+  };
+
   const stopAutoTest = () => {
     state.stopped = true;
     state.running = false;
@@ -467,6 +483,7 @@
       if (startupJson) {
         loadJsonFromText(startupJson, "boot");
         sessionStorage.removeItem(SESSION_JSON_KEY);
+        state.autoStartPending = true;
       }
     } catch (error) {
       const message = error?.message || String(error);
@@ -474,6 +491,11 @@
       addLog("Startup JSON load failed", message);
     }
     addLog("Auto tester", "Ready");
+    if (state.autoStartPending) {
+      window.setTimeout(() => {
+        startAutoTestIfReady("boot upload");
+      }, 0);
+    }
     window.setInterval(ensureReportLink, 1000);
   };
 
