@@ -2826,6 +2826,7 @@ Job Title: ${jobTitleValue || "N/A"}
 
       // --- AI behaviour debug panel ----------------------------------------------
       const aiDebugSession = { calls: 0, errors: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, totalLatencyMs: 0 };
+      let aiPerformanceLogEntries = [];
 
       const estimateTokens = (text) => Math.ceil(String(text || "").length / 4);
 
@@ -2842,10 +2843,30 @@ Job Title: ${jobTitleValue || "N/A"}
         if (aiDebugLogEl) aiDebugLogEl.textContent = message;
       };
 
+      const buildAiPerformanceLog = () => {
+        return JSON.stringify({
+          version: 1,
+          generatedAtUtc: new Date().toISOString(),
+          entries: aiPerformanceLogEntries,
+        }, null, 2);
+      };
+
       const appendAiDebugEntry = (title, fields) => {
         if (!aiDebugLogEl) return;
+        const timestampUtc = new Date().toISOString();
         const timestamp = new Date().toLocaleTimeString();
-        const lines = Object.entries(fields || {})
+        const normalisedFields = Object.entries(fields || {})
+          .filter(([, value]) => value !== undefined && value !== null && value !== "")
+          .reduce((accumulator, [key, value]) => {
+            accumulator[key] = value;
+            return accumulator;
+          }, {});
+        aiPerformanceLogEntries.push({
+          timestampUtc,
+          title,
+          fields: normalisedFields,
+        });
+        const lines = Object.entries(normalisedFields)
           .filter(([, value]) => value !== undefined && value !== null && value !== "")
           .map(([key, value]) => `  ${key}: ${typeof value === "object" ? JSON.stringify(value) : value}`);
         const entry = `[${timestamp}] ${title}\n${lines.join("\n")}`;
@@ -2862,6 +2883,7 @@ Job Title: ${jobTitleValue || "N/A"}
         aiDebugSession.completionTokens = 0;
         aiDebugSession.totalTokens = 0;
         aiDebugSession.totalLatencyMs = 0;
+        aiPerformanceLogEntries = [];
         updateAiDebugTotals();
         clearAiDebugLog();
       });
@@ -3740,6 +3762,7 @@ Job Title: ${jobTitleValue || "N/A"}
           FullTranscriptJSON: buildFullTranscriptJson(),
           CurrentQuestion: String(questionNumber),
           CurrentAttempt: String(attemptNumber),
+          "AI Performance Log": buildAiPerformanceLog(),
         };
         logAssessmentDebug(label, "Sending payload");
         logAssessmentDebug(`${label} payload`, payload);
