@@ -10,8 +10,6 @@
     currentQuestion: null,
     nextAttemptIndex: 0,
     logLines: [],
-    answers: [],
-    answersByQuestion: {},
   };
 
   const byId = (id) => document.getElementById(id);
@@ -226,7 +224,7 @@
     const startBtn = byId("autoTesterStartBtn");
     const stopBtn = byId("autoTesterStopBtn");
     const fileInput = byId("autoTesterFileInput");
-    if (startBtn) startBtn.disabled = isRunning || state.answers.length === 0;
+    if (startBtn) startBtn.disabled = isRunning || !state.loaded;
     if (stopBtn) stopBtn.disabled = !isRunning;
     if (fileInput) fileInput.disabled = isRunning;
   };
@@ -309,11 +307,6 @@
   };
 
   const runAutoTest = async () => {
-    if (state.answers.length === 0) {
-      setStatus("No answers loaded. Upload JSON on boot page first.");
-      return;
-    }
-    
     state.running = true;
     state.stopped = false;
     state.currentQuestion = null;
@@ -342,18 +335,18 @@
         addLog("Question", questionNumber);
       }
 
-      const questionAnswers = state.answersByQuestion[questionNumber] || [];
-      if (state.nextAttemptIndex >= questionAnswers.length) {
+      const attempts = state.loaded.questionMap.get(questionNumber) || [];
+      if (state.nextAttemptIndex >= attempts.length) {
         addLog("Attempt source", `No transcript attempt for Q${questionNumber}; moving next.`);
         await goNextQuestion();
         continue;
       }
 
-      const answerRow = questionAnswers[state.nextAttemptIndex];
+      const answer = attempts[state.nextAttemptIndex];
       const attemptOrdinal = state.nextAttemptIndex + 1;
-      addLog("Submitting", `Q${questionNumber} attempt ${attemptOrdinal}: ${answerRow.answer.substring(0, 50)}...`);
-      
-      const result = await submitAttempt(answerRow.answer);
+      addLog("Submitting", `Q${questionNumber} attempt ${attemptOrdinal}`);
+
+      const result = await submitAttempt(answer);
       state.nextAttemptIndex += 1;
 
       if (result.shouldContinue) {
@@ -362,7 +355,8 @@
         continue;
       }
 
-      if (state.nextAttemptIndex >= questionAnswers.length) {
+      if (state.nextAttemptIndex >= attempts.length) {
+        addLog("System guidance", `Not yet sufficient and no more transcript attempts for Q${questionNumber}; moving next.`);
         await goNextQuestion();
       }
     }
@@ -374,16 +368,14 @@
   };
 
   const startAutoTestIfReady = async (sourceLabel = "manual") => {
-    if (state.running || state.answers.length === 0) return;
+    if (state.running || !state.loaded) return;
+    state.autoStartPending = false;
     addLog("Auto tester", `Auto-starting from ${sourceLabel}`);
     try {
       await runAutoTest();
     } catch (error) {
       const message = error?.message || String(error);
       setStatus(`Auto test failed: ${message}`);
-      addLog("Auto test error", message);
-    }
-  };
       addLog("Auto test failed", message);
       state.running = false;
       setRunningUi(false);
@@ -491,33 +483,38 @@
     installPanel();
     wirePanel();
     setRunningUi(false);
-    
-    // Load answers from sessionStorage (populated by boot page)
     try {
-      const answersJson = sessionStorage.getItem("rpl_auto_tester_answers");
-      if (answersJson) {
-        state.answers = JSON.parse(answersJson);
-        // Build lookup by question number
-        state.answers.forEach((row) => {
-          const qNum = String(row.questionNumber).padStart(2, "0");
-          if (!state.answersByQuestion[qNum]) {
-            state.answersByQuestion[qNum] = [];
-          }
-          state.answersByQuestion[qNum].push(row);
-        });
-        addLog("Answers loaded", `${state.answers.length} answer(s) loaded from transcript.`);
+      const bootTranscript = sessionStorage.getItem(SESSION_JSON_KEY);
+      if (bootTranscript) {
+        loadJsonFromText(bootTranscript, "answers table");
+        addLog("Auto tester", "Using the answer rows generated before opening the assessment.");
+        window.setTimeout(() => startAutoTestIfReady("answers table"), 0);
+      } else {
+        addLog("Auto tester", "Ready. Select a JSON file and press Start Auto Test.");
       }
     } catch (error) {
-      addLog("Answers load warning", error?.message || String(error));
+      const message = error?.message || String(error);
+      setStatus(`Could not load the generated answers table: ${message}`);
+      addLog("Startup load failed", message);
     }
-    
-    addLog("Auto tester", "Ready. Select a JSON file and press Start Auto Test.");
     window.setInterval(ensureReportLink, 1000);
   };
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init, { once: true });
-  } else {
-    init();
+  const shouldActivate = () => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("autoTester") === "1") return true;
+    try {
+      return Boolean(sessionStorage.getItem(SESSION_JSON_KEY));
+    } catch {
+      return false;
+    }
+  };
+
+  if (shouldActivate()) {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", init, { once: true });
+    } else {
+      init();
+    }
   }
 })();

@@ -53,6 +53,9 @@
 
       .bootActions {
         margin-top: 8px;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
       }
 
       .bootActions button {
@@ -77,36 +80,36 @@
         color: #334155;
       }
 
-      .answerTable {
+      .answersTableWrap {
+        display: none;
         margin-top: 20px;
+        overflow: auto;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        background: #fff;
+      }
+
+      .answersTableWrap.visible {
+        display: block;
+      }
+
+      .answersTable {
         width: 100%;
         border-collapse: collapse;
         font-size: 12px;
       }
 
-      .answerTable th,
-      .answerTable td {
-        border: 1px solid #cbd5e1;
+      .answersTable th,
+      .answersTable td {
         padding: 8px;
+        border-bottom: 1px solid #e2e8f0;
+        vertical-align: top;
         text-align: left;
+        white-space: pre-wrap;
       }
 
-      .answerTable th {
-        background: #e2e8f0;
-        font-weight: 600;
-      }
-
-      .answerTable tr:nth-child(even) {
+      .answersTable th {
         background: #f8fafc;
-      }
-
-      .answerTableContainer {
-        margin-top: 20px;
-        max-height: 400px;
-        overflow-y: auto;
-        border: 1px solid #cbd5e1;
-        border-radius: 6px;
-        background: #ffffff;
       }
     </style>
   </head>
@@ -120,16 +123,17 @@
           <input id="bootTranscriptFile" type="file" accept="application/json,.json" />
         </div>
         <div class="bootActions">
-          <button id="bootGenerateTableBtn" type="button" disabled>Generate Answers Table</button>
+          <button id="generateAnswersBtn" type="button" disabled>Generate Answers Table</button>
           <button id="bootContinueBtn" type="button" disabled>Open Auto Tester Page</button>
         </div>
         <p id="bootStatus" class="bootStatus">Choose a transcript .json file to continue.</p>
-        <div id="bootTableContainer" class="answerTableContainer" style="display: none;"></div>
+        <div id="answersTableWrap" class="answersTableWrap" aria-live="polite"></div>
       </section>
     </main>
 
     <script>
       const SOURCE_FILE = "AAMC RPL 2026.html";
+      const SESSION_JSON_KEY = "rpl_auto_tester_uploaded_json";
       const RUNTIME_VERSION = "1.8";
 
       const replaceOnce = (text, matcher, replacement) => {
@@ -142,82 +146,18 @@
         if (el) el.textContent = message;
       };
 
-      const parseAnswersTable = (jsonText) => {
-        try {
-          const data = JSON.parse(jsonText);
-          const rows = [];
-          
-          if (data.questions && Array.isArray(data.questions)) {
-            data.questions.forEach((question) => {
-              const questionNumber = question.questionNumber || "N/A";
-              const questionText = question.questionText || "";
-              const attempts = question.attempts || [];
-              
-              attempts.forEach((attempt) => {
-                rows.push({
-                  questionNumber,
-                  attemptNumber: attempt.attemptNumber || 1,
-                  questionText,
-                  answer: attempt.answer || ""
-                });
-              });
-            });
-          }
-          
-          return rows;
-        } catch (error) {
-          throw new Error(`Failed to parse JSON: ${error.message}`);
-        }
-      };
-
-      const renderAnswersTable = (rows) => {
-        if (!rows || rows.length === 0) {
-          return "<p style='padding: 16px; color: #667084;'>No answers found in transcript.</p>";
-        }
-        
-        let html = "<table class='answerTable'><thead><tr>";
-        html += "<th style='width: 80px;'>Question</th>";
-        html += "<th style='width: 60px;'>Attempt</th>";
-        html += "<th style='flex: 1;'>Question Text</th>";
-        html += "<th style='flex: 1;'>Answer</th>";
-        html += "</tr></thead><tbody>";
-        
-        rows.forEach((row) => {
-          const qNum = String(row.questionNumber).padStart(2, "0");
-          const answerPreview = row.answer.substring(0, 100) + (row.answer.length > 100 ? "..." : "");
-          html += "<tr>";
-          html += `<td>${qNum}</td>`;
-          html += `<td>${row.attemptNumber}</td>`;
-          html += `<td>${row.questionText.substring(0, 80)}...</td>`;
-          html += `<td title='${row.answer}'>${answerPreview}</td>`;
-          html += "</tr>";
-        });
-        
-        html += "</tbody></table>";
-        return html;
-      };
-
-      const generateAnswersTable = (jsonText) => {
-        try {
-          const rows = parseAnswersTable(jsonText);
-          const containerEl = document.getElementById("bootTableContainer");
-          if (containerEl) {
-            containerEl.innerHTML = renderAnswersTable(rows);
-            containerEl.style.display = "block";
-            setBootStatus(`Loaded ${rows.length} answer(s) from transcript.`);
-          }
-        } catch (error) {
-          setBootStatus(`Table generation failed: ${error.message}`);
-        }
-      };
-
       const boot = async () => {
         try {
           setBootStatus("Opening Auto Tester page...");
-          // Store parsed answers in sessionStorage for runtime use
-          const answersRows = parseAnswersTable(selectedJsonText);
-          sessionStorage.setItem("rpl_auto_tester_answers", JSON.stringify(answersRows));
-          window.location.href = SOURCE_FILE;
+          const target = new URL(SOURCE_FILE, window.location.href);
+          const current = new URL(window.location.href);
+          ["fullName", "givenName", "contactId"].forEach((name) => {
+            const value = current.searchParams.get(name);
+            if (value) target.searchParams.set(name, value);
+          });
+          target.searchParams.set("autoTester", "1");
+          target.searchParams.set("autoTesterVersion", RUNTIME_VERSION);
+          window.location.assign(target.href);
         } catch (error) {
           const message = error?.message || String(error);
           document.body.innerHTML = `
@@ -342,43 +282,100 @@
 
       const wireBootGate = () => {
         const fileInput = document.getElementById("bootTranscriptFile");
-        const generateTableBtn = document.getElementById("bootGenerateTableBtn");
+        const generateBtn = document.getElementById("generateAnswersBtn");
         const continueBtn = document.getElementById("bootContinueBtn");
+        const tableWrap = document.getElementById("answersTableWrap");
         let selectedJsonText = "";
+        let selectedTranscript = null;
+
+        const renderAnswersTable = () => {
+          const questions = selectedTranscript && Array.isArray(selectedTranscript.questions)
+            ? selectedTranscript.questions
+            : [];
+          const rows = [];
+          questions.forEach((question) => {
+            const attempts = Array.isArray(question.attempts) ? question.attempts : [];
+            attempts.forEach((attempt, index) => rows.push({ question, attempt, index }));
+          });
+
+          if (rows.length === 0) {
+            throw new Error("The transcript contains no question attempts to display.");
+          }
+
+          const table = document.createElement("table");
+          table.className = "answersTable";
+          const headerRow = table.insertRow();
+          ["Question number", "Attempt number", "Question", "Answer"].forEach((label) => {
+            const headerCell = document.createElement("th");
+            headerCell.textContent = label;
+            headerRow.appendChild(headerCell);
+          });
+          rows.forEach((entry) => {
+            const row = table.insertRow();
+            [
+              entry.question.questionNumber,
+              entry.attempt.attemptNumber || entry.index + 1,
+              entry.question.questionText,
+              entry.attempt.answer,
+            ].forEach((value) => {
+              const cell = row.insertCell();
+              cell.textContent = value === undefined || value === null ? "" : String(value);
+            });
+          });
+          tableWrap.replaceChildren(table);
+          tableWrap.classList.add("visible");
+          continueBtn.disabled = false;
+          setBootStatus(`Generated ${rows.length} answer row(s). The table is ready for automation.`);
+        };
 
         fileInput?.addEventListener("change", async (event) => {
           const file = event.target?.files?.[0];
           selectedJsonText = "";
-          generateTableBtn.disabled = true;
+          selectedTranscript = null;
           continueBtn.disabled = true;
+          generateBtn.disabled = true;
+          tableWrap.classList.remove("visible");
+          tableWrap.innerHTML = "";
           if (!file) {
             setBootStatus("Choose a transcript .json file to continue.");
             return;
           }
           try {
             const text = await file.text();
-            JSON.parse(text);
+            const transcript = JSON.parse(text);
+            if (!Array.isArray(transcript?.questions)) {
+              throw new Error("JSON must contain a questions array.");
+            }
             selectedJsonText = text;
-            generateTableBtn.disabled = false;
-            continueBtn.disabled = false;
-            setBootStatus(`Loaded ${file.name}. Click "Generate Answers Table" or "Open Auto Tester Page".`);
+            selectedTranscript = transcript;
+            setBootStatus(`Loaded ${file.name}. Generate the Answers Table to continue.`);
+            generateBtn.disabled = false;
           } catch (error) {
             const message = error?.message || String(error);
             setBootStatus(`Invalid JSON file: ${message}`);
-            generateTableBtn.disabled = true;
-            continueBtn.disabled = true;
           }
         });
 
-        generateTableBtn?.addEventListener("click", async () => {
+        generateBtn?.addEventListener("click", () => {
+          try {
+            renderAnswersTable();
+          } catch (error) {
+            const message = error?.message || String(error);
+            setBootStatus(`Could not generate answers table: ${message}`);
+          }
+        });
+
+        continueBtn?.addEventListener("click", async () => {
           if (!selectedJsonText) {
             setBootStatus("Choose a transcript .json file first.");
             return;
           }
-          generateAnswersTable(selectedJsonText);
-        });
-
-        continueBtn?.addEventListener("click", async () => {
+          try {
+            sessionStorage.setItem(SESSION_JSON_KEY, selectedJsonText);
+          } catch {
+            setBootStatus("Could not retain the uploaded transcript for the Auto Tester.");
+            return;
+          }
           continueBtn.disabled = true;
           await boot();
         });
