@@ -2851,10 +2851,21 @@ Job Title: ${jobTitleValue || "N/A"}
         }, null, 2);
       };
 
+      const getCurrentAiLogContext = () => {
+        const questionNumber = typeof getCurrentQuestionNumber === "function"
+          ? String(getCurrentQuestionNumber() || "")
+          : String(currentIndex + 1 || "");
+        return {
+          questionNumber,
+          attempt: Math.max(1, Number(currentAttempts || 0) + 1),
+        };
+      };
+
       const appendAiDebugEntry = (title, fields) => {
         if (!aiDebugLogEl) return;
         const timestampUtc = new Date().toISOString();
         const timestamp = new Date().toLocaleTimeString();
+        const currentContext = getCurrentAiLogContext();
         const normalisedFields = Object.entries(fields || {})
           .filter(([, value]) => value !== undefined && value !== null && value !== "")
           .reduce((accumulator, [key, value]) => {
@@ -2864,6 +2875,8 @@ Job Title: ${jobTitleValue || "N/A"}
         aiPerformanceLogEntries.push({
           timestampUtc,
           title,
+          questionNumber: currentContext.questionNumber,
+          attempt: currentContext.attempt,
           fields: normalisedFields,
         });
         const lines = Object.entries(normalisedFields)
