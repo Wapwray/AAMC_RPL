@@ -306,6 +306,17 @@
         </div>
       </section>
 
+      <section id="qualificationsPanel" class="managedStaffPanel">
+        <p>Select qualification / RPL question set</p>
+        <select id="qualificationsSelect">
+          <option value="">Loading qualifications...</option>
+        </select>
+        <div id="qualificationDetail" class="assessorDetail"></div>
+        <div class="assessorConfirm">
+          <button id="qualificationSelectBtn" class="primary" type="button" disabled>Select</button>
+        </div>
+      </section>
+
       <section id="managedStaffPanel" class="managedStaffPanel">
         <p>Has the student managed staff?</p>
         <div class="radioGroup">
@@ -348,14 +359,23 @@
       const ASSESSORS_WEBHOOK_URL =
         "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/bcc8d653415344048d5659c08b47bf2c/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=xky-PnLtXZuZ9xc-smRCubKOixhyMaxljXPbT6SXXWQ";
 
+      const QUALIFICATIONS_WEBHOOK_URL =
+        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/09/workflows/4664fd1c8ec24e5394a965c006249eb6/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=g1Jci80MCPSEZhlU03EgQZFph1NzPQeSNYZwpVuFEBg";
+
       const SEND_EMAILS_WEBHOOK_URL =
-        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/4305847cfe4e441f9376fb10ce875be4/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=xRlXZFaq5SNMBsufjaMK2QDapp9_hzAEKPRbStDVpTo";
+        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/30/workflows/4305847cfe4e441f9376fb10ce875be4/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=xRlXZFaq5SNMBsufjaMK2QDapp9_hzAEKPRbStDVpTo";
 
       let assessorsData = [];
+      let qualificationsData = [];
+      let selectedRplQuestions = "";
 
       const assessorSelectEl = document.getElementById("assessorSelect");
       const assessorDetailEl = document.getElementById("assessorDetail");
       const assessorConfirmBtnEl = document.getElementById("assessorConfirmBtn");
+      const qualificationsPanelEl = document.getElementById("qualificationsPanel");
+      const qualificationsSelectEl = document.getElementById("qualificationsSelect");
+      const qualificationDetailEl = document.getElementById("qualificationDetail");
+      const qualificationSelectBtnEl = document.getElementById("qualificationSelectBtn");
       const emailsPanelEl = document.getElementById("emailsPanel");
       const studentMailOptionEl = document.getElementById("studentMailOption");
       const assessorMailOptionEl = document.getElementById("assessorMailOption");
@@ -414,6 +434,25 @@
         }
       };
 
+      const loadQualifications = async () => {
+        try {
+          const res = await fetch(QUALIFICATIONS_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+          qualificationsData = Array.isArray(data) ? data : [];
+          qualificationsSelectEl.innerHTML = '<option value="">-- Select a qualification --</option>';
+          qualificationsData.forEach((q, index) => {
+            const opt = document.createElement("option");
+            opt.value = String(index);
+            opt.textContent = q["Qualifications"] || `Qualification ${index + 1}`;
+            qualificationsSelectEl.appendChild(opt);
+          });
+        } catch (err) {
+          qualificationsSelectEl.innerHTML = '<option value="">Failed to load qualifications</option>';
+          console.error("Qualifications load error:", err);
+        }
+      };
+
       assessorSelectEl.addEventListener("change", () => {
         const selected = assessorsData.find((a) => String(a["ID"]) === assessorSelectEl.value);
         if (!selected) {
@@ -434,6 +473,7 @@
       });
 
       loadAssessors();
+      loadQualifications();
 
       const formEl = document.getElementById("emailerForm");
       const assessorPanelEl = document.getElementById("assessorPanel");
@@ -458,6 +498,12 @@
       };
 
       const resetAssessorAndEmailState = () => {
+        selectedRplQuestions = "";
+        qualificationsPanelEl.style.display = "none";
+        qualificationsSelectEl.value = "";
+        qualificationSelectBtnEl.disabled = true;
+        qualificationDetailEl.style.display = "none";
+        qualificationDetailEl.innerHTML = "";
         managedStaffYesEl.checked = false;
         managedStaffNoEl.checked = true;
         assessorAssignmentAssignedEl.checked = true;
@@ -476,8 +522,41 @@
 
       yesBtnEl.addEventListener("click", () => {
         resetAssessorAndEmailState();
+        qualificationsPanelEl.style.display = "block";
+        managedStaffPanelEl.style.display = "none";
+        assessorPanelEl.style.display = "none";
+        qualificationsPanelEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+
+      qualificationsSelectEl.addEventListener("change", () => {
+        const hasSelection = qualificationsSelectEl.value !== "";
+        qualificationSelectBtnEl.disabled = !hasSelection;
+        if (!hasSelection) {
+          qualificationDetailEl.style.display = "none";
+          qualificationDetailEl.innerHTML = "";
+          return;
+        }
+        const selected = qualificationsData[Number(qualificationsSelectEl.value)] || {};
+        qualificationDetailEl.innerHTML = [
+          `<div class="studentRow"><div class="studentLabel">Qualifications</div><div class="studentValue">${escapeHtml(selected["Qualifications"] || "-")}</div></div>`,
+          `<div class="studentRow"><div class="studentLabel">DOMAIN</div><div class="studentValue">${escapeHtml(selected["DOMAIN"] || "-")}</div></div>`,
+          `<div class="studentRow"><div class="studentLabel">Notes</div><div class="studentValue">${escapeHtml(selected["Notes"] || "-")}</div></div>`,
+        ].join("");
+        qualificationDetailEl.style.display = "block";
+      });
+
+      qualificationSelectBtnEl.addEventListener("click", () => {
+        if (qualificationsSelectEl.value === "") {
+          setStatus("Please select a qualification row.", "error");
+          return;
+        }
+        const selected = qualificationsData[Number(qualificationsSelectEl.value)] || {};
+        selectedRplQuestions = String(selected["RPL Questions"] || "").trim();
+        if (!selectedRplQuestions) {
+          setStatus("Selected qualification row has no RPL Questions value.", "error");
+          return;
+        }
         managedStaffPanelEl.style.display = "block";
-        assessorPanelEl.style.display = "block";
         managedStaffPanelEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
       });
 
@@ -516,8 +595,13 @@
       assessorMailOptionEl.addEventListener("change", updateSendEmailsButtonState);
 
       sendEmailsBtnEl.addEventListener("click", async () => {
+        if (!selectedRplQuestions) {
+          setStatus("Please select a qualification row first.", "error");
+          return;
+        }
         const payload = {
           ContactID: inputEl.value.trim(),
+          rplQuestions: selectedRplQuestions,
           ManagedStaff: getManagedStaffSelection(),
           StudentMail: studentMailOptionEl.checked ? "Yes" : "No",
           AssessorMail: assessorMailOptionEl.checked ? "Yes" : "No",
