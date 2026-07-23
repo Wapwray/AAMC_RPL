@@ -7,6 +7,18 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function buildRplAssessorDecisionModule() {
   "use strict";
 
+  const promptPack = (() => {
+    if (typeof globalThis !== "undefined" && globalThis.RPLPromptPackV3) {
+      return globalThis.RPLPromptPackV3;
+    }
+    if (typeof require === "function") {
+      try {
+        return require("./rpl-prompt-pack-v3");
+      } catch {}
+    }
+    return null;
+  })();
+
   const STATUS_LIKELY_SUFFICIENT = "LIKELY SUFFICIENT";
   const STATUS_ADDITIONAL_EVIDENCE = "ADDITIONAL EVIDENCE MAY BE NEEDED";
 
@@ -218,100 +230,124 @@
     };
   };
 
-  const buildAssessmentPayload = ({ candidateMetadata = {}, question = {}, attempts = [], attemptCount, maxAttempts = 3 } = {}) => ({
-    candidateMetadata,
-    question: {
-      questionText: question.questionText || "",
-      objective: question.objective || "",
-      hint: question.hint || "",
-    },
-    attempts: attempts.map((answer, index) => ({
-      attemptNumber: index + 1,
-      responseText: String(answer || ""),
-    })),
-    currentAttempt: attemptCount || attempts.length,
-    maxAttempts,
-  });
+  const buildAssessmentPayload = ({ candidateMetadata = {}, question = {}, attempts = [], attemptCount, maxAttempts = 3 } = {}) => {
+    if (promptPack?.normaliseAssessmentPayload) {
+      return promptPack.normaliseAssessmentPayload({
+        candidateMetadata,
+        question,
+        attempts,
+        attemptCount,
+        currentAttempt: attemptCount,
+        maxAttempts,
+      });
+    }
+
+    return {
+      candidateMetadata,
+      question: {
+        questionText: question.questionText || "",
+        objective: question.objective || "",
+        hint: question.hint || "",
+      },
+      attempts: attempts.map((answer, index) => ({
+        attemptNumber: index + 1,
+        responseText: typeof answer === "string"
+          ? answer
+          : String(answer?.responseText || answer?.answer || ""),
+      })),
+      currentAttempt: attemptCount || attempts.length,
+      maxAttempts,
+    };
+  };
 
   const buildAssessmentPrompt = ({ candidateMetadata = {}, question = {}, attempts = [], attemptCount, maxAttempts = 3 } = {}) => {
-    const payload = buildAssessmentPayload({ candidateMetadata, question, attempts, attemptCount, maxAttempts });
-
-    return `You are an expert Australian financial services RPL assessor and evidence reviewer for vocational competency outcomes aligned to FNS50322 Diploma of Finance and Mortgage Broking Management, FNS40821 Certificate IV in Finance and Mortgage Broking, and closely related Australian finance, lending, and mortgage broking qualifications. Return valid JSON only. Do not return Markdown, commentary, or learner-facing prose.
-
-Your only task is to assess the combined evidence in the learner attempts against the supplied question, objective, and hint.
-
-Critical consistency rule:
-- Treat all attempts as one combined response.
-- The same evidence must receive the same overallAssessment whether it appears in one long answer or is split across multiple attempts.
-- Do not ask for repetition or extra detail just because the response is a single long answer.
-- A later attempt may add evidence that was missing from an earlier attempt. The learner has up to ${maxAttempts} attempts to build their complete response. Do not ask the learner to repeat evidence they have already provided in a previous attempt.
-- If required parts of the question/objective are still missing in the combined evidence, mark ADDITIONAL EVIDENCE MAY BE NEEDED.
-
-Assessment rules:
-- Evaluate primarily against the question text and objective.
-- Ensure the learner's combined response directly answers the specific question asked, not just adjacent or generic commentary.
-- Use candidateMetadata.industry and candidateMetadata.jobTitle as assessment context to judge whether examples and terminology are appropriate to the learner's role and sector.
-- Use industry/job-title context to interpret evidence relevance and depth expectations, but do not fail a response only for wording differences if competency evidence is clear.
-- Treat appropriate and professional behaviour, judged against what is expected of a competent person working as candidateMetadata.jobTitle in the candidateMetadata.industry industry in Australia, as an implicit core requirement of every question.
-- Do not credit described actions, strategies or attitudes that a competent professional in the learner's role would consider unprofessional, disrespectful, discriminatory, unethical or contrary to the client's best interests as valid evidence, even if they superficially relate to the question topic. Never acknowledge such conduct in covered.
-- If any attempt shows disregard for client best interests, ethical duties or legal obligations relevant to the learner's role, the overallAssessment must be ADDITIONAL EVIDENCE MAY BE NEEDED regardless of other evidence, and missing must include a short noun phrase identifying the professional-conduct gap (for example "an approach consistent with professional and ethical practice in the learner's role").
-- Set professionalConductConcern to true when any attempt may have displayed inappropriate, unprofessional, discriminatory or unethical behaviour, racist, sexist, homophobic or misogynistic language, or disregard for client best interests or legal obligations; set it to false otherwise. Do not set it to true merely for informal language, brevity or a weak but good-faith answer.
-- Treat the hint as directional guidance for expected tone and general response direction (not a strict checklist). Never quote, paraphrase, list, or reveal hint content in any returned field.
-- The hint is the same content the learner can access with the Show Hint button. Use it to guide expectations about broad coverage and level of detail, without requiring every hint detail.
-- Privately compare the learner's attempts against the hint for thematic alignment. Use covered to acknowledge parts of the learner's own wording that align with the question, objective, or hint direction.
-- When the learner's response partly aligns with the hint, acknowledge that aligned evidence in covered using the learner's own general idea, not the hint's wording.
-- If the hint would help with a missing part of the response, set hintWouldHelp to true and keep missing generic enough that it does not reveal the hint or a model answer.
-- Never copy hint facts, examples, terminology, suggested wording, or implied answers into covered, missing, or assessorRationale.
-- Missing items must be based on the question and objective, with hint used only to shape broad direction/level of detail without revealing hint content. If detail is missing, use broad phrases and set hintWouldHelp to true.
-- Do not introduce requirements that are not present in the question, objective, or reasonably implied by them.
-- Mark LIKELY SUFFICIENT when the combined response addresses the full objective with clear, relevant evidence, even if not every hint detail is present.
-- Mark ADDITIONAL EVIDENCE MAY BE NEEDED when any required part is missing, unclear, or too shallow.
-- Ask for added detail where needed, but keep missing items concise and not overly deep (prefer 1-3 focused items).
-- Require enough practical detail to evidence competency, but do not require exhaustive or extreme detail.
-- For regulatory-change questions, day-to-day impact can be shown by changed work processes such as updated forms, added compliance checks, training, consultant review, client explanations, changed time allocation, or changed client conversations. Do not require a separate phrase such as "day-to-day" if the practical work impact is already clear.
-- For product or service impact questions, product/service impact can be shown by changed lender policy, risk appetite, pricing, servicing, borrowing capacity, product features, product availability, lender selection, or recommendation scope. Do not require a separate explicit phrase such as "impact on products or services" if a concrete product, lender, policy, pricing, servicing, or recommendation change is already clear.
-- If the response is LIKELY SUFFICIENT, missing must be an empty array.
-
-Objective evidence breakdown rules:
-- Break the objective into its distinct component parts (typically 2 to 5) and return one objectiveEvidence item per part.
-- objectivePart must be a short neutral label for that part of the objective, 10 words or fewer.
-- Each part's status must be LIKELY SUFFICIENT or ADDITIONAL EVIDENCE MAY BE NEEDED, judged for that part alone using the same evidence standards as the overall assessment.
-- When a part is LIKELY SUFFICIENT, evidence must be a short direct quote or close paraphrase (25 words or fewer) of the learner's own wording that meets that part.
-- When a part is ADDITIONAL EVIDENCE MAY BE NEEDED, evidence must be a short quote of any partial learner evidence for that part, or an empty string if none exists.
-- evidence must come only from the learner's attempts. Never place hint content, model answers, or suggested wording in evidence.
-- Each part may only be marked LIKELY SUFFICIENT when the learner's own wording specifically addresses that part. Do not credit the same evidence fragment to more than one distinct part unless it genuinely addresses each part on its own.
-- Treat identifying, recognising or assessing a situation as a different requirement from responding to or managing it. A description of how the learner would respond does not evidence how they would identify or assess the situation, and vice versa.
-- If a part has no distinct supporting evidence, mark that part ADDITIONAL EVIDENCE MAY BE NEEDED, include the gap in missing, and do not mark the overallAssessment LIKELY SUFFICIENT.
-- objectiveEvidence must be consistent with overallAssessment, covered and missing: if overallAssessment is LIKELY SUFFICIENT, every part must be LIKELY SUFFICIENT; any part marked ADDITIONAL EVIDENCE MAY BE NEEDED must correspond to a genuine gap reflected in missing.
-
-Output length rules (keep the response short so it returns quickly):
-- covered: at most 3 items, each 12 words or fewer.
-- missing: at most 3 items, each 12 words or fewer.
-- assessorRationale: one sentence of 30 words or fewer.
-- objectiveEvidence: at most 5 parts; each objectivePart 10 words or fewer; each evidence quote 25 words or fewer.
-- Do not restate the question, objective, hint, or the learner's full wording; summarise in your own brief phrasing.
-- Keep the entire JSON response under 300 words.
-
-Return this exact JSON shape:
-{
-  "overallAssessment": "LIKELY SUFFICIENT | ADDITIONAL EVIDENCE MAY BE NEEDED",
-  "covered": ["short neutral evidence point"],
-  "missing": ["short neutral missing requirement"],
-  "objectiveEvidence": [
-    {
-      "objectivePart": "short label for one component part of the objective",
-      "status": "LIKELY SUFFICIENT | ADDITIONAL EVIDENCE MAY BE NEEDED",
-      "evidence": "short quote or close paraphrase from the learner's own response, or empty string if none"
+    if (promptPack?.buildAssessmentPrompt) {
+      return promptPack.buildAssessmentPrompt({ candidateMetadata, question, attempts, attemptCount, maxAttempts });
     }
-  ],
-  "hintWouldHelp": false,
-  "professionalConductConcern": false,
-  "assessorRationale": "one concise assessor-facing reason for the status, about the learner in third person, not addressed to the learner",
-  "confidence": "high | medium | low"
-}
 
-Input:
-${JSON.stringify(payload, null, 2)}`;
+    const payload = buildAssessmentPayload({ candidateMetadata, question, attempts, attemptCount, maxAttempts });
+    return `ASSESSMENT INPUT\n${JSON.stringify(payload, null, 2)}`;
+  };
+
+  const normalizeComparableText = (value) => normalizeWhitespace(value).toLowerCase();
+
+  const hasHintLeakage = (hintText, values) => {
+    const normalizedHint = normalizeComparableText(hintText);
+    if (!normalizedHint) return false;
+    const candidateValues = (Array.isArray(values) ? values : [values])
+      .map((value) => normalizeComparableText(value))
+      .filter(Boolean);
+    if (!candidateValues.length) return false;
+
+    const hintLines = normalizedHint
+      .split(/\r?\n+/)
+      .map((line) => line.trim())
+      .filter((line) => line.length >= 18);
+
+    return hintLines.some((line) => candidateValues.some((value) => value.includes(line)));
+  };
+
+  const validateAssessmentDecision = (decision, context = {}) => {
+    if (!decision || typeof decision !== "object") {
+      throw new Error("Assessment response is missing or invalid.");
+    }
+
+    const raw = decision.raw || {};
+    if (![STATUS_LIKELY_SUFFICIENT, STATUS_ADDITIONAL_EVIDENCE].includes(decision.overallAssessment)) {
+      throw new Error(`Unexpected overallAssessment: ${decision.overallAssessment || "(missing)"}`);
+    }
+    if (!Array.isArray(decision.covered) || !Array.isArray(decision.missing)) {
+      throw new Error("Assessment response must include covered and missing arrays.");
+    }
+    if (!Array.isArray(decision.objectiveEvidence) || !decision.objectiveEvidence.length) {
+      throw new Error("Assessment response must include objectiveEvidence.");
+    }
+    if (typeof raw.hintWouldHelp !== "boolean" || typeof raw.professionalConductConcern !== "boolean") {
+      throw new Error("Assessment response must include boolean hintWouldHelp and professionalConductConcern fields.");
+    }
+    if (!["high", "medium", "low"].includes(decision.confidence)) {
+      throw new Error(`Unexpected confidence value: ${decision.confidence || "(missing)"}`);
+    }
+
+    const componentStatuses = decision.objectiveEvidence.map((item) => item.status);
+    if (componentStatuses.some((status) => ![STATUS_LIKELY_SUFFICIENT, STATUS_ADDITIONAL_EVIDENCE].includes(status))) {
+      throw new Error("Assessment response contains an invalid objectiveEvidence status.");
+    }
+
+    if (decision.overallAssessment === STATUS_LIKELY_SUFFICIENT) {
+      if (decision.missing.length) {
+        throw new Error("LIKELY SUFFICIENT responses must have an empty missing array.");
+      }
+      if (decision.hintWouldHelp) {
+        throw new Error("LIKELY SUFFICIENT responses must not request the hint.");
+      }
+      if (decision.professionalConductConcern) {
+        throw new Error("LIKELY SUFFICIENT responses must not raise a professional conduct concern.");
+      }
+      if (componentStatuses.some((status) => status !== STATUS_LIKELY_SUFFICIENT)) {
+        throw new Error("All objectiveEvidence items must be LIKELY SUFFICIENT when the overall assessment is LIKELY SUFFICIENT.");
+      }
+    }
+
+    if (decision.overallAssessment === STATUS_ADDITIONAL_EVIDENCE && !decision.missing.length && !decision.professionalConductConcern) {
+      throw new Error("Additional-evidence responses must include a genuine gap or a professional conduct concern.");
+    }
+
+    if (componentStatuses.includes(STATUS_ADDITIONAL_EVIDENCE) && decision.overallAssessment !== STATUS_ADDITIONAL_EVIDENCE) {
+      throw new Error("An objective component cannot require additional evidence when the overall assessment is LIKELY SUFFICIENT.");
+    }
+
+    const hintText = context.hintText || "";
+    if (hintText && hasHintLeakage(hintText, [
+      ...decision.covered,
+      ...decision.missing,
+      decision.assessorRationale,
+      ...decision.objectiveEvidence.map((item) => item.evidence),
+    ])) {
+      throw new Error("Assessment response appears to copy hint content into the output.");
+    }
+
+    return decision;
   };
 
   const buildDeepseekAssessmentPrompt = ({ candidateMetadata = {}, question = {}, attempts = [], attemptCount, maxAttempts = 3 } = {}) => {
@@ -826,6 +862,12 @@ ${JSON.stringify(payload, null, 2)}`;
     parseAssessmentResponse,
     normaliseAssessmentStatus,
     normaliseDecision,
+    validateAssessmentDecision,
+    schemas: {
+      assessment: promptPack?.RPL_ASSESSMENT_SCHEMA || null,
+      transcriptCheck: promptPack?.RPL_TRANSCRIPT_CHECK_SCHEMA || null,
+      finalReport: promptPack?.RPL_FINAL_REPORT_SCHEMA || null,
+    },
     buildAssessorSummary,
     buildLearnerGuidance,
     buildFeedback,

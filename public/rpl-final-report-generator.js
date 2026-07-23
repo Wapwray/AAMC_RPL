@@ -1,6 +1,8 @@
 (function initRplFinalReportGenerator(globalScope) {
   "use strict";
 
+  const promptPack = globalScope.RPLPromptPackV3 || null;
+
   const DEFAULT_QUALIFICATION = "FNS50322 Diploma of Finance and Mortgage Broking Management";
 
   const defaultLog = () => {};
@@ -273,6 +275,72 @@
 
   const getMissingFinalAiConfigWarning = () => "AI analysis warning: final AI model configuration is not available, so this report was generated from transcript source signals only.";
 
+  const parseStructuredJsonObject = (responseText) => {
+    const text = String(responseText || "").trim()
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/```$/i, "")
+      .trim();
+    try {
+      return JSON.parse(text);
+    } catch (error) {
+      const objectMatch = text.match(/\{[\s\S]*\}/);
+      if (!objectMatch) throw error;
+      return JSON.parse(objectMatch[0]);
+    }
+  };
+
+  const validateTranscriptCheckResult = (result) => {
+    const readiness = cleanValue(result?.reportReadiness);
+    const evidencePosition = cleanValue(result?.preliminaryEvidencePosition);
+    const confidence = cleanValue(result?.confidence);
+    if (!["READY FOR REPORT", "ASSESSOR REVIEW REQUIRED"].includes(readiness)) {
+      throw new Error(`Unexpected transcript-check reportReadiness: ${readiness || "(missing)"}`);
+    }
+    if (!["ALL REVIEWED QUESTIONS LIKELY SUFFICIENT", "ONE OR MORE QUESTIONS NEED ADDITIONAL EVIDENCE", "UNDETERMINED"].includes(evidencePosition)) {
+      throw new Error(`Unexpected transcript-check preliminaryEvidencePosition: ${evidencePosition || "(missing)"}`);
+    }
+    if (!["high", "medium", "low"].includes(confidence)) {
+      throw new Error(`Unexpected transcript-check confidence: ${confidence || "(missing)"}`);
+    }
+    if (!Array.isArray(result?.issues)) {
+      throw new Error("Transcript-check response must include an issues array.");
+    }
+    if (typeof result?.professionalConductReviewRequired !== "boolean") {
+      throw new Error("Transcript-check response must include professionalConductReviewRequired.");
+    }
+    if (!cleanValue(result?.summary)) {
+      throw new Error("Transcript-check response must include a summary.");
+    }
+    return result;
+  };
+
+  const buildTranscriptCheckRecord = (question) => ({
+    questionId: cleanValue(question?.questionNumber),
+    question: {
+      questionText: cleanValue(question?.questionAsked),
+      objective: cleanValue(question?.assessmentObjective),
+      hint: cleanValue(question?.hintsProvided),
+      section: cleanValue(question?.section),
+    },
+    attempts: Array.isArray(question?.attempts) ? question.attempts.map((attempt) => ({
+      attemptNumber: Number(attempt?.attemptNumber) || 0,
+      responseText: cleanValue(attempt?.responseText),
+      submittedAt: cleanValue(attempt?.submittedAt),
+    })) : [],
+    assessment: {
+      overallAssessment: cleanValue(question?.rawOverallAssessment || question?.preliminaryStatus),
+      covered: [],
+      missing: [],
+      objectiveEvidence: [],
+      hintWouldHelp: false,
+      professionalConductConcern: false,
+      assessorRationale: cleanValue(question?.aiPreliminaryObservation),
+      confidence: "medium",
+      aiInterviewSummary: cleanValue(question?.aiInterviewSummary),
+      assessorBotMessages: Array.isArray(question?.assessorBotMessages) ? question.assessorBotMessages : [],
+    },
+  });
+
   const defaultBuildQuestionAnalysisPromptForBatch = (reportModule, batch, candidateMetadata) => {
     const questionSpecs = batch.map((item) => item.officialQuestionSpec || {
       questionNumber: item.questionNumber,
@@ -375,6 +443,31 @@
       return { analyses, warnings };
     };
 
+    const runTranscriptQualityCheck = async (model, candidateMetadata, officialQuestionBank) => {
+      if (!promptPack?.buildTranscriptCheckPrompt || typeof callTextModel !== "function") {
+        return null;
+      }
+
+      const expectedQuestionIds = (Array.isArray(officialQuestionBank) ? officialQuestionBank : [])
+        .map((question) => cleanValue(question?.questionNumber))
+        .filter(Boolean);
+      const records = (Array.isArray(model?.questions) ? model.questions : []).map(buildTranscriptCheckRecord);
+      const prompt = promptPack.buildTranscriptCheckPrompt({
+        candidateMetadata,
+        expectedQuestionIds,
+        records,
+        transcriptMetadata: model?.metadata || {},
+      });
+
+      setStatus("Running transcript quality check...");
+      const responseText = await callTextModel(prompt, {
+        mode: "final",
+        max_tokens: 5000,
+        responseSchemaKey: "transcriptCheck",
+      });
+      return validateTranscriptCheckResult(parseStructuredJsonObject(responseText));
+    };
+
     const buildPreliminaryReviewReport = async ({
       fullTranscriptText,
       jsonTranscript,
@@ -409,6 +502,26 @@
       }
 
       mergeCandidateMetadataIntoModel(model, candidateMetadata);
+
+      try {
+        const transcriptCheck = await runTranscriptQualityCheck(model, candidateMetadata, officialQuestionBank);
+        if (transcriptCheck) {
+          model.transcriptCheck = transcriptCheck;
+          if (cleanValue(transcriptCheck.summary)) {
+            model.warnings.push(`Transcript quality check: ${cleanValue(transcriptCheck.summary)}`);
+          }
+          if (transcriptCheck.reportReadiness === "ASSESSOR REVIEW REQUIRED") {
+            model.warnings.push("Transcript quality check requires assessor review before relying on the generated report.");
+          }
+        }
+      } catch (error) {
+        log(`Transcript quality check failed: ${error?.message || String(error)}`);
+        if (isMissingFinalAiConfigError(error)) {
+          model.warnings.push(getMissingFinalAiConfigWarning());
+        } else {
+          model.warnings.push(`AI analysis warning: transcript quality check could not be completed (${error?.message || String(error)}).`);
+        }
+      }
 
       let assessorQuestions = [];
       if (typeof fetchAssessorQuestions === "function") {

@@ -780,10 +780,6 @@
               <span class="managedStaffValue" id="managedStaffValue">No</span>
             </div>
           </div>
-
-          <div style="margin-top: 12px; padding: 8px 0; text-align: center; font-size: 12px; color: var(--muted);">
-            <strong>Assessor Mode: Azure OpenAI</strong>
-          </div>
         </div>
       </div>
 
@@ -1001,6 +997,7 @@
       <div class="thinkingModal">Thinking<br>Please Wait</div>
     </div>
 
+    <script src="rpl-prompt-pack-v3.js"></script>
     <script src="rpl-preliminary-review.js"></script>
     <script src="rpl-assessor-decision.js"></script>
     <script src="rpl-final-report-generator.js"></script>
@@ -4532,6 +4529,9 @@ Job Title: ${jobTitleValue || "N/A"}
           attemptCount,
           maxAttempts: MAX_ATTEMPTS,
         });
+        getAssessorDecisionModule().validateAssessmentDecision(decision, {
+          hintText: getQuestionHint(questions[currentIndex] || {}),
+        });
         const ctx = getStudentContext();
         return getAssessorDecisionModule().buildFeedback(decision, {
           givenName: firstName || ctx.givenName || ctx.fullName,
@@ -4584,11 +4584,8 @@ END_REVIEW>>>`;
       const callTextModel = async (prompt, options = {}) => {
         let mode = options.mode || aiMode;
         const debugLabel = options.debugLabel || "";
-        
-        // If Deepseek toggle is enabled and we're using an Azure OpenAI mode, switch to Deepseek.
-        if (useDeepseekMode) {
-          mode = "deepseek";
-        }
+        const returnRaw = options.returnRaw === true;
+        const responseSchemaKey = typeof options.responseSchemaKey === "string" ? options.responseSchemaKey : "";
         
         const temperature = typeof options.temperature === "number" ? options.temperature : 0.2;
         const maxTokens = Number.isFinite(Number(options.max_tokens)) ? Number(options.max_tokens) : 300;
@@ -4600,6 +4597,7 @@ END_REVIEW>>>`;
           prompt,
           temperature,
           max_tokens: maxTokens,
+          responseSchemaKey,
         };
         const requestHeaders = {
           "Content-Type": "application/json",
@@ -4685,6 +4683,8 @@ END_REVIEW>>>`;
           appendAiDebugEntry(debugLabel || "AI call", {
             mode,
             model: rawResp?.model,
+            status: rawResp?.status,
+            "incomplete reason": rawResp?.incomplete_details?.reason,
             "latency": `${latencyMs}ms`,
             "upstream latency": upstreamLatencyMs ? `${upstreamLatencyMs}ms` : undefined,
             "tokens": totalTokens ? `${totalTokens} total (${promptTokens} prompt / ${completionTokens} completion)` : "(not reported)",
@@ -4702,7 +4702,12 @@ END_REVIEW>>>`;
           logDebugDetail("AI debug panel error", debugError?.message || String(debugError));
         }
         const content = json?.content || json?.response || json?.text;
-        if (typeof content === "string" && content.trim()) return content.trim();
+        if (typeof content === "string" && content.trim()) {
+          const normalized = content.trim();
+          return returnRaw
+            ? { content: normalized, raw: json?.raw || json || {}, headers: Object.fromEntries(response.headers.entries()) }
+            : normalized;
+        }
         const raw = json?.raw || {};
         logDebugDetail("AI response raw", raw);
         const rawContent =
@@ -4711,12 +4716,63 @@ END_REVIEW>>>`;
           raw?.content ||
           raw?.response ||
           raw?.text;
-        if (typeof rawContent === "string" && rawContent.trim()) return rawContent.trim();
+        if (typeof rawContent === "string" && rawContent.trim()) {
+          const normalized = rawContent.trim();
+          return returnRaw
+            ? { content: normalized, raw, headers: Object.fromEntries(response.headers.entries()) }
+            : normalized;
+        }
         const messages = Array.isArray(json?.messages) ? json.messages : [];
         const last = messages.length ? messages[messages.length - 1] : null;
         const text = last?.text || last?.content || "";
         if (!text) throw new Error("No response content returned.");
-        return String(text).trim();
+        const normalized = String(text).trim();
+        return returnRaw
+          ? { content: normalized, raw, headers: Object.fromEntries(response.headers.entries()) }
+          : normalized;
+      };
+
+      const evaluateAssessorPrompt = async (prompt, { debugLabel = "Check Response" } = {}) => {
+        let responsePayload = await withCheckResponseTiming("AI assessment", () => callTextModel(prompt, {
+          mode: "assessor",
+          temperature: 0,
+          max_tokens: 1600,
+          debugLabel,
+          responseSchemaKey: "assessment",
+          returnRaw: true,
+        }));
+
+        let responseText = String(responsePayload?.content || "");
+        try {
+          getAssessorDecisionModule().parseAssessmentResponse(responseText);
+          return responseText;
+        } catch (parseError) {
+          const incompleteReason = responsePayload?.raw?.incomplete_details?.reason;
+          const responseStatus = responsePayload?.raw?.status;
+          if (incompleteReason !== "max_output_tokens" && responseStatus !== "incomplete") {
+            throw parseError;
+          }
+
+          const retryMaxTokens = 3000;
+          appendCheckResponseDebug("AI assessment retry", {
+            reason: incompleteReason || responseStatus || "response truncated",
+            previousResponseCharacterCount: responseText.length,
+            retryMaxTokens,
+          });
+
+          responsePayload = await withCheckResponseTiming("AI assessment retry", () => callTextModel(prompt, {
+            mode: "assessor",
+            temperature: 0,
+            max_tokens: retryMaxTokens,
+            debugLabel: `${debugLabel} retry`,
+            responseSchemaKey: "assessment",
+            returnRaw: true,
+          }));
+
+          responseText = String(responsePayload?.content || "");
+          getAssessorDecisionModule().parseAssessmentResponse(responseText);
+          return responseText;
+        }
       };
 
       const beginAssessmentFlow = async ({ skipValidation = false, skipCollect = false } = {}) => {
@@ -4904,8 +4960,7 @@ END_REVIEW>>>`;
         updateManagedStaffMessage();
       });
 
-      // Always use Azure OpenAI mode; Deepseek testing is incomplete
-      let useDeepseekMode = false;
+      // Always use Azure OpenAI mode.
       const aiModeLabelDisplayEl = document.getElementById("aiModeLabelDisplay");
       
       if (aiModeLabelDisplayEl) {
@@ -5136,7 +5191,7 @@ END_REVIEW>>>`;
             `Recording upload (question ${questionNumber}, attempt ${attemptNumber})`,
             () => withCheckResponseTiming("Recording upload", () => sendRecordingOnEvaluate(attemptNumber, questionNumber))
           );
-          const responseText = await withCheckResponseTiming("AI assessment", () => callTextModel(prompt, { mode: "assessor", temperature: 0, max_tokens: 1200, debugLabel: "Check Response" }));
+          const responseText = await evaluateAssessorPrompt(prompt, { debugLabel: "Check Response" });
           appendCheckResponseDebug("AI response parsed", {
             responseCharacterCount: responseText.length,
           });

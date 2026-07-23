@@ -14,9 +14,9 @@ Use this shape in the Power Automate HTTP action body:
 
 ```json
 {
-	"units": [],
-	"questions": [],
-	"config": {}
+  "units": [],
+  "questions": [],
+  "config": {}
 }
 ```
 
@@ -44,24 +44,24 @@ The endpoint returns plain JSON arrays that Power Automate Parse JSON can consum
 
 ```json
 {
-	"success": true,
-	"unitCodes": [],
-	"studentQuestions": [],
-	"assessorQuestions": [],
-	"includedQuestions": [],
-	"excludedQuestions": [],
-	"counts": {
-		"unitsReceived": 0,
-		"ctUnitsFound": 0,
-		"unitCodes": 0,
-		"questionsReceived": 0,
-		"questionsIncluded": 0,
-		"questionsExcluded": 0,
-		"studentQuestions": 0,
-		"assessorQuestions": 0
-	},
-	"warnings": [],
-	"diagnostics": {}
+  "success": true,
+  "unitCodes": [],
+  "studentQuestions": [],
+  "assessorQuestions": [],
+  "includedQuestions": [],
+  "excludedQuestions": [],
+  "counts": {
+    "unitsReceived": 0,
+    "ctUnitsFound": 0,
+    "unitCodes": 0,
+    "questionsReceived": 0,
+    "questionsIncluded": 0,
+    "questionsExcluded": 0,
+    "studentQuestions": 0,
+    "assessorQuestions": 0
+  },
+  "warnings": [],
+  "diagnostics": {}
 }
 ```
 
@@ -103,3 +103,69 @@ npm start
 ```
 
 Then call `http://localhost:3000/api/rpl/filter` with header `x-api-key: dev-test-key`.
+
+## RPL AI configuration
+
+The active assessment model is GPT-5.4-Mini through Azure OpenAI Responses API.
+
+- Prompt-pack version: `3.0`
+- Reasoning effort: `medium`
+- Active question-assessment prompt: [public/rpl-prompt-pack-v3.js](public/rpl-prompt-pack-v3.js)
+- Assessment integration module: [public/rpl-assessor-decision.js](public/rpl-assessor-decision.js)
+- Transcript-check prompt integration: [public/rpl-final-report-generator.js](public/rpl-final-report-generator.js)
+- Shared assessment schemas: [public/rpl-prompt-pack-v3.js](public/rpl-prompt-pack-v3.js)
+
+Prompt usage:
+
+- Prompt A: question assessment in [public/rpl-prompt-pack-v3.js](public/rpl-prompt-pack-v3.js)
+- Prompt B: transcript/report-readiness quality check in [public/rpl-prompt-pack-v3.js](public/rpl-prompt-pack-v3.js)
+- Prompt C: final-report structured prompt kept in [public/rpl-prompt-pack-v3.js](public/rpl-prompt-pack-v3.js) for matching future report stages
+
+Structured Outputs:
+
+- Assessment schema: `RPL_ASSESSMENT_SCHEMA`
+- Transcript-check schema: `RPL_TRANSCRIPT_CHECK_SCHEMA`
+- Final-report schema: `RPL_FINAL_REPORT_SCHEMA`
+
+Azure environment variables:
+
+- `RPL_ASSESSOR_API_KEY`
+- `RPL_ASSESSOR_AZURE_ENDPOINT`
+- `RPL_ASSESSOR_DEPLOYMENT`
+- `RPL_ASSESSOR_MODEL_NAME`
+- `RPL_ASSESSOR_API_VERSION` when using legacy or azure-native API style
+- `RPL_ASSESSOR_API_STYLE` optional override
+- `RPL_FINAL_API_KEY`
+- `RPL_FINAL_AZURE_ENDPOINT`
+- `RPL_FINAL_DEPLOYMENT`
+- `RPL_FINAL_MODEL_NAME`
+- `RPL_FINAL_API_VERSION` when using legacy or azure-native API style
+- `RPL_FINAL_API_STYLE` optional override
+
+Token and timeout settings:
+
+- Check Response default request cap: `1600` output tokens
+- Check Response bounded retry cap on incomplete GPT-5.4 output: `3000` output tokens
+- Transcript quality check cap: `5000` output tokens
+- Final-report structured request reserve: `9000` output tokens
+- Azure request timeout: `120000` ms
+- Question-assessment UI retry remains bounded to incomplete output only; unfavourable results are not retried
+
+Regression tests:
+
+- Deterministic prompt-pack and invariant tests: `node --test tests/rplPromptPackV3.test.js`
+- Existing assessor and report tests: `node --test tests/rplAssessorDecision.test.js tests/rplPreliminaryReview.test.js`
+- Full CI test entrypoint: `npm test`
+
+Optional live-model tests:
+
+- Set `RPL_RUN_LIVE_PROMPT_TESTS=1`
+- Optionally set `RPL_LIVE_TEST_URL` if the local server is not running at `http://127.0.0.1:3000/api/analysis/chat`
+- Run `node --test tests/rplPromptPackV3.live.test.js`
+
+Rollback:
+
+- Revert [public/rpl-prompt-pack-v3.js](public/rpl-prompt-pack-v3.js)
+- Revert the GPT-5.4 Structured Outputs wiring in [server.js](server.js)
+- Revert the V3 prompt-pack consumers in [public/rpl-assessor-decision.js](public/rpl-assessor-decision.js), [public/AAMC RPL 2026.html](public/AAMC%20RPL%202026.html), and [public/rpl-final-report-generator.js](public/rpl-final-report-generator.js)
+- Keep archived historical prompt references in [docs/gpt-prompts-archive.md](docs/gpt-prompts-archive.md) and [docs/deepseek-prompts-archive.md](docs/deepseek-prompts-archive.md)

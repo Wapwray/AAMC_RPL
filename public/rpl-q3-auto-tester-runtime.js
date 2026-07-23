@@ -47,6 +47,8 @@
       border-bottom: 1px solid #e2e8f0;
       background: #f8fafc;
       border-radius: 12px 12px 0 0;
+      cursor: move;
+      user-select: none;
     }
     #autoTesterPanelBody {
       padding: 10px 12px 12px;
@@ -452,6 +454,59 @@
     document.body.appendChild(panel);
   };
 
+  const makePanelDraggable = () => {
+    const panel = byId("autoTesterPanel");
+    const header = byId("autoTesterPanelHeader");
+    if (!panel || !header) return;
+
+    let dragState = null;
+
+    const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+    const stopDrag = () => {
+      dragState = null;
+      document.body.style.userSelect = "";
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
+    };
+
+    const onPointerMove = (event) => {
+      if (!dragState) return;
+      const maxLeft = Math.max(16, window.innerWidth - panel.offsetWidth - 16);
+      const maxTop = Math.max(16, window.innerHeight - panel.offsetHeight - 16);
+      const nextLeft = clamp(event.clientX - dragState.offsetX, 16, maxLeft);
+      const nextTop = clamp(event.clientY - dragState.offsetY, 16, maxTop);
+      panel.style.left = `${nextLeft}px`;
+      panel.style.top = `${nextTop}px`;
+      panel.style.right = "auto";
+      panel.style.bottom = "auto";
+    };
+
+    const onPointerUp = () => {
+      stopDrag();
+    };
+
+    header.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) return;
+      const rect = panel.getBoundingClientRect();
+      dragState = {
+        offsetX: event.clientX - rect.left,
+        offsetY: event.clientY - rect.top,
+      };
+      panel.style.left = `${rect.left}px`;
+      panel.style.top = `${rect.top}px`;
+      panel.style.right = "auto";
+      panel.style.bottom = "auto";
+      document.body.style.userSelect = "none";
+      header.setPointerCapture?.(event.pointerId);
+      window.addEventListener("pointermove", onPointerMove);
+      window.addEventListener("pointerup", onPointerUp);
+      window.addEventListener("pointercancel", onPointerUp);
+      event.preventDefault();
+    });
+  };
+
   const wirePanel = () => {
     const fileInput = byId("autoTesterFileInput");
     const startBtn = byId("autoTesterStartBtn");
@@ -491,6 +546,7 @@
 
   const init = () => {
     installPanel();
+    makePanelDraggable();
     wirePanel();
     setRunningUi(false);
     try {

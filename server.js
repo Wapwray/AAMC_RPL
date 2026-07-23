@@ -2,6 +2,7 @@ const express = require("express");
 const crypto = require("crypto");
 const fs = require("fs/promises");
 const path = require("path");
+const RPLPromptPackV3 = require("./public/rpl-prompt-pack-v3");
 
 // Load environment variables from .env file (if present).
 try {
@@ -460,11 +461,42 @@ app.post("/api/analysis/chat", async (req, res) => {
     return;
   }
 
-  const { prompt, temperature = 0.2, max_tokens = 300 } = req.body || {};
+  const { prompt, temperature = 0.2, max_tokens = 300, responseSchemaKey = "" } = req.body || {};
   if (!prompt || typeof prompt !== "string") {
     res.status(400).json({ error: "Missing prompt." });
     return;
   }
+
+  const structuredResponseSchema = (() => {
+    switch (String(responseSchemaKey || "").trim()) {
+      case "assessment":
+        return {
+          name: "rpl_question_assessment_v3",
+          schema: RPLPromptPackV3.RPL_ASSESSMENT_SCHEMA,
+          verbosity: "low",
+        };
+      case "transcriptCheck":
+        return {
+          name: "rpl_transcript_check_v3",
+          schema: RPLPromptPackV3.RPL_TRANSCRIPT_CHECK_SCHEMA,
+          verbosity: "low",
+        };
+      case "finalReport":
+        return {
+          name: "rpl_final_report_v3",
+          schema: RPLPromptPackV3.RPL_FINAL_REPORT_SCHEMA,
+          verbosity: "medium",
+        };
+      default:
+        return isAssessor
+          ? {
+              name: "rpl_question_assessment_v3",
+              schema: RPLPromptPackV3.RPL_ASSESSMENT_SCHEMA,
+              verbosity: "low",
+            }
+          : null;
+    }
+  })();
 
   // Build URL based on Azure OpenAI mode
   const endpointBase = String(endpoint || "").replace(/\/+$/, "");
@@ -493,11 +525,23 @@ app.post("/api/analysis/chat", async (req, res) => {
   ];
 
   const requestedMaxTokens = Number.isFinite(Number(max_tokens)) ? Number(max_tokens) : 300;
+  const responseTokenFloor = (() => {
+    switch (String(responseSchemaKey || "").trim()) {
+      case "assessment":
+        return 1600;
+      case "transcriptCheck":
+        return 5000;
+      case "finalReport":
+        return 9000;
+      default:
+        return isFinal ? 1200 : isAssessor ? 1200 : 800;
+    }
+  })();
   const resolvedMaxTokens = isFinal
-    ? Math.max(1200, requestedMaxTokens)
+    ? Math.max(responseTokenFloor, requestedMaxTokens)
     : isAssessor
-      ? Math.max(isResponsesApiModel ? 1200 : 450, requestedMaxTokens)
-      : Math.max(800, requestedMaxTokens);
+      ? Math.max(isResponsesApiModel ? responseTokenFloor : 450, requestedMaxTokens)
+      : Math.max(responseTokenFloor, requestedMaxTokens);
 
   // Build request body based on API type
   let body;
@@ -509,6 +553,17 @@ app.post("/api/analysis/chat", async (req, res) => {
       max_output_tokens: resolvedMaxTokens,
       reasoning: { effort: "medium" },
     };
+    if (structuredResponseSchema) {
+      body.text = {
+        verbosity: structuredResponseSchema.verbosity,
+        format: {
+          type: "json_schema",
+          name: structuredResponseSchema.name,
+          strict: true,
+          schema: structuredResponseSchema.schema,
+        },
+      };
+    }
   } else {
     // Other models use Chat Completions API
     body = {
@@ -620,7 +675,7 @@ app.post("/api/analysis/chat", async (req, res) => {
     }
     if (error?.name === "AbortError") {
       res.status(504).json({
-        error: `AI request timed out after ${Math.round((isDeepseek ? 90000 : 120000) / 1000)} seconds.`,
+        error: `AI request timed out after ${Math.round(120000 / 1000)} seconds.`,
       });
       return;
     }
