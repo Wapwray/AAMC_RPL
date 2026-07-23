@@ -1915,6 +1915,7 @@
         .trim();
 
       const getTranscriptAttemptFeedbackText = (feedback) => String(feedback || "")
+        .replace(/^[\s\S]*?(?:\n|^)(?:Preliminary Status|Overall assessment):\s*(?:LIKELY SUFFICIENT|ADDITIONAL EVIDENCE MAY BE NEEDED|Satisfactory|Unsatisfactory|NEEDS MORE INFO)\.?\s*(?:\n|$)/i, "")
         .replace(/(^|\n)(?:Preliminary Status|Overall assessment):\s*(LIKELY SUFFICIENT|ADDITIONAL EVIDENCE MAY BE NEEDED|Satisfactory|Unsatisfactory|NEEDS MORE INFO)\.?\s*(?=\n|$)/gi, "$1")
         .replace(/\n{3,}/g, "\n\n")
         .trim();
