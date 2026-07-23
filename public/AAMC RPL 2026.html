@@ -2626,12 +2626,12 @@ Job Title: ${jobTitleValue || "N/A"}
           .filter((entry) => entry.text.trim());
       };
 
-      const buildGuidanceWindowSnapshot = ({ questionNumber, attemptNumber }) => {
+      const buildGuidanceWindowSnapshot = ({ questionNumber, attemptNumber, entries }) => {
         return JSON.stringify({
           version: 1,
           currentQuestion: String(questionNumber),
           currentAttempt: String(attemptNumber),
-          entries: getGuidanceWindowEntries(),
+          entries: Array.isArray(entries) ? entries : getGuidanceWindowEntries(),
         });
       };
 
@@ -3806,7 +3806,7 @@ Job Title: ${jobTitleValue || "N/A"}
         }
       };
 
-      const sendTranscriptBackupOnEvaluate = async ({ attemptNumber, questionNumber }) => {
+      const sendTranscriptBackupOnEvaluate = async ({ attemptNumber, questionNumber, guidanceWindowSnapshot }) => {
         const ctx = getStudentContext();
         const fileName = `${ctx.fullName} - ${ctx.contactId} - ${questionNumber} - ${attemptNumber}.txt`;
         const payload = {
@@ -3816,7 +3816,7 @@ Job Title: ${jobTitleValue || "N/A"}
           CurrentQuestion: String(questionNumber),
           CurrentAttempt: String(attemptNumber),
           FileName: fileName,
-          ConversationPartTranscript: buildGuidanceWindowSnapshot({ questionNumber, attemptNumber }),
+          ConversationPartTranscript: guidanceWindowSnapshot || buildGuidanceWindowSnapshot({ questionNumber, attemptNumber }),
         };
         logAssessmentDebug("Transcript backup webhook", "Sending payload");
         logAssessmentDebug("Transcript backup payload", payload);
@@ -5119,6 +5119,11 @@ END_REVIEW>>>`;
           entry.summary = assessorFeedback.assessorSummary;
           entry.overallAssessment = assessorFeedback.overallAssessment;
           const nextAttemptForWebhook = Math.min(MAX_ATTEMPTS, attemptNumber + 1);
+          const guidanceWindowSnapshot = buildGuidanceWindowSnapshot({
+            questionNumber,
+            attemptNumber,
+            entries: getGuidanceWindowEntries(),
+          });
           logNextDebug("Check Response - queueing background saves", { attemptNumber, nextAttemptForWebhook, currentAttempts });
           queueSaveTask(
             `Transcript save (question ${questionNumber}, attempt ${attemptNumber})`,
@@ -5128,8 +5133,8 @@ END_REVIEW>>>`;
               fullTranscript = buildFullTranscript();
               window.RPLFullTranscript = fullTranscript;
               const [backupSaved, attemptAndTranscriptSaved] = await Promise.all([
-                sendTranscriptBackupOnEvaluate({ attemptNumber, questionNumber }),
-                sendCurrentAttemptOnEvaluate(nextAttemptForWebhook, questionNumber),
+                sendTranscriptBackupOnEvaluate({ attemptNumber, questionNumber, guidanceWindowSnapshot }),
+                sendCurrentAttemptOnEvaluate(attemptNumber, questionNumber),
               ]);
               const recordingSaved = await recordingSavePromise;
               appendCheckResponseDebug("Check Response save stage completed", {
