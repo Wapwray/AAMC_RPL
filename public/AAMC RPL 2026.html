@@ -977,6 +977,13 @@
                   </div>
                   <div class="aiDebugPanel" aria-live="polite">
                     <div class="aiDebugPanelHeader">
+                      <span>General Debug</span>
+                      <button id="clearGeneralDebugBtn" type="button" class="secondary">Clear</button>
+                    </div>
+                    <pre id="generalDebugLog" class="aiDebugLog">No general debug entries yet.</pre>
+                  </div>
+                  <div class="aiDebugPanel" aria-live="polite">
+                    <div class="aiDebugPanelHeader">
                       <span>AI Behaviour Debug</span>
                       <span class="aiDebugTotals" id="aiDebugTotals">0 calls | 0 tokens</span>
                       <button id="clearAiDebugBtn" type="button" class="secondary">Clear</button>
@@ -2989,8 +2996,33 @@ Job Title: ${jobTitleValue || "N/A"}
 
       const logDebug = () => {};
       const logDebugDetail = () => {};
-      const logAssessmentDebug = () => {};
-      const logNextDebug = () => {};
+      const generalDebugLogEl = document.getElementById("generalDebugLog");
+      const clearGeneralDebugBtn = document.getElementById("clearGeneralDebugBtn");
+      const formatGeneralDebugDetail = (detail) => {
+        if (detail === undefined || detail === null) return "";
+        if (typeof detail === "string") return detail;
+        try {
+          const text = JSON.stringify(detail);
+          return text.length > 800 ? `${text.slice(0, 800)}…` : text;
+        } catch {
+          return String(detail);
+        }
+      };
+      const appendGeneralDebug = (label, detail) => {
+        if (!generalDebugLogEl) return;
+        const timestamp = new Date().toLocaleTimeString();
+        const detailText = formatGeneralDebugDetail(detail);
+        const entry = `[${timestamp}] ${label}${detailText ? `: ${detailText}` : ""}`;
+        const currentText = generalDebugLogEl.textContent || "";
+        const baseText = currentText.trim() === "No general debug entries yet." ? "" : currentText.replace(/\s+$/, "");
+        generalDebugLogEl.textContent = baseText ? `${baseText}\n${entry}` : entry;
+        generalDebugLogEl.scrollTop = generalDebugLogEl.scrollHeight;
+      };
+      clearGeneralDebugBtn?.addEventListener("click", () => {
+        if (generalDebugLogEl) generalDebugLogEl.textContent = "No general debug entries yet.";
+      });
+      const logAssessmentDebug = (label, detail) => appendGeneralDebug(label, detail);
+      const logNextDebug = (label, detail) => appendGeneralDebug(label, detail);
       const logCheckResponseDebug = appendCheckResponseDebug;
       const logWelcomeDebug = () => {};
       const updateDebugVisibility = () => {};
