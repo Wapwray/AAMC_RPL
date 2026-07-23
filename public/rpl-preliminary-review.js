@@ -1168,12 +1168,12 @@ Rules:
               <p>${escapeHtml(valueOrMissing(question.assessmentObjective))}</p>
             </section>
             <section>
-              <h4>AI Interview Summary</h4>
-              <p class="formatted-summary">${escapeHtml(valueOrMissing(question.aiInterviewSummary))}</p>
-            </section>
-            <section>
               <h4>Student and AI Interview conversation</h4>
               ${renderConversation(question)}
+            </section>
+            <section>
+              <h4>Interview Summary</h4>
+              ${renderResponseBox(valueOrMissing(question.aiInterviewSummary))}
             </section>
             ${renderAssessorStaticSection(question)}
           </article>
@@ -1593,12 +1593,12 @@ Rules:
               <p>${escapeHtml(valueOrMissing(question.assessmentObjective))}</p>
             </section>
             <section>
-              <h4>AI Interview Summary</h4>
-              <p class="formatted-summary">${escapeHtml(valueOrMissing(question.aiInterviewSummary))}</p>
-            </section>
-            <section>
               <h4>Student and AI Interview conversation</h4>
               ${renderConversation(question)}
+            </section>
+            <section>
+              <h4>Interview Summary</h4>
+              ${renderResponseBox(valueOrMissing(question.aiInterviewSummary))}
             </section>
             <section class="assessor-evaluation">
               <h4>Assessor Evaluation - Status</h4>
