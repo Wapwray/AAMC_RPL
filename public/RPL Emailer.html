@@ -444,7 +444,9 @@
           qualificationsData.forEach((q, index) => {
             const opt = document.createElement("option");
             opt.value = String(index);
-            opt.textContent = q["Qualifications"] || `Qualification ${index + 1}`;
+            const qualificationsLabel = q["Qualifications"] || `Qualification ${index + 1}`;
+            const rplQuestionsLabel = q["RPL Questions"] || "No RPL Questions";
+            opt.textContent = `${qualificationsLabel} - ${rplQuestionsLabel}`;
             qualificationsSelectEl.appendChild(opt);
           });
         } catch (err) {
