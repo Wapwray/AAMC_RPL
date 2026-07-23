@@ -76,6 +76,38 @@
         font-size: 12px;
         color: #334155;
       }
+
+      .answerTable {
+        margin-top: 20px;
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+      }
+
+      .answerTable th,
+      .answerTable td {
+        border: 1px solid #cbd5e1;
+        padding: 8px;
+        text-align: left;
+      }
+
+      .answerTable th {
+        background: #e2e8f0;
+        font-weight: 600;
+      }
+
+      .answerTable tr:nth-child(even) {
+        background: #f8fafc;
+      }
+
+      .answerTableContainer {
+        margin-top: 20px;
+        max-height: 400px;
+        overflow-y: auto;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        background: #ffffff;
+      }
     </style>
   </head>
   <body>
@@ -88,9 +120,11 @@
           <input id="bootTranscriptFile" type="file" accept="application/json,.json" />
         </div>
         <div class="bootActions">
+          <button id="bootGenerateTableBtn" type="button" disabled>Generate Answers Table</button>
           <button id="bootContinueBtn" type="button" disabled>Open Auto Tester Page</button>
         </div>
         <p id="bootStatus" class="bootStatus">Choose a transcript .json file to continue.</p>
+        <div id="bootTableContainer" class="answerTableContainer" style="display: none;"></div>
       </section>
     </main>
 
@@ -108,9 +142,81 @@
         if (el) el.textContent = message;
       };
 
+      const parseAnswersTable = (jsonText) => {
+        try {
+          const data = JSON.parse(jsonText);
+          const rows = [];
+          
+          if (data.questions && Array.isArray(data.questions)) {
+            data.questions.forEach((question) => {
+              const questionNumber = question.questionNumber || "N/A";
+              const questionText = question.questionText || "";
+              const attempts = question.attempts || [];
+              
+              attempts.forEach((attempt) => {
+                rows.push({
+                  questionNumber,
+                  attemptNumber: attempt.attemptNumber || 1,
+                  questionText,
+                  answer: attempt.answer || ""
+                });
+              });
+            });
+          }
+          
+          return rows;
+        } catch (error) {
+          throw new Error(`Failed to parse JSON: ${error.message}`);
+        }
+      };
+
+      const renderAnswersTable = (rows) => {
+        if (!rows || rows.length === 0) {
+          return "<p style='padding: 16px; color: #667084;'>No answers found in transcript.</p>";
+        }
+        
+        let html = "<table class='answerTable'><thead><tr>";
+        html += "<th style='width: 80px;'>Question</th>";
+        html += "<th style='width: 60px;'>Attempt</th>";
+        html += "<th style='flex: 1;'>Question Text</th>";
+        html += "<th style='flex: 1;'>Answer</th>";
+        html += "</tr></thead><tbody>";
+        
+        rows.forEach((row) => {
+          const qNum = String(row.questionNumber).padStart(2, "0");
+          const answerPreview = row.answer.substring(0, 100) + (row.answer.length > 100 ? "..." : "");
+          html += "<tr>";
+          html += `<td>${qNum}</td>`;
+          html += `<td>${row.attemptNumber}</td>`;
+          html += `<td>${row.questionText.substring(0, 80)}...</td>`;
+          html += `<td title='${row.answer}'>${answerPreview}</td>`;
+          html += "</tr>";
+        });
+        
+        html += "</tbody></table>";
+        return html;
+      };
+
+      const generateAnswersTable = (jsonText) => {
+        try {
+          const rows = parseAnswersTable(jsonText);
+          const containerEl = document.getElementById("bootTableContainer");
+          if (containerEl) {
+            containerEl.innerHTML = renderAnswersTable(rows);
+            containerEl.style.display = "block";
+            setBootStatus(`Loaded ${rows.length} answer(s) from transcript.`);
+          }
+        } catch (error) {
+          setBootStatus(`Table generation failed: ${error.message}`);
+        }
+      };
+
       const boot = async () => {
         try {
           setBootStatus("Opening Auto Tester page...");
+          // Store parsed answers in sessionStorage for runtime use
+          const answersRows = parseAnswersTable(selectedJsonText);
+          sessionStorage.setItem("rpl_auto_tester_answers", JSON.stringify(answersRows));
           window.location.href = SOURCE_FILE;
         } catch (error) {
           const message = error?.message || String(error);
@@ -236,26 +342,40 @@
 
       const wireBootGate = () => {
         const fileInput = document.getElementById("bootTranscriptFile");
+        const generateTableBtn = document.getElementById("bootGenerateTableBtn");
         const continueBtn = document.getElementById("bootContinueBtn");
+        let selectedJsonText = "";
 
         fileInput?.addEventListener("change", async (event) => {
           const file = event.target?.files?.[0];
+          selectedJsonText = "";
+          generateTableBtn.disabled = true;
           continueBtn.disabled = true;
           if (!file) {
             setBootStatus("Choose a transcript .json file to continue.");
-            continueBtn.disabled = true;
             return;
           }
           try {
             const text = await file.text();
             JSON.parse(text);
-            setBootStatus(`Loaded ${file.name}. Click Open Auto Tester Page.`);
+            selectedJsonText = text;
+            generateTableBtn.disabled = false;
             continueBtn.disabled = false;
+            setBootStatus(`Loaded ${file.name}. Click "Generate Answers Table" or "Open Auto Tester Page".`);
           } catch (error) {
             const message = error?.message || String(error);
             setBootStatus(`Invalid JSON file: ${message}`);
+            generateTableBtn.disabled = true;
             continueBtn.disabled = true;
           }
+        });
+
+        generateTableBtn?.addEventListener("click", async () => {
+          if (!selectedJsonText) {
+            setBootStatus("Choose a transcript .json file first.");
+            return;
+          }
+          generateAnswersTable(selectedJsonText);
         });
 
         continueBtn?.addEventListener("click", async () => {
