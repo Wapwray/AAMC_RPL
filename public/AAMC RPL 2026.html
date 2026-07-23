@@ -3764,14 +3764,13 @@ Job Title: ${jobTitleValue || "N/A"}
 
       const sendCurrentAttemptOnEvaluate = async (attemptNumber, questionNumber, label = "Attempt webhook") => {
         const ctx = getStudentContext();
-        if (!fullTranscript) {
-          initFullTranscript();
-        }
+        const currentTranscript = buildFullTranscript();
+        fullTranscript = currentTranscript;
         const payload = {
           FullName: ctx.fullName,
           ContactID: String(ctx.contactId),
           GivenName: ctx.givenName,
-          FullTranscript: fullTranscript,
+          FullTranscript: currentTranscript,
           FullTranscriptJSON: buildFullTranscriptJson(),
           CurrentQuestion: String(questionNumber),
           CurrentAttempt: String(attemptNumber),
@@ -3781,7 +3780,7 @@ Job Title: ${jobTitleValue || "N/A"}
         logAssessmentDebug(`${label} payload`, payload);
         const bodyText = JSON.stringify(payload);
         logCheckResponseDebug(`${label} payload size`, {
-          fullTranscriptCharacters: fullTranscript.length,
+          fullTranscriptCharacters: currentTranscript.length,
           fullTranscriptJsonCharacters: payload.FullTranscriptJSON.length,
           requestBodyCharacters: bodyText.length,
         });
@@ -5128,8 +5127,13 @@ END_REVIEW>>>`;
           queueSaveTask(
             `Transcript save (question ${questionNumber}, attempt ${attemptNumber})`,
             async () => {
-              await transcriptMergePromise;
-              transcriptMergeAttempted = false;
+              try {
+                await transcriptMergePromise;
+              } catch (mergeError) {
+                logAssessmentDebug("Transcript merge warning", mergeError?.message || String(mergeError));
+              } finally {
+                transcriptMergeAttempted = false;
+              }
               fullTranscript = buildFullTranscript();
               window.RPLFullTranscript = fullTranscript;
               const [backupSaved, attemptAndTranscriptSaved] = await Promise.all([
