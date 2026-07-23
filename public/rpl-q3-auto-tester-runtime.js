@@ -7,7 +7,6 @@
     loaded: null,
     running: false,
     stopped: false,
-    autoStartPending: false,
     currentQuestion: null,
     nextAttemptIndex: 0,
     logLines: [],
@@ -484,24 +483,7 @@
     installPanel();
     wirePanel();
     setRunningUi(false);
-    try {
-      const startupJson = sessionStorage.getItem(SESSION_JSON_KEY);
-      if (startupJson) {
-        loadJsonFromText(startupJson, "boot");
-        sessionStorage.removeItem(SESSION_JSON_KEY);
-        state.autoStartPending = true;
-      }
-    } catch (error) {
-      const message = error?.message || String(error);
-      setStatus(`Startup JSON load failed: ${message}`);
-      addLog("Startup JSON load failed", message);
-    }
-    addLog("Auto tester", "Ready");
-    if (state.autoStartPending) {
-      window.setTimeout(() => {
-        startAutoTestIfReady("boot upload");
-      }, 0);
-    }
+    addLog("Auto tester", "Ready. Select a JSON file and press Start Auto Test.");
     window.setInterval(ensureReportLink, 1000);
   };
 

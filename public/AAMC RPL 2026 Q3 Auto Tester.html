@@ -96,8 +96,7 @@
 
     <script>
       const SOURCE_FILE = "AAMC RPL 2026.html";
-      const SESSION_JSON_KEY = "rpl_auto_tester_uploaded_json";
-      const RUNTIME_VERSION = "1.7.5";
+      const RUNTIME_VERSION = "1.7.6";
 
       const replaceOnce = (text, matcher, replacement) => {
         const next = text.replace(matcher, replacement);
@@ -258,39 +257,28 @@
       const wireBootGate = () => {
         const fileInput = document.getElementById("bootTranscriptFile");
         const continueBtn = document.getElementById("bootContinueBtn");
-        let selectedJsonText = "";
 
         fileInput?.addEventListener("change", async (event) => {
           const file = event.target?.files?.[0];
-          selectedJsonText = "";
           continueBtn.disabled = true;
           if (!file) {
             setBootStatus("Choose a transcript .json file to continue.");
+            continueBtn.disabled = true;
             return;
           }
           try {
             const text = await file.text();
             JSON.parse(text);
-            selectedJsonText = text;
-            continueBtn.disabled = false;
             setBootStatus(`Loaded ${file.name}. Click Open Auto Tester Page.`);
+            continueBtn.disabled = false;
           } catch (error) {
             const message = error?.message || String(error);
             setBootStatus(`Invalid JSON file: ${message}`);
+            continueBtn.disabled = true;
           }
         });
 
         continueBtn?.addEventListener("click", async () => {
-          if (!selectedJsonText) {
-            setBootStatus("Choose a transcript .json file first.");
-            return;
-          }
-          try {
-            sessionStorage.setItem(SESSION_JSON_KEY, selectedJsonText);
-          } catch {
-            setBootStatus("Could not cache the uploaded file in this browser session.");
-            return;
-          }
           continueBtn.disabled = true;
           setBootStatus("Opening Auto Tester page...");
           await boot();
