@@ -257,11 +257,11 @@
       throw new Error("Answer input or Evaluate button not found.");
     }
 
-    const evaluateEnabled = await waitFor(() => !evaluateBtn.disabled, 120000);
-    if (!evaluateEnabled) throw new Error("Evaluate button did not become enabled.");
-
     answerInput.value = answerText;
     answerInput.dispatchEvent(new Event("input", { bubbles: true }));
+
+    const evaluateEnabled = await waitFor(() => !evaluateBtn.disabled, 120000);
+    if (!evaluateEnabled) throw new Error("Evaluate button did not become enabled after setting answer.");
 
     const previousAiCount = document.querySelectorAll("#chatHistory .chatEntry.ai").length;
     evaluateBtn.click();
@@ -487,9 +487,12 @@
       const bootTranscript = sessionStorage.getItem(SESSION_JSON_KEY);
       if (bootTranscript) {
         loadJsonFromText(bootTranscript, "answers table");
+        setStatus("Loaded from answers table. Complete Welcome page and press Begin.");
         addLog("Auto tester", "Using the answer rows generated before opening the assessment.");
+        addLog("Auto tester", "Auto-starting from answers table");
         window.setTimeout(() => startAutoTestIfReady("answers table"), 0);
       } else {
+        setStatus("Ready. Select a JSON file to upload, then press Start Auto Test.");
         addLog("Auto tester", "Ready. Select a JSON file and press Start Auto Test.");
       }
     } catch (error) {
