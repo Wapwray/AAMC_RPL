@@ -1308,6 +1308,9 @@
             body: JSON.stringify(payload),
           });
           const text = await response.text();
+          try {
+            localStorage.removeItem(`rpl_ai_log_${ctx.contactId}`);
+          } catch {}
         } catch (error) {
         } finally {
           if (welcomeResetBtn) welcomeResetBtn.disabled = false;
@@ -2834,6 +2837,44 @@ Job Title: ${jobTitleValue || "N/A"}
       // --- AI behaviour debug panel ----------------------------------------------
       const aiDebugSession = { calls: 0, errors: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, totalLatencyMs: 0 };
       let aiPerformanceLogEntries = [];
+      let aiPerformanceLogRestored = false;
+
+      const getAiLogStorageKey = () => {
+        try {
+          const ctx = getStudentContext();
+          return `rpl_ai_log_${ctx.contactId}`;
+        } catch {
+          return "rpl_ai_log";
+        }
+      };
+
+      // The AI log file in SharePoint is overwritten with the in-memory entries on
+      // every save, so entries from earlier sessions must be restored after a page
+      // reload/resume or they would be lost from the file.
+      const restoreAiPerformanceLog = () => {
+        if (aiPerformanceLogRestored) return;
+        aiPerformanceLogRestored = true;
+        try {
+          const raw = localStorage.getItem(getAiLogStorageKey());
+          if (!raw) return;
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed?.entries) && parsed.entries.length) {
+            aiPerformanceLogEntries = parsed.entries.concat(aiPerformanceLogEntries);
+          }
+        } catch {}
+      };
+
+      const persistAiPerformanceLog = () => {
+        try {
+          localStorage.setItem(getAiLogStorageKey(), JSON.stringify({ version: 1, entries: aiPerformanceLogEntries }));
+        } catch {}
+      };
+
+      const clearPersistedAiPerformanceLog = () => {
+        try {
+          localStorage.removeItem(getAiLogStorageKey());
+        } catch {}
+      };
 
       const estimateTokens = (text) => Math.ceil(String(text || "").length / 4);
 
@@ -2851,6 +2892,7 @@ Job Title: ${jobTitleValue || "N/A"}
       };
 
       const buildAiPerformanceLog = () => {
+        restoreAiPerformanceLog();
         return JSON.stringify({
           version: 1,
           generatedAtUtc: new Date().toISOString(),
@@ -2870,6 +2912,7 @@ Job Title: ${jobTitleValue || "N/A"}
 
       const appendAiDebugEntry = (title, fields) => {
         if (!aiDebugLogEl) return;
+        restoreAiPerformanceLog();
         const timestampUtc = new Date().toISOString();
         const timestamp = new Date().toLocaleTimeString();
         const currentContext = getCurrentAiLogContext();
@@ -2886,6 +2929,7 @@ Job Title: ${jobTitleValue || "N/A"}
           attempt: currentContext.attempt,
           fields: normalisedFields,
         });
+        persistAiPerformanceLog();
         const lines = Object.entries(normalisedFields)
           .filter(([, value]) => value !== undefined && value !== null && value !== "")
           .map(([key, value]) => `  ${key}: ${typeof value === "object" ? JSON.stringify(value) : value}`);
@@ -2904,6 +2948,7 @@ Job Title: ${jobTitleValue || "N/A"}
         aiDebugSession.totalTokens = 0;
         aiDebugSession.totalLatencyMs = 0;
         aiPerformanceLogEntries = [];
+        clearPersistedAiPerformanceLog();
         updateAiDebugTotals();
         clearAiDebugLog();
       });
