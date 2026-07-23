@@ -675,8 +675,20 @@ Rules:
       .replace(/\bprovided evidence covering\b/gi, "provided evidence covering")
       .trim();
     if (!cleaned) return "";
-    const sentence = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
-    return /^The student\b/i.test(sentence) ? sentence : `The student ${sentence.charAt(0).toLowerCase()}${sentence.slice(1)}`;
+    
+    let sentence = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+    
+    if (!/^The student\b/i.test(sentence)) {
+      sentence = `The student ${sentence.charAt(0).toLowerCase()}${sentence.slice(1)}`;
+    }
+    
+    // Format the summary for better readability by adding line breaks
+    // Add line breaks before and after "Objective evidence:"
+    sentence = sentence.replace(/\.\s+(Objective evidence:)/gi, ".\n\n$1");
+    // Ensure bullet points are on new lines
+    sentence = sentence.replace(/([^\n])\s*(-\s+)/g, "$1\n$2");
+    
+    return sentence;
   };
 
   const summariseCandidateEvidence = (block) => {
@@ -1154,7 +1166,7 @@ Rules:
             </section>
             <section>
               <h4>AI Interview Summary</h4>
-              <p>${escapeHtml(valueOrMissing(question.aiInterviewSummary))}</p>
+              <p class="formatted-summary">${escapeHtml(valueOrMissing(question.aiInterviewSummary))}</p>
             </section>
             <section>
               <h4>Student and AI Interview conversation</h4>
@@ -1217,6 +1229,7 @@ Rules:
       .candidate-attempt { border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin: 10px 0; background: #f8fafc; }
       .ai-interview-response { border: 1px solid #c7d2fe; border-left: 4px solid #4338ca; border-radius: 6px; padding: 12px; margin: 10px 0 14px; background: #eef2ff; }
       .verbatim, .response-box { white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word; max-width: 100%; margin: 0; padding: 8px; border: 1px solid #999; border-radius: 4px; background: #fff; font-family: Calibri, Arial, Helvetica, sans-serif; font-size: 11pt; line-height: 1.35; box-sizing: border-box; }
+      .formatted-summary { white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word; max-width: 100%; margin: 0; padding: 0; background: transparent; font-family: inherit; font-size: inherit; line-height: 1.35; box-sizing: border-box; }
       .response-box { min-height: 80px; }
       .assessor-evaluation-box { min-height: 42px; }
       .assessor-evaluation { border: 1px solid #cbd5e1; border-radius: 6px; padding: 12px; background: #fff; }
@@ -1555,7 +1568,7 @@ Rules:
             </section>
             <section>
               <h4>AI Interview Summary</h4>
-              <p>${escapeHtml(valueOrMissing(question.aiInterviewSummary))}</p>
+              <p class="formatted-summary">${escapeHtml(valueOrMissing(question.aiInterviewSummary))}</p>
             </section>
             <section>
               <h4>Student and AI Interview conversation</h4>
@@ -1617,6 +1630,7 @@ Rules:
       .candidate-attempt { border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin: 10px 0; background: #f8fafc; }
       .ai-interview-response { border: 1px solid #c7d2fe; border-left: 4px solid #4338ca; border-radius: 6px; padding: 12px; margin: 10px 0 14px; background: #eef2ff; }
       .verbatim, .response-box { white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word; max-width: 100%; margin: 0; padding: 8px; border: 1px solid #999; border-radius: 4px; background: #fff; font-family: Calibri, Arial, Helvetica, sans-serif; font-size: 11pt; line-height: 1.35; box-sizing: border-box; }
+      .formatted-summary { white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word; max-width: 100%; margin: 0; padding: 0; background: transparent; font-family: inherit; font-size: inherit; line-height: 1.35; box-sizing: border-box; }
       .response-box { min-height: 80px; }
       .assessor-evaluation { border: 1px solid #cbd5e1; border-radius: 6px; padding: 12px; background: #f8fafc; margin-top: 12px; }
       .assessor-input:focus, .assessor-signoff-input:focus { outline: 2px solid #0b6ea9; border-color: #0b6ea9; }
