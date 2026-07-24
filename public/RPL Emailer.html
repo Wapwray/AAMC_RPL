@@ -441,11 +441,11 @@
           const data = await res.json();
           qualificationsData = Array.isArray(data) ? data : [];
           qualificationsSelectEl.innerHTML = '<option value="">-- Select a qualification --</option>';
-          qualificationsData.forEach((q, index) => {
+          qualificationsData.forEach((qualification, index) => {
             const opt = document.createElement("option");
             opt.value = String(index);
-            const qualificationsLabel = q["Qualifications"] || `Qualification ${index + 1}`;
-            const rplQuestionsLabel = q["RPL Questions"] || "No RPL Questions";
+            const qualificationsLabel = qualification["QUALIFICATIONS"] || `Qualification ${index + 1}`;
+            const rplQuestionsLabel = qualification["RPL Questions"] || "No RPL Questions";
             opt.textContent = `${qualificationsLabel} - ${rplQuestionsLabel}`;
             qualificationsSelectEl.appendChild(opt);
           });
@@ -540,7 +540,8 @@
         }
         const selected = qualificationsData[Number(qualificationsSelectEl.value)] || {};
         qualificationDetailEl.innerHTML = [
-          `<div class="studentRow"><div class="studentLabel">Qualifications</div><div class="studentValue">${escapeHtml(selected["Qualifications"] || "-")}</div></div>`,
+          `<div class="studentRow"><div class="studentLabel">QUALIFICATIONS</div><div class="studentValue">${escapeHtml(selected["QUALIFICATIONS"] || "-")}</div></div>`,
+          `<div class="studentRow"><div class="studentLabel">RPL Questions</div><div class="studentValue">${escapeHtml(selected["RPL Questions"] || "-")}</div></div>`,
           `<div class="studentRow"><div class="studentLabel">DOMAIN</div><div class="studentValue">${escapeHtml(selected["DOMAIN"] || "-")}</div></div>`,
           `<div class="studentRow"><div class="studentLabel">Notes</div><div class="studentValue">${escapeHtml(selected["Notes"] || "-")}</div></div>`,
         ].join("");
