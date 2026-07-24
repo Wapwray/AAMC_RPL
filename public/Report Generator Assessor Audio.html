@@ -275,7 +275,6 @@
             });
             scrubEl.value = String(bounded);
             posEl.textContent = `${bounded + 1}/${tokens.length}`;
-            spans[bounded]?.scrollIntoView({ block: "nearest", inline: "nearest" });
           };
 
           const getWordIndexFromChar = (utteranceWords, charIndex) => {
@@ -775,10 +774,9 @@
                 await speakAssessorNarration(preamble, 1);
 
                 for (let i = 0; i < players.length; i += 1) {
-                  players[i].sectionEl.scrollIntoView({ behavior: "smooth", block: "center" });
                   await players[i].playFromStart();
+                  players[i].sectionEl.scrollIntoView({ behavior: "smooth", block: "end" });
                 }
-                doc.defaultView.scrollTo({ top: doc.body.scrollHeight, behavior: "smooth" });
               });
             }
 
