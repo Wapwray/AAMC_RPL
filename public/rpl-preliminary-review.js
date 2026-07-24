@@ -1156,6 +1156,10 @@ Rules:
             <h3>Question ${escapeHtml(question.questionNumber)} - ${escapeHtml(valueOrMissing(question.section))}</h3>
             <p><span class="status-badge ${statusClassName(question.shortStatus)}">${escapeHtml(question.preliminaryStatus)}</span></p>
             <section>
+              <h4>Student and AI Interview conversation</h4>
+              ${renderConversation(question)}
+            </section>
+            <section>
               <h4>Question asked</h4>
               <p>${escapeHtml(valueOrMissing(question.questionAsked))}</p>
             </section>
@@ -1166,10 +1170,6 @@ Rules:
             <section>
               <h4>Objective</h4>
               <p>${escapeHtml(valueOrMissing(question.assessmentObjective))}</p>
-            </section>
-            <section>
-              <h4>Student and AI Interview conversation</h4>
-              ${renderConversation(question)}
             </section>
             <section>
               <h4>AI Interview Summary</h4>
@@ -1581,6 +1581,10 @@ Rules:
             <h3>Question ${escapeHtml(question.questionNumber)} - ${escapeHtml(valueOrMissing(question.section))}</h3>
             <p><span class="status-badge ${statusClassName(question.shortStatus)}">${escapeHtml(question.preliminaryStatus)}</span></p>
             <section>
+              <h4>Student and AI Interview conversation</h4>
+              ${renderConversation(question)}
+            </section>
+            <section>
               <h4>Question asked</h4>
               <p>${escapeHtml(valueOrMissing(question.questionAsked))}</p>
             </section>
@@ -1591,10 +1595,6 @@ Rules:
             <section>
               <h4>Objective</h4>
               <p>${escapeHtml(valueOrMissing(question.assessmentObjective))}</p>
-            </section>
-            <section>
-              <h4>Student and AI Interview conversation</h4>
-              ${renderConversation(question)}
             </section>
             <section>
               <h4>AI Interview Summary</h4>
