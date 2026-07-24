@@ -865,7 +865,7 @@ Rules:
     const analysisStatus = shortStatusFromAnyValue(analysis?.shortStatus || analysis?.preliminaryStatus || "");
     const shortStatus = hasBlock
       ? (transcriptStatus || analysisStatus || SHORT_NOT_AVAILABLE)
-      : (analysisStatus || SHORT_QUESTION_NOT_ASKED);
+      : (analysisStatus || SHORT_NOT_AVAILABLE);
 
     const section = getDisplaySection({ ...spec, section: spec.section || analysis?.section || item.section });
     const questionNumber = item.questionNumber !== undefined && item.questionNumber !== null && item.questionNumber !== ""
