@@ -86,6 +86,22 @@
         const statusEl = document.getElementById("status");
         let activePlayer = null;
         let activeRecognizer = null;
+        const studentVoiceGender = (() => {
+          const params = new URLSearchParams(window.location.search || "");
+          const givenName = String(params.get("givenName") || "").trim();
+          const fullName = String(params.get("fullName") || "").trim();
+          const primaryName = givenName || fullName.split(/\s+/)[0] || "";
+          const name = primaryName.toLowerCase();
+          const femaleNames = new Set(["dikki", "dicki", "dicky", "jane", "jess", "jessica", "emma", "olivia", "sophia", "sophie", "amelia", "ava", "mia", "chloe", "isabella", "lily", "grace", "ella", "zoe", "sarah", "kate", "katie", "anna", "hannah"]);
+          const maleNames = new Set(["john", "michael", "david", "daniel", "james", "mark", "matt", "matthew", "luke", "liam", "noah", "oliver", "jack", "william", "ben", "benjamin", "alex", "andrew", "thomas", "george", "henry", "sam", "samuel", "richard"]);
+
+          if (!name) return "unknown";
+          if (femaleNames.has(name)) return "female";
+          if (maleNames.has(name)) return "male";
+          if (/(a|ie|y|elle|ina|lyn|lynn)$/.test(name)) return "female";
+          if (/(o|us|er|ard|son)$/.test(name)) return "male";
+          return "unknown";
+        })();
 
         const PLAYABLE_HEADINGS = new Set([
           "student and ai interview conversation",
@@ -173,11 +189,27 @@
             return null;
           };
 
+          if (kind === "assessor") {
+            return pickBy(["en", "au", "natural"]) ||
+              pickBy(["en", "au", "female"]) ||
+              pickBy(["en", "au", "samantha"]) ||
+              pickBy(["en", "au", "karen"]) ||
+              pickBy(["en", "au", "zira"]) ||
+              pickBy(["en", "au"]) ||
+              pickBy(["en", "natural"]) ||
+              voices[0];
+          }
           if (kind === "ai") {
             return pickBy(["en", "au", "female"]) || pickBy(["en", "au"]) || pickBy(["female"]) || voices[0];
           }
           if (kind === "student") {
-            return pickBy(["en", "au", "male"]) || pickBy(["en", "au"]) || pickBy(["male"]) || voices[Math.min(1, voices.length - 1)];
+            if (studentVoiceGender === "male") {
+              return pickBy(["en", "au", "male"]) || pickBy(["en", "male"]) || pickBy(["male"]) || pickBy(["en", "au"]) || voices[Math.min(1, voices.length - 1)] || voices[0];
+            }
+            if (studentVoiceGender === "female") {
+              return pickBy(["en", "au", "female"]) || pickBy(["en", "female"]) || pickBy(["female"]) || pickBy(["en", "au"]) || voices[0];
+            }
+            return pickBy(["en", "au"]) || pickBy(["en", "female"]) || voices[0];
           }
           return pickBy(["en", "au"]) || voices[0];
         };
@@ -199,7 +231,7 @@
           });
         };
 
-        const createSectionPlayer = (doc, sectionEl, textEl, { conversation = false } = {}) => {
+        const createSectionPlayer = (doc, sectionEl, textEl, { conversation = false, headingText = "", aiSummaryMode = false } = {}) => {
           const sourceText = String(textEl.textContent || "").trim();
           const tokens = tokenizeText(sourceText);
           if (!tokens.length) return null;
@@ -278,16 +310,63 @@
             }
           };
 
+          const buildAiSummaryChunks = (rawText, startWord) => {
+            const chunks = [];
+            const pattern = /"[^\"]*"/g;
+            let match;
+            let cursorTextIndex = 0;
+            let cursorWord = 0;
+
+            const pushText = (speaker, text) => {
+              const words = tokenizeText(text).map((item) => item.text);
+              if (!words.length) return;
+              const endWord = cursorWord + words.length - 1;
+              if (endWord < startWord) {
+                cursorWord += words.length;
+                return;
+              }
+              const localStart = Math.max(0, startWord - cursorWord);
+              chunks.push({
+                speaker,
+                startWord: cursorWord + localStart,
+                words: words.slice(localStart),
+              });
+              cursorWord += words.length;
+            };
+
+            while ((match = pattern.exec(rawText)) !== null) {
+              const before = rawText.slice(cursorTextIndex, match.index);
+              const quoted = match[0];
+              pushText("assessor", before);
+              pushText("student", quoted);
+              cursorTextIndex = match.index + quoted.length;
+            }
+            const tail = rawText.slice(cursorTextIndex);
+            pushText("assessor", tail);
+            return chunks;
+          };
+
           const buildChunks = (fromWord) => {
             const startWord = Math.max(0, Math.min(tokens.length - 1, Number(fromWord) || 0));
             const allWords = tokens.map((t) => t.text);
 
+            const heading = String(headingText || "").trim();
+            const headingWords = heading ? tokenizeText(heading).map((item) => item.text) : [];
+            const headingChunk = headingWords.length
+              ? [{ speaker: "assessor", startWord: null, words: headingWords }]
+              : [];
+
+            if (aiSummaryMode) {
+              const aiSummaryChunks = buildAiSummaryChunks(sourceText, startWord);
+              return headingChunk.concat(aiSummaryChunks.length ? aiSummaryChunks : [{ speaker: "assessor", startWord, words: allWords.slice(startWord) }]);
+            }
+
             if (!conversation) {
-              return [{
-                speaker: "narrator",
+              return headingChunk.concat([{
+                speaker: "assessor",
                 startWord,
                 words: allWords.slice(startWord),
-              }];
+              }]);
             }
 
             const conversationLines = parseConversationChunks(sourceText);
@@ -313,7 +392,7 @@
               });
             });
 
-            return chunks.length ? chunks : [{ speaker: "narrator", startWord, words: allWords.slice(startWord) }];
+            return headingChunk.concat(chunks.length ? chunks : [{ speaker: "assessor", startWord, words: allWords.slice(startWord) }]);
           };
 
           const playFrom = (fromWord) => {
@@ -329,14 +408,21 @@
 
             const chunks = buildChunks(fromWord);
             const rate = Math.max(0.5, Math.min(2, Number(speedEl.value || "1")));
-            const aiVoice = pickVoice("ai");
-            const studentVoice = pickVoice("student", aiVoice?.name || "");
-            const narratorVoice = pickVoice("narrator", aiVoice?.name || studentVoice?.name || "");
+            const assessorVoice = pickVoice("assessor");
+            const aiVoice = pickVoice("ai", assessorVoice?.name || "");
+            const studentVoice = pickVoice("student", assessorVoice?.name || aiVoice?.name || "");
+            const narratorVoice = pickVoice("narrator", assessorVoice?.name || aiVoice?.name || studentVoice?.name || "");
 
             const getVoice = (speaker) => {
+              if (speaker === "assessor") return assessorVoice || narratorVoice || aiVoice || studentVoice;
               if (speaker === "ai") return aiVoice || narratorVoice;
               if (speaker === "student") return studentVoice || narratorVoice;
               return narratorVoice || aiVoice || studentVoice;
+            };
+
+            const getPitch = (speaker) => {
+              if (speaker === "assessor") return 1.08;
+              return 1;
             };
 
             let chunkIndex = 0;
@@ -366,11 +452,12 @@
                 const utter = new SpeechSynthesisUtterance(chunkText);
                 utter.lang = "en-AU";
                 utter.rate = rate;
-                utter.pitch = 1;
+                utter.pitch = getPitch(chunk.speaker);
                 utter.voice = getVoice(chunk.speaker);
 
                 utter.onboundary = (event) => {
                   if (stopRequested) return;
+                  if (chunk.startWord === null || chunk.startWord === undefined) return;
                   const localIndex = getWordIndexFromChar(chunk.words, Number(event.charIndex) || 0);
                   setActiveWord(chunk.startWord + localIndex);
                 };
@@ -380,12 +467,16 @@
                     finishPlayPromise();
                     return;
                   }
-                  setActiveWord(chunk.startWord + chunk.words.length - 1);
+                  if (chunk.startWord !== null && chunk.startWord !== undefined) {
+                    setActiveWord(chunk.startWord + chunk.words.length - 1);
+                  }
                   chunkIndex += 1;
                   speakNext();
                 };
 
-                setActiveWord(chunk.startWord);
+                if (chunk.startWord !== null && chunk.startWord !== undefined) {
+                  setActiveWord(chunk.startWord);
+                }
                 try {
                   window.speechSynthesis.speak(utter);
                 } catch {
@@ -455,6 +546,38 @@
 
           setActiveWord(0);
           return api;
+        };
+
+        const speakAssessorNarration = (text, rate = 1) => {
+          const content = String(text || "").trim();
+          if (!content) return Promise.resolve();
+
+          if (activePlayer) {
+            activePlayer.stop();
+          }
+
+          try {
+            window.speechSynthesis.cancel();
+          } catch {}
+
+          const assessorVoice = pickVoice("assessor");
+
+          return new Promise((resolve) => {
+            const utter = new SpeechSynthesisUtterance(content);
+            utter.lang = "en-AU";
+            utter.rate = Math.max(0.5, Math.min(2, Number(rate) || 1));
+            utter.pitch = 1.08;
+            if (assessorVoice) {
+              utter.voice = assessorVoice;
+            }
+            utter.onend = () => resolve();
+            utter.onerror = () => resolve();
+            try {
+              window.speechSynthesis.speak(utter);
+            } catch {
+              resolve();
+            }
+          });
         };
 
         const closeRecognizer = () => {
@@ -636,6 +759,21 @@
 
               playAllBtn.addEventListener("click", async () => {
                 if (!players.length) return;
+
+                const cardTitleClone = cardTitle.cloneNode(true);
+                const clonedPlayAllBtn = cardTitleClone.querySelector(".rpl-play-all");
+                if (clonedPlayAllBtn) {
+                  clonedPlayAllBtn.remove();
+                }
+                const questionHeading = String(cardTitleClone.textContent || "").trim();
+                const statusEl = card.querySelector(".status-badge");
+                const statusText = String(statusEl?.textContent || "").trim();
+                const preamble = statusText
+                  ? `${questionHeading}. Status: ${statusText}.`
+                  : questionHeading;
+
+                await speakAssessorNarration(preamble, 1);
+
                 for (let i = 0; i < players.length; i += 1) {
                   players[i].sectionEl.scrollIntoView({ behavior: "smooth", block: "center" });
                   await players[i].playFromStart();
@@ -658,6 +796,8 @@
 
               const player = createSectionPlayer(doc, section, textEl, {
                 conversation: heading === "student and ai interview conversation",
+                headingText: headingEl.textContent || "",
+                aiSummaryMode: heading === "ai interview summary",
               });
               if (player) {
                 players.push(player);
@@ -666,15 +806,12 @@
           });
         };
 
-        const enhanceAssessorQuestionDictation = (doc) => {
-          const assessorQuestionsSection = doc.querySelector(".assessor-questions-section");
-          if (!assessorQuestionsSection) return;
-
-          const noteAreas = Array.from(assessorQuestionsSection.querySelectorAll('textarea[id^="assessor-notes-"]'));
+        const enhancePerQuestionCommentsDictation = (doc) => {
+          const noteAreas = Array.from(doc.querySelectorAll('textarea[id^="assessor-notes-"]'));
           noteAreas.forEach((textarea) => {
             const evalSection = textarea.closest(".assessor-evaluation");
             const notesHeading = evalSection
-              ? Array.from(evalSection.querySelectorAll("h4")).find((h) => /assessor notes/i.test(h.textContent || ""))
+              ? Array.from(evalSection.querySelectorAll("h4")).find((h) => /assessor comments|assessor notes/i.test(h.textContent || ""))
               : null;
             attachDictationControls(doc, textarea, notesHeading || textarea, "Transcription");
           });
@@ -697,8 +834,8 @@
           // Playback only in Question-by-Question Review (main section).
           enhanceQuestionByQuestionPlayback(doc);
 
-          // Dictation only in Assessor Questions notes + final sign-off comments.
-          enhanceAssessorQuestionDictation(doc);
+          // Dictation in each question Assessor Comments/Notes + final sign-off comments.
+          enhancePerQuestionCommentsDictation(doc);
           enhanceFinalSignoffDictation(doc);
 
           setStatus("Audio + transcription features ready.", "ok");
