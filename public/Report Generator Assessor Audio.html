@@ -805,7 +805,10 @@
         };
 
         const enhancePerQuestionCommentsDictation = (doc) => {
-          const noteAreas = Array.from(doc.querySelectorAll('textarea[id^="assessor-notes-"]'));
+          const reviewRoot = doc.querySelector(".question-review-section:not(.assessor-questions-section)");
+          if (!reviewRoot) return;
+
+          const noteAreas = Array.from(reviewRoot.querySelectorAll('textarea[id^="assessor-notes-"]'));
           noteAreas.forEach((textarea) => {
             const evalSection = textarea.closest(".assessor-evaluation");
             const notesHeading = evalSection

@@ -2099,10 +2099,11 @@ Do you want to proceed?</p>
             if (notesEl) notesEl.disabled = assessorFinalised || lockedBySequence;
 
             if (submitBtn) {
+              var hasBeenSubmitted = isQuestionSubmitted(qNum);
               var canSubmit = !assessorFinalised
                 && !lockedBySequence
-                && isQuestionReadyToSubmit(qNum)
-                && (isActiveQuestion || isDirty);
+                && (isQuestionReadyToSubmit(qNum) || hasBeenSubmitted)
+                && (isActiveQuestion || isDirty || hasBeenSubmitted);
               submitBtn.disabled = assessorFinalised;
               submitBtn.classList.toggle("is-disabled", !canSubmit);
               submitBtn.setAttribute("aria-disabled", canSubmit ? "false" : "true");
@@ -2239,9 +2240,10 @@ Do you want to proceed?</p>
             setQuestionStatus(qNum, "Report has been finalised and is now read-only.", "locked");
             return;
           }
+          var hasBeenSubmitted = isQuestionSubmitted(qNum);
           var activeQuestion = getLatestActiveQuestionNumber();
           var isDirty = isQuestionDirtySinceLastSave(qNum);
-          if (!isDirty && activeQuestion && String(qNum) !== String(activeQuestion)) {
+          if (!hasBeenSubmitted && !isDirty && activeQuestion && String(qNum) !== String(activeQuestion)) {
             setQuestionStatus(qNum, "Only the latest active question can be submitted.", "locked");
             setAssessorPopupOpen(true, "This question is not currently active. Please complete and submit Question " + activeQuestion + " first.");
             return;
