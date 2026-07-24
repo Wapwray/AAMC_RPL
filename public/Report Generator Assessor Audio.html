@@ -617,6 +617,35 @@
           return { token, region };
         };
 
+        const playReadyTone = async () => {
+          let toneCtx = null;
+          try {
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            if (!Ctx) return;
+            toneCtx = new Ctx();
+            if (toneCtx.state === "suspended") {
+              await toneCtx.resume().catch(() => {});
+            }
+            const oscillator = toneCtx.createOscillator();
+            const gainNode = toneCtx.createGain();
+            oscillator.type = "sine";
+            oscillator.frequency.value = 880;
+            gainNode.gain.value = 0.0001;
+            oscillator.connect(gainNode);
+            gainNode.connect(toneCtx.destination);
+            const now = toneCtx.currentTime;
+            gainNode.gain.exponentialRampToValueAtTime(0.18, now + 0.01);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+            oscillator.start(now);
+            oscillator.stop(now + 0.2);
+            window.setTimeout(() => {
+              try { toneCtx?.close?.(); } catch {}
+            }, 260);
+          } catch {
+            try { toneCtx?.close?.(); } catch {}
+          }
+        };
+
         const attachDictationControls = (doc, textarea, placeBeforeEl, title = "Transcription") => {
           if (!textarea || textarea.dataset.dictationAttached === "1") return;
           textarea.dataset.dictationAttached = "1";
@@ -701,6 +730,7 @@
 
               await new Promise((resolve, reject) => recognizer.startContinuousRecognitionAsync(resolve, reject));
               setState("Listening...", "ok");
+              await playReadyTone();
             } catch (error) {
               setState(error?.message || String(error), "err");
               startBtn.disabled = false;
