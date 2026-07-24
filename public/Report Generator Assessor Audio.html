@@ -1,0 +1,757 @@
+<!doctype html>
+<html lang="en-AU">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Report Generator Assessor Audio</title>
+    <script src="https://cdn.jsdelivr.net/npm/microsoft-cognitiveservices-speech-sdk@1.41.0/distrib/browser/microsoft.cognitiveservices.speech.sdk.bundle-min.js"></script>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f4f6f8;
+        --panel: #ffffff;
+        --line: #cbd5e1;
+        --ink: #172033;
+        --muted: #64748b;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: Arial, Helvetica, sans-serif;
+      }
+
+      main {
+        width: min(1280px, calc(100vw - 20px));
+        margin: 0 auto;
+        padding: 10px;
+        display: grid;
+        gap: 10px;
+      }
+
+      .bar {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 10px 12px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        font-size: 13px;
+      }
+
+      .frameWrap {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 8px;
+        height: calc(100vh - 80px);
+        min-height: 720px;
+      }
+
+      iframe {
+        width: 100%;
+        height: 100%;
+        border: 0;
+        border-radius: 6px;
+        background: #fff;
+      }
+
+      .ok { color: #166534; }
+      .warn { color: #92400e; }
+      .err { color: #b91c1c; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="bar">
+        <div>
+          <strong>Assessor Audio Wrapper</strong>
+          <span>Playback + word highlighting for Question-by-Question Review only. Dictation for Assessor Questions notes and final Assessor Sign-off comments.</span>
+        </div>
+        <div id="status" class="warn">Loading...</div>
+      </div>
+      <div class="frameWrap">
+        <iframe id="outerFrame" title="Assessor report wrapper"></iframe>
+      </div>
+    </main>
+
+    <script>
+      (function () {
+        const outerFrame = document.getElementById("outerFrame");
+        const statusEl = document.getElementById("status");
+        let activePlayer = null;
+        let activeRecognizer = null;
+
+        const PLAYABLE_HEADINGS = new Set([
+          "student and ai interview conversation",
+          "question asked",
+          "hints provided to student",
+          "objective",
+          "ai interview summary",
+        ]);
+
+        const setStatus = (text, kind = "") => {
+          statusEl.textContent = text;
+          statusEl.className = kind;
+        };
+
+        const escapeRegExp = (text) => String(text || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+        const tokenizeText = (text) => {
+          const src = String(text || "");
+          const tokens = [];
+          const regex = /\S+/g;
+          let match;
+          while ((match = regex.exec(src)) !== null) {
+            tokens.push({
+              text: match[0],
+              start: match.index,
+              end: match.index + match[0].length,
+            });
+          }
+          return tokens;
+        };
+
+        const wrapTokensInElement = (doc, element, tokens) => {
+          const src = String(element.textContent || "");
+          if (!tokens.length) return [];
+
+          const frag = doc.createDocumentFragment();
+          let cursor = 0;
+          const spans = [];
+
+          tokens.forEach((token, index) => {
+            if (token.start > cursor) {
+              frag.appendChild(doc.createTextNode(src.slice(cursor, token.start)));
+            }
+            const span = doc.createElement("span");
+            span.className = "rpl-tts-word";
+            span.textContent = token.text;
+            span.setAttribute("data-word-index", String(index));
+            frag.appendChild(span);
+            spans.push(span);
+            cursor = token.end;
+          });
+
+          if (cursor < src.length) {
+            frag.appendChild(doc.createTextNode(src.slice(cursor)));
+          }
+
+          element.innerHTML = "";
+          element.appendChild(frag);
+          return spans;
+        };
+
+        const getVoices = () => {
+          try {
+            return window.speechSynthesis?.getVoices?.() || [];
+          } catch {
+            return [];
+          }
+        };
+
+        const pickVoice = (kind, excludeName = "") => {
+          const voices = getVoices();
+          if (!voices.length) return null;
+
+          const rows = voices.map((v) => ({
+            voice: v,
+            id: `${String(v.name || "")} ${String(v.lang || "")}`.toLowerCase(),
+          }));
+
+          const pickBy = (parts) => {
+            for (let i = 0; i < rows.length; i += 1) {
+              const row = rows[i];
+              if (excludeName && String(row.voice.name || "") === excludeName) continue;
+              if (parts.every((part) => row.id.includes(part))) return row.voice;
+            }
+            return null;
+          };
+
+          if (kind === "ai") {
+            return pickBy(["en", "au", "female"]) || pickBy(["en", "au"]) || pickBy(["female"]) || voices[0];
+          }
+          if (kind === "student") {
+            return pickBy(["en", "au", "male"]) || pickBy(["en", "au"]) || pickBy(["male"]) || voices[Math.min(1, voices.length - 1)];
+          }
+          return pickBy(["en", "au"]) || voices[0];
+        };
+
+        const parseConversationChunks = (rawText) => {
+          const text = String(rawText || "").trim();
+          if (!text) return [];
+          const lines = text.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+          if (!lines.length) return [];
+
+          return lines.map((line) => {
+            let speaker = "narrator";
+            if (/^ai interviewer\s*:/i.test(line)) {
+              speaker = "ai";
+            } else if (/^(student|.+\(attempt\s*\d+\))\s*:/i.test(line)) {
+              speaker = "student";
+            }
+            return { speaker, text: line };
+          });
+        };
+
+        const createSectionPlayer = (doc, sectionEl, textEl, { conversation = false } = {}) => {
+          const sourceText = String(textEl.textContent || "").trim();
+          const tokens = tokenizeText(sourceText);
+          if (!tokens.length) return null;
+
+          const spans = wrapTokensInElement(doc, textEl, tokens);
+          let currentWordIndex = 0;
+          let isPaused = false;
+          let stopRequested = false;
+          let completionResolver = null;
+
+          const controls = doc.createElement("div");
+          controls.className = "rpl-tts-controls";
+          controls.innerHTML =
+            '<div class="rpl-tts-row">' +
+            '  <button type="button" class="rpl-play">Play</button>' +
+            '  <button type="button" class="rpl-pause">Pause</button>' +
+            '  <label>Speed <select class="rpl-speed">' +
+            '    <option value="0.8">0.8x</option>' +
+            '    <option value="1" selected>1.0x</option>' +
+            '    <option value="1.2">1.2x</option>' +
+            '    <option value="1.4">1.4x</option>' +
+            '  </select></label>' +
+            '</div>' +
+            '<div class="rpl-tts-row">' +
+            '  <input class="rpl-scrub" type="range" min="0" max="' + String(Math.max(0, tokens.length - 1)) + '" value="0">' +
+            '  <span class="rpl-pos">1/' + String(tokens.length) + '</span>' +
+            '</div>';
+          sectionEl.appendChild(controls);
+
+          const playBtn = controls.querySelector(".rpl-play");
+          const pauseBtn = controls.querySelector(".rpl-pause");
+          const speedEl = controls.querySelector(".rpl-speed");
+          const scrubEl = controls.querySelector(".rpl-scrub");
+          const posEl = controls.querySelector(".rpl-pos");
+
+          const setActiveWord = (wordIndex) => {
+            const bounded = Math.max(0, Math.min(tokens.length - 1, Number(wordIndex) || 0));
+            currentWordIndex = bounded;
+            spans.forEach((span, index) => {
+              span.classList.toggle("is-active", index === bounded);
+            });
+            scrubEl.value = String(bounded);
+            posEl.textContent = `${bounded + 1}/${tokens.length}`;
+            spans[bounded]?.scrollIntoView({ block: "nearest", inline: "nearest" });
+          };
+
+          const getWordIndexFromChar = (utteranceWords, charIndex) => {
+            if (!utteranceWords.length) return 0;
+            const starts = [];
+            let cursor = 0;
+            for (let i = 0; i < utteranceWords.length; i += 1) {
+              starts.push(cursor);
+              cursor += utteranceWords[i].length + 1;
+            }
+            let idx = 0;
+            for (let i = 0; i < starts.length; i += 1) {
+              if (starts[i] <= charIndex) idx = i;
+              else break;
+            }
+            return idx;
+          };
+
+          const stopSpeech = () => {
+            stopRequested = true;
+            try { window.speechSynthesis.cancel(); } catch {}
+          };
+
+          const finishPlayPromise = () => {
+            if (completionResolver) {
+              const resolve = completionResolver;
+              completionResolver = null;
+              resolve();
+            }
+            if (activePlayer === api) {
+              activePlayer = null;
+            }
+          };
+
+          const buildChunks = (fromWord) => {
+            const startWord = Math.max(0, Math.min(tokens.length - 1, Number(fromWord) || 0));
+            const allWords = tokens.map((t) => t.text);
+
+            if (!conversation) {
+              return [{
+                speaker: "narrator",
+                startWord,
+                words: allWords.slice(startWord),
+              }];
+            }
+
+            const conversationLines = parseConversationChunks(sourceText);
+            if (!conversationLines.length) {
+              return [{ speaker: "narrator", startWord, words: allWords.slice(startWord) }];
+            }
+
+            const chunks = [];
+            let cursor = 0;
+            conversationLines.forEach((line) => {
+              const lineWords = tokenizeText(line.text).map((row) => row.text);
+              if (!lineWords.length) return;
+              const lineStart = cursor;
+              const lineEnd = cursor + lineWords.length - 1;
+              cursor += lineWords.length;
+              if (lineEnd < startWord) return;
+
+              const localStart = Math.max(0, startWord - lineStart);
+              chunks.push({
+                speaker: line.speaker,
+                startWord: lineStart + localStart,
+                words: lineWords.slice(localStart),
+              });
+            });
+
+            return chunks.length ? chunks : [{ speaker: "narrator", startWord, words: allWords.slice(startWord) }];
+          };
+
+          const playFrom = (fromWord) => {
+            if (!tokens.length) return Promise.resolve();
+
+            if (activePlayer && activePlayer !== api) {
+              activePlayer.stop();
+            }
+
+            stopRequested = false;
+            isPaused = false;
+            setActiveWord(fromWord);
+
+            const chunks = buildChunks(fromWord);
+            const rate = Math.max(0.5, Math.min(2, Number(speedEl.value || "1")));
+            const aiVoice = pickVoice("ai");
+            const studentVoice = pickVoice("student", aiVoice?.name || "");
+            const narratorVoice = pickVoice("narrator", aiVoice?.name || studentVoice?.name || "");
+
+            const getVoice = (speaker) => {
+              if (speaker === "ai") return aiVoice || narratorVoice;
+              if (speaker === "student") return studentVoice || narratorVoice;
+              return narratorVoice || aiVoice || studentVoice;
+            };
+
+            let chunkIndex = 0;
+            activePlayer = api;
+
+            return new Promise((resolve) => {
+              completionResolver = resolve;
+
+              const speakNext = () => {
+                if (stopRequested) {
+                  finishPlayPromise();
+                  return;
+                }
+                if (chunkIndex >= chunks.length) {
+                  finishPlayPromise();
+                  return;
+                }
+
+                const chunk = chunks[chunkIndex];
+                if (!chunk.words.length) {
+                  chunkIndex += 1;
+                  speakNext();
+                  return;
+                }
+
+                const chunkText = chunk.words.join(" ");
+                const utter = new SpeechSynthesisUtterance(chunkText);
+                utter.lang = "en-AU";
+                utter.rate = rate;
+                utter.pitch = 1;
+                utter.voice = getVoice(chunk.speaker);
+
+                utter.onboundary = (event) => {
+                  if (stopRequested) return;
+                  const localIndex = getWordIndexFromChar(chunk.words, Number(event.charIndex) || 0);
+                  setActiveWord(chunk.startWord + localIndex);
+                };
+
+                utter.onend = () => {
+                  if (stopRequested) {
+                    finishPlayPromise();
+                    return;
+                  }
+                  setActiveWord(chunk.startWord + chunk.words.length - 1);
+                  chunkIndex += 1;
+                  speakNext();
+                };
+
+                setActiveWord(chunk.startWord);
+                try {
+                  window.speechSynthesis.speak(utter);
+                } catch {
+                  finishPlayPromise();
+                }
+              };
+
+              speakNext();
+            });
+          };
+
+          const api = {
+            sectionEl,
+            play: () => {
+              stopSpeech();
+              return playFrom(currentWordIndex);
+            },
+            playFromStart: () => {
+              stopSpeech();
+              return playFrom(0);
+            },
+            pause: () => {
+              if (!window.speechSynthesis.speaking) return;
+              try {
+                window.speechSynthesis.pause();
+                isPaused = true;
+              } catch {}
+            },
+            resume: () => {
+              if (!isPaused) return;
+              try {
+                window.speechSynthesis.resume();
+                isPaused = false;
+              } catch {}
+            },
+            seek: (wordIndex) => {
+              setActiveWord(wordIndex);
+              if (activePlayer === api) {
+                stopSpeech();
+                playFrom(currentWordIndex);
+              }
+            },
+            stop: () => {
+              stopSpeech();
+              finishPlayPromise();
+            },
+          };
+
+          playBtn.addEventListener("click", () => {
+            if (isPaused) {
+              api.resume();
+              return;
+            }
+            api.play();
+          });
+
+          pauseBtn.addEventListener("click", () => api.pause());
+
+          speedEl.addEventListener("change", () => {
+            if (activePlayer === api) {
+              api.stop();
+              api.play();
+            }
+          });
+
+          scrubEl.addEventListener("input", () => api.seek(Number(scrubEl.value || "0")));
+
+          setActiveWord(0);
+          return api;
+        };
+
+        const closeRecognizer = () => {
+          const recognizer = activeRecognizer;
+          activeRecognizer = null;
+          if (!recognizer) return Promise.resolve();
+          return new Promise((resolve) => {
+            try {
+              recognizer.stopContinuousRecognitionAsync(
+                () => {
+                  try { recognizer.close?.(); } catch {}
+                  resolve();
+                },
+                () => {
+                  try { recognizer.close?.(); } catch {}
+                  resolve();
+                }
+              );
+            } catch {
+              try { recognizer.close?.(); } catch {}
+              resolve();
+            }
+          });
+        };
+
+        const fetchAzureSpeechToken = async () => {
+          const response = await fetch("/api/speech/token", { method: "POST" });
+          if (!response.ok) {
+            const text = await response.text().catch(() => "");
+            throw new Error(`Token request failed (${response.status}) ${text}`.trim());
+          }
+          const payload = await response.json().catch(() => ({}));
+          const token = payload.token || payload.accessToken || payload.authToken;
+          const region = payload.region || payload.serviceRegion;
+          if (!token || !region) {
+            throw new Error("Speech token response missing token or region.");
+          }
+          return { token, region };
+        };
+
+        const attachDictationControls = (doc, textarea, placeBeforeEl, title = "Transcription") => {
+          if (!textarea || textarea.dataset.dictationAttached === "1") return;
+          textarea.dataset.dictationAttached = "1";
+
+          const panel = doc.createElement("div");
+          panel.className = "rpl-dictation-panel";
+          panel.innerHTML =
+            '<div class="rpl-dictation-right">' +
+            `  <span class="dict-title">${title}</span>` +
+            '  <button type="button" class="dict-start">Start Transcription</button>' +
+            '  <button type="button" class="dict-stop" disabled>Stop</button>' +
+            '  <span class="dict-status">Dictation idle.</span>' +
+            '</div>';
+
+          if (placeBeforeEl && placeBeforeEl.parentNode) {
+            placeBeforeEl.parentNode.insertBefore(panel, placeBeforeEl);
+          } else {
+            textarea.parentNode.insertBefore(panel, textarea);
+          }
+
+          const startBtn = panel.querySelector(".dict-start");
+          const stopBtn = panel.querySelector(".dict-stop");
+          const stateEl = panel.querySelector(".dict-status");
+          let finalTranscript = "";
+          let manualOverride = false;
+
+          const setState = (text, kind = "") => {
+            stateEl.textContent = text;
+            stateEl.className = `dict-status ${kind}`.trim();
+          };
+
+          textarea.addEventListener("input", () => {
+            if (activeRecognizer) {
+              manualOverride = true;
+            }
+          });
+
+          const startDictation = async () => {
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            setState("Preparing microphone...", "warn");
+
+            try {
+              if (!window.SpeechSDK) {
+                throw new Error("Azure Speech SDK not available.");
+              }
+
+              await closeRecognizer();
+              const sdk = window.SpeechSDK;
+              const { token, region } = await fetchAzureSpeechToken();
+              const speechConfig = sdk.SpeechConfig.fromAuthorizationToken(token, region);
+              speechConfig.speechRecognitionLanguage = "en-AU";
+              const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
+              const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
+
+              activeRecognizer = recognizer;
+              finalTranscript = String(textarea.value || "").trim();
+              if (finalTranscript) finalTranscript += " ";
+              manualOverride = false;
+
+              recognizer.recognizing = (_sender, event) => {
+                if (!event?.result?.text || manualOverride) return;
+                const partial = String(event.result.text || "").trim();
+                if (!partial) return;
+                textarea.value = `${finalTranscript}${partial}`.trim();
+              };
+
+              recognizer.recognized = (_sender, event) => {
+                if (!event?.result) return;
+                if (event.result.reason === sdk.ResultReason.RecognizedSpeech) {
+                  const transcript = String(event.result.text || "").trim();
+                  if (!transcript || manualOverride) return;
+                  finalTranscript += `${transcript} `;
+                  textarea.value = finalTranscript.trim();
+                }
+              };
+
+              recognizer.canceled = (_sender, event) => {
+                const details = event?.errorDetails || event?.reason || "unknown";
+                setState(`Dictation error: ${details}`, "err");
+              };
+
+              await new Promise((resolve, reject) => recognizer.startContinuousRecognitionAsync(resolve, reject));
+              setState("Listening...", "ok");
+            } catch (error) {
+              setState(error?.message || String(error), "err");
+              startBtn.disabled = false;
+              stopBtn.disabled = true;
+            }
+          };
+
+          const stopDictation = async () => {
+            await closeRecognizer();
+            setState("Dictation stopped.");
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+          };
+
+          startBtn.addEventListener("click", () => startDictation());
+          stopBtn.addEventListener("click", () => stopDictation());
+        };
+
+        const addEnhancementStyles = (doc) => {
+          const style = doc.createElement("style");
+          style.textContent = [
+            ".rpl-tts-word.is-active{background:#fde68a;border-radius:3px;}",
+            ".rpl-tts-controls{margin-top:8px;display:grid;gap:6px;justify-items:end;}",
+            ".rpl-tts-row{display:flex;align-items:center;gap:8px;}",
+            ".rpl-tts-controls button{padding:6px 10px;border:1px solid #cbd5e1;border-radius:999px;background:#fff;cursor:pointer;}",
+            ".rpl-tts-controls label{font-size:12px;color:#334155;display:inline-flex;align-items:center;gap:6px;}",
+            ".rpl-tts-controls input[type=range]{width:240px;}",
+            ".rpl-play-all{margin-left:8px;padding:6px 10px;border:none;border-radius:999px;background:#0b6ea9;color:#fff;cursor:pointer;font-size:12px;font-weight:700;}",
+            ".rpl-dictation-panel{display:flex;justify-content:flex-end;margin-top:6px;margin-bottom:8px;}",
+            ".rpl-dictation-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}",
+            ".rpl-dictation-right .dict-title{font-size:12px;font-weight:700;color:#334155;margin-right:2px;}",
+            ".rpl-dictation-right button{padding:6px 10px;border:1px solid #cbd5e1;border-radius:999px;background:#fff;cursor:pointer;}",
+            ".dict-status{font-size:12px;color:#64748b;}",
+            ".dict-status.ok{color:#166534;}",
+            ".dict-status.warn{color:#92400e;}",
+            ".dict-status.err{color:#b91c1c;}",
+          ].join("\n");
+          doc.head.appendChild(style);
+        };
+
+        const enhanceQuestionByQuestionPlayback = (doc) => {
+          const reviewCards = Array.from(
+            doc.querySelectorAll(".question-review-section:not(.assessor-questions-section) article.question-card")
+          );
+
+          reviewCards.forEach((card) => {
+            const players = [];
+            const cardTitle = card.querySelector("h3");
+            if (cardTitle && !cardTitle.querySelector(".rpl-play-all")) {
+              const playAllBtn = doc.createElement("button");
+              playAllBtn.type = "button";
+              playAllBtn.className = "rpl-play-all";
+              playAllBtn.textContent = "Play All";
+              cardTitle.appendChild(playAllBtn);
+
+              playAllBtn.addEventListener("click", async () => {
+                if (!players.length) return;
+                for (let i = 0; i < players.length; i += 1) {
+                  players[i].sectionEl.scrollIntoView({ behavior: "smooth", block: "center" });
+                  await players[i].playFromStart();
+                }
+                doc.defaultView.scrollTo({ top: doc.body.scrollHeight, behavior: "smooth" });
+              });
+            }
+
+            const sections = Array.from(card.querySelectorAll("section"));
+            sections.forEach((section) => {
+              const headingEl = section.querySelector("h4");
+              if (!headingEl) return;
+              const heading = String(headingEl.textContent || "").trim().toLowerCase();
+              if (!PLAYABLE_HEADINGS.has(heading)) return;
+
+              const textEl = section.querySelector(".response-box, p");
+              if (!textEl) return;
+              const content = String(textEl.textContent || "").trim();
+              if (!content) return;
+
+              const player = createSectionPlayer(doc, section, textEl, {
+                conversation: heading === "student and ai interview conversation",
+              });
+              if (player) {
+                players.push(player);
+              }
+            });
+          });
+        };
+
+        const enhanceAssessorQuestionDictation = (doc) => {
+          const assessorQuestionsSection = doc.querySelector(".assessor-questions-section");
+          if (!assessorQuestionsSection) return;
+
+          const noteAreas = Array.from(assessorQuestionsSection.querySelectorAll('textarea[id^="assessor-notes-"]'));
+          noteAreas.forEach((textarea) => {
+            const evalSection = textarea.closest(".assessor-evaluation");
+            const notesHeading = evalSection
+              ? Array.from(evalSection.querySelectorAll("h4")).find((h) => /assessor notes/i.test(h.textContent || ""))
+              : null;
+            attachDictationControls(doc, textarea, notesHeading || textarea, "Transcription");
+          });
+        };
+
+        const enhanceFinalSignoffDictation = (doc) => {
+          const signoffTextarea = doc.getElementById("assessor-comments");
+          if (!signoffTextarea) return;
+          const row = signoffTextarea.closest("tr");
+          attachDictationControls(doc, signoffTextarea, row, "Transcription");
+        };
+
+        const enhanceReportDocument = (doc) => {
+          if (!doc || !doc.body) return;
+          if (doc.body.dataset.audioWrapperEnhanced === "1") return;
+          doc.body.dataset.audioWrapperEnhanced = "1";
+
+          addEnhancementStyles(doc);
+
+          // Playback only in Question-by-Question Review (main section).
+          enhanceQuestionByQuestionPlayback(doc);
+
+          // Dictation only in Assessor Questions notes + final sign-off comments.
+          enhanceAssessorQuestionDictation(doc);
+          enhanceFinalSignoffDictation(doc);
+
+          setStatus("Audio + transcription features ready.", "ok");
+        };
+
+        const observeInnerPreview = (outerDoc) => {
+          const previewFrame = outerDoc.getElementById("previewFrame");
+          if (!previewFrame) {
+            setStatus("Waiting for report preview frame...", "warn");
+            return;
+          }
+
+          const tryEnhance = () => {
+            try {
+              const reportDoc = previewFrame.contentDocument;
+              enhanceReportDocument(reportDoc);
+            } catch (error) {
+              setStatus(`Unable to access nested report: ${error?.message || String(error)}`, "err");
+            }
+          };
+
+          previewFrame.addEventListener("load", tryEnhance);
+          tryEnhance();
+
+          const frameObserver = new MutationObserver(() => {
+            tryEnhance();
+          });
+          frameObserver.observe(previewFrame, { attributes: true, attributeFilter: ["src", "srcdoc"] });
+        };
+
+        const boot = () => {
+          const query = window.location.search || "";
+          outerFrame.src = `RPL Report Generator - Assessor.html${query}`;
+          outerFrame.addEventListener("load", () => {
+            try {
+              const outerDoc = outerFrame.contentDocument;
+              if (!outerDoc) {
+                setStatus("Outer frame loaded, waiting for document...", "warn");
+                return;
+              }
+              observeInnerPreview(outerDoc);
+            } catch (error) {
+              setStatus(`Unable to access assessor page: ${error?.message || String(error)}`, "err");
+            }
+          });
+        };
+
+        if (window.speechSynthesis && typeof window.speechSynthesis.getVoices === "function") {
+          window.speechSynthesis.getVoices();
+        }
+
+        boot();
+      })();
+    </script>
+  </body>
+</html>
