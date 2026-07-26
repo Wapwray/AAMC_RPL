@@ -1702,24 +1702,24 @@
       const getStudentContext = () => {
         const bodyDataset = document.body?.dataset || {};
         const studentInfo = window.RPLStudentInfo || window.rplStudentInfo || window.studentInfo || {};
-        const fullName = pickFirstValue(
+        const resolvedFullName = pickFirstValue(
           studentInfo.fullName,
           studentInfo.studentName,
           bodyDataset.fullName,
           bodyDataset.studentName
-        );
-        const givenName = pickFirstValue(
+        ) || DEFAULT_FULL_NAME;
+        const resolvedGivenName = pickFirstValue(
           studentInfo.givenName,
           bodyDataset.givenName
-        );
-        const contactId = pickFirstValue(
+        ) || String(resolvedFullName).split(" ").filter(Boolean)[0] || DEFAULT_GIVEN_NAME;
+        const resolvedContactId = pickFirstValue(
           studentInfo.contactId,
           bodyDataset.contactId
-        );
+        ) || DEFAULT_CONTACT_ID;
         return {
-          fullName: fullName || DEFAULT_FULL_NAME,
-          givenName: givenName || DEFAULT_GIVEN_NAME,
-          contactId: contactId || DEFAULT_CONTACT_ID,
+          fullName: resolvedFullName,
+          givenName: resolvedGivenName,
+          contactId: resolvedContactId,
         };
       };
 
@@ -3090,10 +3090,14 @@ Job Title: ${jobTitleValue || "N/A"}
 
       const loadResumeWebhook = async () => {
         try {
+          const ctx = getStudentContext();
           const parsed = await fetchResumeData({ log: true, label: "Resume webhook" });
           if (!parsed) {
             logWelcomeDebug("Resume parse error", "Unable to parse resume response.");
             welcomeMode = "new";
+            if (welcomeTitleEl) {
+              welcomeTitleEl.textContent = `Hello ${ctx.fullName}, welcome to your AI-assisted RPL interview.`;
+            }
             if (welcomeBodyEl) {
               welcomeBodyEl.innerHTML = "<p>No previous session found. Press Begin to start a new interview.</p>";
             }
@@ -3113,6 +3117,9 @@ Job Title: ${jobTitleValue || "N/A"}
           if (!hasResumeData) {
             logWelcomeDebug("Resume empty", "No prior session data found; switching to new-student flow.");
             welcomeMode = "new";
+            if (welcomeTitleEl) {
+              welcomeTitleEl.textContent = `Hello ${ctx.fullName}, welcome to your AI-assisted RPL interview.`;
+            }
             if (welcomeBodyEl) {
               welcomeBodyEl.innerHTML = "<p>No previous session found. Press Begin to start a new interview.</p>";
             }
@@ -3149,6 +3156,9 @@ Job Title: ${jobTitleValue || "N/A"}
           logWelcomeDebug("Resume error", err?.message || String(err));
           logWelcomeDebug("Resume fallback", "Switching to Begin because resume webhook failed.");
           welcomeMode = "new";
+          if (welcomeTitleEl) {
+            welcomeTitleEl.textContent = `Hello ${ctx.fullName}, welcome to your AI-assisted RPL interview.`;
+          }
           if (welcomeBodyEl) {
             welcomeBodyEl.innerHTML = "<p>No previous session found. Press Begin to start a new interview.</p>";
           }
