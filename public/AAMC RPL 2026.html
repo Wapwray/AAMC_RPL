@@ -4254,7 +4254,16 @@ Job Title: ${jobTitleValue || "N/A"}
         if (!Array.isArray(questionList)) return [];
         return questionList.map((question, index) => ({
           ...(question || {}),
-          __originalQuestionNumber: index + 1,
+          // Keep numbering aligned with the Title field in the source JSON.
+          __originalQuestionNumber: (() => {
+            const titleValue = question?.Title ?? question?.title ?? "";
+            const titleNumber = extractQuestionNumberFromText(titleValue);
+            const parsed = Number.parseInt(String(titleNumber || ""), 10);
+            if (Number.isFinite(parsed) && parsed > 0) {
+              return parsed;
+            }
+            return index + 1;
+          })(),
         }));
       };
 
@@ -4263,6 +4272,13 @@ Job Title: ${jobTitleValue || "N/A"}
         if (Number.isFinite(value) && value > 0) {
           return Math.floor(value);
         }
+
+        const titleNumber = extractQuestionNumberFromText(question?.Title ?? question?.title ?? "");
+        const parsedTitleNumber = Number.parseInt(String(titleNumber || ""), 10);
+        if (Number.isFinite(parsedTitleNumber) && parsedTitleNumber > 0) {
+          return parsedTitleNumber;
+        }
+
         return Math.max(1, Number(fallbackIndex) + 1);
       };
 
