@@ -297,7 +297,7 @@
       <div id="statusMessage" class="status" aria-live="polite"></div>
 
       <section id="responsePanel" class="responsePanel">
-        <h2>Webhook Response</h2>
+        <h2>Student Details</h2>
         <p>Is this the correct student?</p>
         <div id="responseData" class="studentDetails">No response yet.</div>
         <div class="confirmActions">
@@ -368,6 +368,7 @@
       let assessorsData = [];
       let qualificationsData = [];
       let selectedRplQuestions = "";
+      let selectedStudentRecord = null;
 
       const assessorSelectEl = document.getElementById("assessorSelect");
       const assessorDetailEl = document.getElementById("assessorDetail");
@@ -387,6 +388,32 @@
       const getManagedStaffSelection = () => {
         const selected = document.querySelector("input[name='managedStaff']:checked")?.value;
         return selected === "yes" ? "Yes" : "No";
+      };
+
+      const pickFirstValue = (source, keys) => {
+        for (const key of keys) {
+          const value = source?.[key];
+          if (value !== undefined && value !== null && String(value).trim() !== "") {
+            return String(value);
+          }
+        }
+        return "";
+      };
+
+      const normalizeStudentRecord = (data) => ({
+        FullName: pickFirstValue(data, ["FullName", "fullName"]),
+        GivenName: pickFirstValue(data, ["student_given_name", "given_name", "GivenName"]),
+        Surname: pickFirstValue(data, ["student_surname", "surname", "Surname"]),
+        Title: pickFirstValue(data, ["title", "student_title", "Title"]),
+        Gender: pickFirstValue(data, ["sex", "gender", "Gender"]),
+        ContactID: pickFirstValue(data, ["contact_id", "ContactID"]),
+        Email: pickFirstValue(data, ["email", "Email"]),
+        Mobile: pickFirstValue(data, ["mobile", "Mobile"]),
+      });
+
+      const formatStudentName = (record) => {
+        const parts = [record.Title, record.GivenName, record.Surname].filter(Boolean);
+        return parts.join(" ").trim();
       };
 
       const updateSendEmailsButtonState = () => {
@@ -603,8 +630,19 @@
           setStatus("Please select a qualification row first.", "error");
           return;
         }
+        if (!selectedStudentRecord) {
+          setStatus("Please fetch the student details first.", "error");
+          return;
+        }
         const payload = {
-          ContactID: inputEl.value.trim(),
+          FullName: selectedStudentRecord.FullName,
+          GivenName: selectedStudentRecord.GivenName,
+          Surname: selectedStudentRecord.Surname,
+          Title: selectedStudentRecord.Title,
+          Gender: selectedStudentRecord.Gender,
+          ContactID: selectedStudentRecord.ContactID || inputEl.value.trim(),
+          Email: selectedStudentRecord.Email,
+          Mobile: selectedStudentRecord.Mobile,
           rplQuestions: selectedRplQuestions,
           ManagedStaff: getManagedStaffSelection(),
           StudentMail: studentMailOptionEl.checked ? "Yes" : "No",
@@ -656,15 +694,14 @@
 
       const showResponse = (data) => {
         const source = data && typeof data === "object" ? data : {};
-        const givenName = source.student_given_name || "";
-        const surname = source.student_surname || "";
-        const fullName = `${String(givenName).trim()} ${String(surname).trim()}`.trim();
+        selectedStudentRecord = normalizeStudentRecord(source);
+        selectedStudentRecord.FullName = formatStudentName(selectedStudentRecord) || selectedStudentRecord.FullName;
 
         responseDataEl.innerHTML = [
-          renderStudentField("Name", fullName),
-          renderStudentField("Contact ID", source.contact_id),
-          renderStudentField("Email", source.email),
-          renderStudentField("Mobile", source.mobile),
+          renderStudentField("Name", selectedStudentRecord.FullName),
+          renderStudentField("Contact ID", selectedStudentRecord.ContactID),
+          renderStudentField("Email", selectedStudentRecord.Email),
+          renderStudentField("Mobile", selectedStudentRecord.Mobile),
         ].join("\n");
 
         responsePanelEl.style.display = "block";
@@ -685,6 +722,7 @@
         responsePanelEl.style.display = "none";
         managedStaffPanelEl.style.display = "none";
         assessorPanelEl.style.display = "none";
+        selectedStudentRecord = null;
         resetAssessorAndEmailState();
 
         try {
