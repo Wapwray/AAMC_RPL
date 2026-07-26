@@ -3076,7 +3076,7 @@ Job Title: ${jobTitleValue || "N/A"}
         }
 
         if (welcomeTitleEl) {
-          welcomeTitleEl.textContent = "Welcome to the AAMC RPL Quiz";
+          welcomeTitleEl.textContent = `Hello ${ctx.fullName}, welcome to your AI-assisted RPL interview.`;
         }
         if (welcomeBodyEl) {
           welcomeBodyEl.innerHTML = "<p class=\"welcomeSubtext\">Press Begin to start your AI-assisted RPL interview.</p>";
@@ -3172,8 +3172,9 @@ Job Title: ${jobTitleValue || "N/A"}
 
       const loadWelcomeWebhook = async () => {
         logWelcomeDebug("Welcome webhook", "Calling welcome webhook…");
+        const ctx = getStudentContext();
         if (welcomeTitleEl) {
-          welcomeTitleEl.textContent = "Welcome to the AAMC RPL Quiz";
+          welcomeTitleEl.textContent = `Hello ${ctx.fullName}, welcome to your AI-assisted RPL interview.`;
         }
         if (welcomeBodyEl) {
           welcomeBodyEl.innerHTML = "<p>Initialising…</p>";
@@ -3183,7 +3184,6 @@ Job Title: ${jobTitleValue || "N/A"}
           welcomeContinueBtn.disabled = true;
         }
         try {
-          const ctx = getStudentContext();
           const payload = {
             FullName: ctx.fullName,
             ContactID: String(ctx.contactId),
@@ -5028,6 +5028,10 @@ END_REVIEW>>>`;
       instrumentWelcomeFetch();
       applyUrlStudentContext();
       logWelcomeDebug("Student context", formatDebugPayload(getStudentContext()));
+      if (welcomeTitleEl) {
+        const ctx = getStudentContext();
+        welcomeTitleEl.textContent = `Hello ${ctx.fullName}, welcome to your AI-assisted RPL interview.`;
+      }
       updateCollectGreeting();
       setCollectStepsEnabled({ industry: false, jobTitle: false, begin: false });
       loadWelcomeWebhook();
