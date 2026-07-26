@@ -3079,11 +3079,11 @@ Job Title: ${jobTitleValue || "N/A"}
           welcomeTitleEl.textContent = "Welcome to the AAMC RPL Quiz";
         }
         if (welcomeBodyEl) {
-          welcomeBodyEl.innerHTML = "";
+          welcomeBodyEl.innerHTML = "<p class=\"welcomeSubtext\">Press Begin to start your AI-assisted RPL interview.</p>";
         }
         if (welcomeContinueBtn) {
-          welcomeContinueBtn.classList.add("hidden");
-          welcomeContinueBtn.textContent = "Continue";
+          welcomeContinueBtn.classList.remove("hidden");
+          welcomeContinueBtn.textContent = "Begin";
         }
         welcomeMode = "new";
       };
