@@ -1004,7 +1004,7 @@
     <script>
       // Power Automate webhook URLs - centralized config for easier maintenance
       const WEBHOOK_URLS = {
-        questions: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/4e73e4946e2f4d68a1c327ffd94ab86e/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=PL4kQafihKKASyjQ6277VCbFKpq76tRgecIcNrKuBps",
+        questions: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/24/workflows/37f4aa51417c4a31827a9c43cc84952a/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=2kqcJMZD1Re9Y4ZdatNl_rvzS4TSkCuk3afQ1nl3P-U",
         welcome: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/9a8d98d38d584b44bb47066b652aa24d/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=Ion44zyKyWxVDVJYUfe9iJPVM-0G5ZLEZ6LRQEvrvWQ",
         resume: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/e227ea1f254a4fc885e0a6cbbed2a9ea/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=9wpXy_WL_FQZhqDZ18f2e6SwLneEIGN1QlGMMY7HnaI",
         reset: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/918a6cdf1ad946c69343a1571dc227d3/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=DdLjvO3xkDt0cwCs3ApZNNSwhjQrXZ3_ebt79Oj1YdQ",
@@ -1014,9 +1014,9 @@
         transcriptBackup: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/10470ca8d6ed4b798ab177f6d85d32a9/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=jRCLd7-E4enyYUV8H6pnQlKE_7b7MOt8L4H6o62gqaM",
         recordingUpload: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/b1ff377a8f444df09e636aebeb258784/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=4pQKTsG4VbeKDS3UDU_3FDvE6WUItJxkJh7SZg1oOuc",
         finalReport: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ad445c5a35534861933f60ee864eecfa/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=qiOM0ZtGoUf_75xUdMZJ6B5zVSzpc9qYVZJbEbYm6pM",
-        assessorQuestions: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/776a38fbbe6449c996fd3a4127212eff/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=kA6BlWXbHh-ymnHGDWqRt25m_BEzVEAW1vHmiYur7vw",
         photoSaver: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/d39da5be329d41849dd8148dadc64016/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=cJzfjCDuTI3kVJNFpiiZT2S47B8zS5XvDwTBIQRX6XE",
         checkAssessmentStarted: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/e4f5525ffa66441d927fd17bbaf5bd03/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=0h2Wg4ORGlkmrTtS7fw09cv8m4MTH74l68qwSmw3t4s",
+        assessmentCompleted: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/19/workflows/b4b86e7b16654f45bd2b7308c92d239f/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=HNr3uiZ_XRh7ZeY4Z0cU6rKdXCC6G1bprVZj7K7hff0",
         createUserFolder: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/eed37019d13445dca3ed1328184834cd/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=5N4jQe1NiJqap973EL0-OkOSZOn4fiICPEMVBaqQEdY",
         finalQuestionCompleted: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/06/workflows/ad445c5a35534861933f60ee864eecfa/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=qiOM0ZtGoUf_75xUdMZJ6B5zVSzpc9qYVZJbEbYm6pM",
         finalQuestionStateSync: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/15/workflows/05213948a65042d7bbfb8470a0c04b0d/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=9XshmksZWhOMX-LSfQO1Ug9nbFYC49WIER7OXrjEFNs"
@@ -1141,6 +1141,7 @@
 
       let allQuestions = [];
       let questions = [];
+      let assessorQuestionsForReport = [];
       let managedStaff = false;
       let currentIndex = 0;
       let fullName = "";
@@ -2238,33 +2239,8 @@
           logDebugDetail("Preliminary review", message);
           logAssessmentDebug("Preliminary review", message);
         },
-        fetchAssessorQuestions: async ({ candidateMetadata } = {}) => {
-          const url = getWebhookUrl("assessorQuestions");
-          if (!url) return [];
-          const payload = {
-            candidateName: cleanValue(candidateMetadata?.candidateName || candidateMetadata?.fullName),
-            contactId: cleanValue(candidateMetadata?.contactId),
-            qualification: cleanValue(candidateMetadata?.qualification),
-            interviewDate: cleanValue(candidateMetadata?.interviewDate),
-            industry: cleanValue(candidateMetadata?.industry),
-            jobTitle: cleanValue(candidateMetadata?.jobTitle),
-          };
-          const response = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          });
-          if (!response.ok) {
-            const responseText = await response.text().catch(() => "");
-            throw new Error(`Assessor questions webhook failed (${response.status}) ${response.statusText} ${responseText}`.trim());
-          }
-          const responseText = await response.text();
-          if (!responseText.trim()) return [];
-          try {
-            return JSON.parse(responseText);
-          } catch {
-            return responseText;
-          }
+        fetchAssessorQuestions: async () => {
+          return assessorQuestionsForReport;
         },
         buildQuestionAnalysisPromptForBatch: (batch, candidateMetadata) => {
           const reportModule = getPreliminaryReviewModule();
@@ -3369,7 +3345,7 @@ Job Title: ${jobTitleValue || "N/A"}
       const getQuestionText = (question) => richTextToPlainText(getQuestionTextSource(question));
       const getQuestionTextHtml = (question) => normalizeRichTextHtml(getQuestionTextSource(question));
 
-      const getQuestionObjective = (question) => richTextToPlainText(getQuestionFieldSource(question, ["Objective", "field_4"]));
+      const getQuestionObjective = (question) => richTextToPlainText(getQuestionFieldSource(question, ["Objectives", "Objective", "field_4"]));
       const getQuestionSection = (question) => getQuestionFieldSource(question, ["section", "Section", "field_1", "category", "Category", "reportSection", "ReportSection", "assessmentArea", "AssessmentArea", "Topic", "Capability"]);
 
       const updateEvaluateButtonState = () => {
@@ -4152,19 +4128,60 @@ Job Title: ${jobTitleValue || "N/A"}
         micSourceNode = null;
       };
 
-      const parseListItems = (json) => {
-        if (!json || typeof json.listitems !== "string") {
-          return { items: [], error: "Response does not include listitems." };
-        }
-        try {
-          const listItems = JSON.parse(json.listitems);
-          if (!Array.isArray(listItems)) {
-            return { items: [], error: "listitems is not an array." };
+      const parseQuestionList = (value) => {
+        if (Array.isArray(value)) return value;
+        if (!value) return [];
+
+        if (typeof value === "string") {
+          const parsed = parseWebhookJson(value);
+          if (Array.isArray(parsed)) return parsed;
+          if (parsed && Array.isArray(parsed.listitems)) return parsed.listitems;
+          if (parsed && typeof parsed.listitems === "string") {
+            const nested = parseWebhookJson(parsed.listitems);
+            if (Array.isArray(nested)) return nested;
           }
-          return { items: listItems, error: null };
-        } catch (parseError) {
-          return { items: [], error: parseError?.message || String(parseError) };
+          return [];
         }
+
+        if (typeof value === "object") {
+          if (Array.isArray(value.listitems)) return value.listitems;
+          if (typeof value.listitems === "string") {
+            const nested = parseWebhookJson(value.listitems);
+            if (Array.isArray(nested)) return nested;
+          }
+        }
+
+        return [];
+      };
+
+      const parseQuestionsEnvelope = (payload) => {
+        const parsedBody = payload && typeof payload.body === "string" ? parseWebhookJson(payload.body) : null;
+        const envelope = parsedBody && typeof parsedBody === "object" ? { ...payload, ...parsedBody } : payload;
+
+        const studentQuestions = parseQuestionList(
+          envelope?.StudentQuestions
+          || envelope?.studentQuestions
+          || envelope?.["Student Questions"]
+        );
+        const assessorQuestions = parseQuestionList(
+          envelope?.AssessorQuestions
+          || envelope?.assessorQuestions
+          || envelope?.["Assessor Questions"]
+        );
+
+        if (!studentQuestions.length) {
+          return {
+            studentQuestions: [],
+            assessorQuestions,
+            error: "Response does not include StudentQuestions array.",
+          };
+        }
+
+        return {
+          studentQuestions,
+          assessorQuestions,
+          error: null,
+        };
       };
 
       const fetchQuestionsFromWebhook = async () => {
@@ -4172,12 +4189,14 @@ Job Title: ${jobTitleValue || "N/A"}
           method: "POST",
           headers: { "Content-Type": "application/json" },
         });
-        const json = await response.json();
-        const { items, error } = parseListItems(json);
-        if (error || !items.length) {
+        const responseText = await response.text();
+        const json = parseWebhookJson(responseText) || {};
+        const { studentQuestions, assessorQuestions, error } = parseQuestionsEnvelope(json);
+        assessorQuestionsForReport = Array.isArray(assessorQuestions) ? assessorQuestions : [];
+        if (error || !studentQuestions.length) {
           throw new Error(error || "No questions returned.");
         }
-        return items;
+        return studentQuestions;
       };
 
       const withOriginalQuestionNumbers = (questionList) => {
@@ -4818,6 +4837,32 @@ END_REVIEW>>>`;
         jobTitle = jobValue;
         if (industryEl && industryValue) industryEl.value = industryValue;
         if (jobTitleEl && jobValue) jobTitleEl.value = jobValue;
+
+        if (!skipCollect) {
+          const collectWebhookUrl = getWebhookUrl("assessmentCompleted");
+          if (collectWebhookUrl) {
+            try {
+              const collectPayload = {
+                FullName: ctx.fullName,
+                ContactID: String(ctx.contactId),
+                GivenName: ctx.givenName || fullName.split(" ").filter(Boolean)[0] || fullName,
+                Industry: industryValue,
+                jobTitle: jobValue,
+              };
+              const collectResponse = await fetch(collectWebhookUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(collectPayload),
+              });
+              if (!collectResponse.ok) {
+                throw new Error(`Unable to save student details (${collectResponse.status} ${collectResponse.statusText}).`);
+              }
+            } catch (error) {
+              setStatus(error?.message || "Unable to save student details.");
+              return;
+            }
+          }
+        }
 
         firstName = ctx.givenName || fullName.split(" ").filter(Boolean)[0] || fullName;
         assessmentStartAt = new Date();
