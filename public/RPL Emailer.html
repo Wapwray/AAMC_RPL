@@ -271,6 +271,28 @@
         color: #0f172a;
       }
 
+      .linkPanel {
+        margin-top: 18px;
+        border: 1px solid #d8e3ee;
+        border-radius: 12px;
+        background: #f8fbff;
+        padding: 14px;
+        display: none;
+      }
+
+      .linkPanel p {
+        margin: 0 0 10px;
+        font-size: 14px;
+        font-weight: 600;
+        color: #0f172a;
+      }
+
+      .linkPanel a {
+        color: #2563eb;
+        font-weight: 600;
+        word-break: break-all;
+      }
+
       .optionDisabled {
         opacity: 0.55;
       }
@@ -350,6 +372,11 @@
           <button id="sendEmailsBtn" class="primary" type="button" disabled>Send Email(s)</button>
         </div>
       </section>
+
+      <section id="aiInterviewLinkPanel" class="linkPanel">
+        <p>AI Interview Link</p>
+        <a id="aiInterviewLink" href="#" target="_blank" rel="noopener noreferrer"></a>
+      </section>
     </main>
 
     <script>
@@ -385,6 +412,11 @@
       const assessorMailOptionEl = document.getElementById("assessorMailOption");
       const assessorMailOptionLabelEl = document.getElementById("assessorMailOptionLabel");
       const sendEmailsBtnEl = document.getElementById("sendEmailsBtn");
+      const aiInterviewLinkPanelEl = document.getElementById("aiInterviewLinkPanel");
+      const aiInterviewLinkEl = document.getElementById("aiInterviewLink");
+
+      const AI_INTERVIEW_BASE_URL =
+        "https://aamc-rpl-live-ecgua6ceb4fkgfh0.australiaeast-01.azurewebsites.net/AAMC%20RPL%202026%20Q3.html";
 
       const getAssessorAssignmentMode = () => document.querySelector("input[name='assessorAssignment']:checked")?.value || "assigned";
 
@@ -443,6 +475,28 @@
           assessorMailOptionEl.checked = false;
         }
         updateAssessorMailAvailability();
+      };
+
+      const buildAiInterviewUrl = (record) => {
+        const fullName = String(record?.FullName || "").trim();
+        const givenName = String(record?.GivenName || "").trim();
+        const contactId = String(record?.ContactID || inputEl.value.trim() || "").trim();
+        const params = new URLSearchParams({
+          fullName,
+          givenName,
+          contactId,
+        });
+        return `${AI_INTERVIEW_BASE_URL}?${params.toString()}`;
+      };
+
+      const updateAiInterviewLink = () => {
+        if (!aiInterviewLinkPanelEl || !aiInterviewLinkEl || !selectedStudentRecord) {
+          return;
+        }
+        const url = buildAiInterviewUrl(selectedStudentRecord);
+        aiInterviewLinkEl.href = url;
+        aiInterviewLinkEl.textContent = "AAMC RPL Quiz - Q3";
+        aiInterviewLinkPanelEl.style.display = "block";
       };
 
       const loadAssessors = async () => {
@@ -549,6 +603,9 @@
         assessorMailOptionEl.checked = false;
         assessorMailOptionEl.disabled = false;
         assessorMailOptionLabelEl.classList.remove("optionDisabled");
+        aiInterviewLinkPanelEl.style.display = "none";
+        aiInterviewLinkEl.href = "#";
+        aiInterviewLinkEl.textContent = "";
         updateSendEmailsButtonState();
       };
 
@@ -659,6 +716,7 @@
           setStatus("Please select an assessor, or choose No Assessor Assigned.", "error");
           return;
         }
+        updateAiInterviewLink();
         updateEmailsPanelVisibility();
         emailsPanelEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
       });

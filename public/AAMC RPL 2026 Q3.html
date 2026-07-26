@@ -59,7 +59,9 @@
       };
 
       const removeDebugPanelMarkup = (html) => {
-        return html.replace(/<div class="checkResponseDebug"[\s\S]*?<\/pre>\s*<\/div>/g, "");
+        return html
+          .replace(/<div class="checkResponseDebug"[\s\S]*?<\/pre>\s*<\/div>/g, "")
+          .replace(/<div class="aiDebugPanel"[\s\S]*?<\/pre>\s*<\/div>/g, "");
       };
 
       const removeDebugFunctions = (html) => {
@@ -163,7 +165,7 @@
 
       const removeDebugSectionStyles = (html) => {
         return html
-          .replace(/\.checkResponseDebug\s*\{[\s\S]*?\}\s*\.checkResponseDebugHeader\s*\{[\s\S]*?\}\s*\.checkResponseDebugHeader button\s*\{[\s\S]*?\}\s*\.checkResponseDebugLog\s*\{[\s\S]*?\}/, "");
+          .replace(/\.checkResponseDebug\s*\{[\s\S]*?\}\s*\.checkResponseDebugHeader\s*\{[\s\S]*?\}\s*\.checkResponseDebugHeader button\s*\{[\s\S]*?\}\s*\.checkResponseDebugLog\s*\{[\s\S]*?\}\s*\.aiDebugPanel\s*\{[\s\S]*?\}\s*\.aiDebugPanelHeader\s*\{[\s\S]*?\}\s*\.aiDebugPanelHeader \.aiDebugTotals\s*\{[\s\S]*?\}\s*\.aiDebugPanelHeader button\s*\{[\s\S]*?\}\s*\.aiDebugLog\s*\{[\s\S]*?\}/, "");
       };
 
       const applyQ3Transforms = (html) => {
