@@ -3093,9 +3093,36 @@ Job Title: ${jobTitleValue || "N/A"}
           const parsed = await fetchResumeData({ log: true, label: "Resume webhook" });
           if (!parsed) {
             logWelcomeDebug("Resume parse error", "Unable to parse resume response.");
+            welcomeMode = "new";
+            if (welcomeBodyEl) {
+              welcomeBodyEl.innerHTML = "<p>No previous session found. Press Begin to start a new interview.</p>";
+            }
+            if (welcomeContinueBtn) {
+              welcomeContinueBtn.classList.remove("hidden");
+              welcomeContinueBtn.textContent = "Begin";
+            }
             return null;
           }
           setWelcomeResumeData(parsed);
+
+          const hasResumeData = Boolean(
+            resumeCurrentQuestionNumber
+            || (resumeTranscriptText && resumeTranscriptText.trim())
+            || (resumeGuidanceWindowText && String(resumeGuidanceWindowText).trim())
+          );
+          if (!hasResumeData) {
+            logWelcomeDebug("Resume empty", "No prior session data found; switching to new-student flow.");
+            welcomeMode = "new";
+            if (welcomeBodyEl) {
+              welcomeBodyEl.innerHTML = "<p>No previous session found. Press Begin to start a new interview.</p>";
+            }
+            if (welcomeContinueBtn) {
+              welcomeContinueBtn.classList.remove("hidden");
+              welcomeContinueBtn.textContent = "Begin";
+            }
+            return null;
+          }
+
           if (isCompletionQuestionValue(resumeCurrentQuestionValue)) {
             welcomeMode = "completed";
             if (welcomeContinueBtn) {
@@ -3120,13 +3147,14 @@ Job Title: ${jobTitleValue || "N/A"}
           return parsed;
         } catch (err) {
           logWelcomeDebug("Resume error", err?.message || String(err));
-          logWelcomeDebug("Resume fallback", "Showing RESUME button despite resume webhook failure");
+          logWelcomeDebug("Resume fallback", "Switching to Begin because resume webhook failed.");
+          welcomeMode = "new";
           if (welcomeBodyEl) {
-            welcomeBodyEl.innerHTML = "<p>Unable to load your previous session, but you can continue.</p>";
+            welcomeBodyEl.innerHTML = "<p>No previous session found. Press Begin to start a new interview.</p>";
           }
           if (welcomeContinueBtn) {
             welcomeContinueBtn.classList.remove("hidden");
-            welcomeContinueBtn.textContent = "RESUME";
+            welcomeContinueBtn.textContent = "Begin";
           }
           return null;
         }
