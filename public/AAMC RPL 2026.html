@@ -4196,8 +4196,10 @@ Job Title: ${jobTitleValue || "N/A"}
           || envelope?.assessorQuestions
           || envelope?.["Assessor Questions"]
         );
+        const legacyStudentQuestions = parseQuestionList(envelope?.listitems);
+        const normalizedStudentQuestions = studentQuestions.length ? studentQuestions : legacyStudentQuestions;
 
-        if (!studentQuestions.length) {
+        if (!normalizedStudentQuestions.length) {
           return {
             studentQuestions: [],
             assessorQuestions,
@@ -4206,17 +4208,28 @@ Job Title: ${jobTitleValue || "N/A"}
         }
 
         return {
-          studentQuestions,
+          studentQuestions: normalizedStudentQuestions,
           assessorQuestions,
           error: null,
         };
       };
 
       const fetchQuestionsFromWebhook = async () => {
+        const ctx = getStudentContext();
+        const derivedGivenName = (ctx.givenName || String(ctx.fullName || "").split(" ").filter(Boolean)[0] || "").trim();
+        const payload = {
+          FullName: ctx.fullName,
+          ContactID: String(ctx.contactId),
+          GivenName: derivedGivenName,
+        };
         const response = await fetch(questionsUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
         });
+        if (!response.ok) {
+          throw new Error(`Questions webhook failed (${response.status}) ${response.statusText}`.trim());
+        }
         const responseText = await response.text();
         const json = parseWebhookJson(responseText) || {};
         const { studentQuestions, assessorQuestions, error } = parseQuestionsEnvelope(json);
@@ -4883,11 +4896,10 @@ END_REVIEW>>>`;
                 body: JSON.stringify(collectPayload),
               });
               if (!collectResponse.ok) {
-                throw new Error(`Unable to save student details (${collectResponse.status} ${collectResponse.statusText}).`);
+                logAssessmentDebug("Student details webhook", `Non-blocking failure ${collectResponse.status} ${collectResponse.statusText}`);
               }
             } catch (error) {
-              setStatus(error?.message || "Unable to save student details.");
-              return;
+              logAssessmentDebug("Student details webhook", error?.message || String(error));
             }
           }
         }
