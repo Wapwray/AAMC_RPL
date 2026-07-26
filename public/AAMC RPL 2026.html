@@ -3038,6 +3038,20 @@ Job Title: ${jobTitleValue || "N/A"}
         }
       };
 
+      const showWelcomeResolvingState = () => {
+        welcomeMode = "resolving";
+        if (welcomeTitleEl) {
+          welcomeTitleEl.textContent = "Initialising";
+        }
+        if (welcomeBodyEl) {
+          welcomeBodyEl.innerHTML = "<p class=\"welcomeSubtext\">Please wait while we determine your assessment state.</p>";
+        }
+        if (welcomeContinueBtn) {
+          welcomeContinueBtn.classList.add("hidden");
+          welcomeContinueBtn.disabled = true;
+        }
+      };
+
       const updateWelcomeMessage = (responseText) => {
         const ctx = getStudentContext();
         const bodyText = getWelcomeBodyText(responseText);
@@ -3173,16 +3187,7 @@ Job Title: ${jobTitleValue || "N/A"}
       const loadWelcomeWebhook = async () => {
         logWelcomeDebug("Welcome webhook", "Calling welcome webhook…");
         const ctx = getStudentContext();
-        if (welcomeTitleEl) {
-          welcomeTitleEl.textContent = `Hello ${ctx.fullName}, welcome to your AI-assisted RPL interview.`;
-        }
-        if (welcomeBodyEl) {
-          welcomeBodyEl.innerHTML = "<p>Initialising…</p>";
-        }
-        if (welcomeContinueBtn) {
-          welcomeContinueBtn.classList.add("hidden");
-          welcomeContinueBtn.disabled = true;
-        }
+        showWelcomeResolvingState();
         try {
           const payload = {
             FullName: ctx.fullName,
@@ -5028,10 +5033,7 @@ END_REVIEW>>>`;
       instrumentWelcomeFetch();
       applyUrlStudentContext();
       logWelcomeDebug("Student context", formatDebugPayload(getStudentContext()));
-      if (welcomeTitleEl) {
-        const ctx = getStudentContext();
-        welcomeTitleEl.textContent = `Hello ${ctx.fullName}, welcome to your AI-assisted RPL interview.`;
-      }
+      showWelcomeResolvingState();
       updateCollectGreeting();
       setCollectStepsEnabled({ industry: false, jobTitle: false, begin: false });
       loadWelcomeWebhook();
