@@ -764,9 +764,9 @@
         <div id="welcomeVersionBadge" class="welcomeVersionBadge">V2.0</div>
 
         <div class="welcomeContent">
-          <div class="welcomeTitle" id="welcomeTitle">Welcome to the AAMC RPL Quiz</div>
+          <div class="welcomeTitle" id="welcomeTitle">Initialising</div>
           <div class="welcomeBody" id="welcomeBody">
-            <p>Initialising…</p>
+            <p class="welcomeSubtext">Please wait while we determine your assessment state.</p>
           </div>
           <button id="welcomeContinueBtn" disabled>Continue</button>
           <div id="managedStaffSection" class="managedStaffSection hidden">
@@ -1194,6 +1194,7 @@
       let resumeCurrentAttemptNumber = null;
       let resumeCurrentAttemptValue = "";
       let resumeLoadPromise = null;
+      let preloadQuestionsPromise = null;
       let lastStudentContextResponseText = "";
       let lastQuestionResponseText = "";
       let promptTemplates = null;
@@ -3075,17 +3076,7 @@ Job Title: ${jobTitleValue || "N/A"}
         }
 
         if (normalized.includes("user exists")) {
-          welcomeMode = "existing";
-          if (welcomeTitleEl) {
-            welcomeTitleEl.textContent = `Welcome back ${ctx.fullName} to your AI-assisted RPL interview.`;
-          }
-          if (welcomeBodyEl) {
-            welcomeBodyEl.innerHTML = "<p>Initialising…</p>";
-          }
-          if (welcomeContinueBtn) {
-            welcomeContinueBtn.classList.add("hidden");
-            welcomeContinueBtn.textContent = "RESUME";
-          }
+          showWelcomeResolvingState();
           return;
         }
 
@@ -3151,6 +3142,10 @@ Job Title: ${jobTitleValue || "N/A"}
             }
             showCompletionScreen();
             return parsed;
+          }
+          welcomeMode = "existing";
+          if (welcomeTitleEl) {
+            welcomeTitleEl.textContent = `Welcome back ${ctx.fullName} to your AI-assisted RPL interview.`;
           }
           if (welcomeBodyEl && resumeCurrentQuestionNumber) {
             const resumeAttemptDisplay = resumeCurrentAttemptNumber && Number.isFinite(resumeCurrentAttemptNumber)
@@ -4255,6 +4250,25 @@ Job Title: ${jobTitleValue || "N/A"}
         return studentQuestions;
       };
 
+      const fetchQuestionsWithRetry = async ({ attempts = 3, retryDelayMs = 900, label = "Questions webhook" } = {}) => {
+        let lastError = null;
+        for (let attempt = 1; attempt <= attempts; attempt += 1) {
+          try {
+            return await fetchQuestionsFromWebhook();
+          } catch (error) {
+            lastError = error;
+            const message = error?.message || String(error);
+            const isTransientServerError = /Questions webhook failed \(5\d\d\)/i.test(message);
+            if (!isTransientServerError || attempt >= attempts) {
+              throw error;
+            }
+            logAssessmentDebug(`${label} retry`, `Attempt ${attempt} failed: ${message}. Retrying...`);
+            await delay(retryDelayMs * attempt);
+          }
+        }
+        throw lastError || new Error("Unable to load questions.");
+      };
+
       const withOriginalQuestionNumbers = (questionList) => {
         if (!Array.isArray(questionList)) return [];
         return questionList.map((question, index) => ({
@@ -4944,8 +4958,13 @@ END_REVIEW>>>`;
         }
 
         try {
-          const items = await fetchQuestionsFromWebhook();
-          allQuestions = withOriginalQuestionNumbers(items);
+          if (!allQuestions.length && preloadQuestionsPromise) {
+            await preloadQuestionsPromise;
+          }
+          if (!allQuestions.length) {
+            const items = await fetchQuestionsWithRetry({ label: "Begin questions" });
+            allQuestions = withOriginalQuestionNumbers(items);
+          }
           questions = filterQuestionsByManagedStaff(allQuestions, managedStaff);
           if (tableBtn) tableBtn.disabled = false;
           
@@ -5039,14 +5058,16 @@ END_REVIEW>>>`;
       loadWelcomeWebhook();
 
       // Pre-load questions so the managed staff message can show question numbers.
-      (async () => {
+      preloadQuestionsPromise = (async () => {
         try {
-          const items = await fetchQuestionsFromWebhook();
+          const items = await fetchQuestionsWithRetry({ label: "Pre-load questions" });
           allQuestions = withOriginalQuestionNumbers(items);
           questions = filterQuestionsByManagedStaff(allQuestions, managedStaff);
           updateManagedStaffMessage();
+          return allQuestions;
         } catch (err) {
           logWelcomeDebug("Pre-load questions error", err?.message || String(err));
+          return [];
         }
       })();
 
@@ -5073,7 +5094,7 @@ END_REVIEW>>>`;
         if (!allQuestions.length) {
           setStatus("Questions not loaded yet.");
           try {
-            const items = await fetchQuestionsFromWebhook();
+            const items = await fetchQuestionsWithRetry({ label: "Questions table load" });
             allQuestions = withOriginalQuestionNumbers(items);
             questions = filterQuestionsByManagedStaff(allQuestions, managedStaff);
             updateManagedStaffMessage();
