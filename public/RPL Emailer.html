@@ -426,6 +426,18 @@
         return selected === "yes" ? "Yes" : "No";
       };
 
+      const getAssessorNameForPayload = () => {
+        if (getAssessorAssignmentMode() === "none") {
+          return "Not Assigned";
+        }
+        const selected = assessorsData.find((a) => String(a["ID"]) === assessorSelectEl.value);
+        if (!selected) {
+          return "Not Assigned";
+        }
+        const fullName = `${selected["First Name"] || ""} ${selected["Last Name"] || ""}`.trim();
+        return fullName || "Not Assigned";
+      };
+
       const pickFirstValue = (source, keys) => {
         for (const key of keys) {
           const value = source?.[key];
@@ -757,6 +769,7 @@
           courseName: selectedCourseName,
           ManagedStaff: getManagedStaffSelection(),
           StudentMail: studentMailOptionEl.checked ? "Yes" : "No",
+          AssessorName: getAssessorNameForPayload(),
           AssessorMail: assessorMailOptionEl.checked ? "Yes" : "No",
         };
 
