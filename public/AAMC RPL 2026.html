@@ -5359,7 +5359,20 @@ END_REVIEW>>>`;
                 attemptAndTranscriptSaved,
               });
               logNextDebug("Webhook results", { recordingSaved, backupSaved, attemptAndTranscriptSaved });
-              return backupSaved && attemptAndTranscriptSaved;
+
+              // Treat backup as the durability gate for navigation. If the
+              // heavyweight transcript/update webhook fails but backup succeeds,
+              // we log a warning and continue so Next Question is not blocked.
+              if (backupSaved && !attemptAndTranscriptSaved) {
+                logNextDebug("Transcript save partial success", {
+                  label: `question ${questionNumber} attempt ${attemptNumber}`,
+                  backupSaved,
+                  attemptAndTranscriptSaved,
+                });
+                setStatus("Warning: transcript update webhook failed, but backup saved. You can continue.");
+              }
+
+              return backupSaved;
             }
           );
           if (showNextQuestionOnly) {
