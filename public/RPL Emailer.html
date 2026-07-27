@@ -398,6 +398,7 @@
       let assessorsData = [];
       let qualificationsData = [];
       let selectedRplQuestions = "";
+      let selectedCourseName = "";
       let selectedStudentRecord = null;
 
       const assessorSelectEl = document.getElementById("assessorSelect");
@@ -585,6 +586,7 @@
 
       const resetAssessorAndEmailState = () => {
         selectedRplQuestions = "";
+        selectedCourseName = "";
         qualificationsPanelEl.style.display = "none";
         qualificationsSelectEl.value = "";
         qualificationSelectBtnEl.disabled = true;
@@ -679,7 +681,12 @@
           return;
         }
         const selected = qualificationsData[Number(qualificationsSelectEl.value)] || {};
+        selectedCourseName = String(selected["QUALIFICATIONS"] || "").trim();
         selectedRplQuestions = String(selected["RPL Questions"] || "").trim();
+        if (!selectedCourseName) {
+          setStatus("Selected qualification row has no QUALIFICATIONS value.", "error");
+          return;
+        }
         if (!selectedRplQuestions) {
           setStatus("Selected qualification row has no RPL Questions value.", "error");
           return;
@@ -729,6 +736,10 @@
           setStatus("Please select a qualification row first.", "error");
           return;
         }
+        if (!selectedCourseName) {
+          setStatus("Please select a qualification row with a valid course name.", "error");
+          return;
+        }
         if (!selectedStudentRecord) {
           setStatus("Please fetch the student details first.", "error");
           return;
@@ -743,6 +754,7 @@
           Email: selectedStudentRecord.Email,
           Mobile: selectedStudentRecord.Mobile,
           rplQuestions: selectedRplQuestions,
+          courseName: selectedCourseName,
           ManagedStaff: getManagedStaffSelection(),
           StudentMail: studentMailOptionEl.checked ? "Yes" : "No",
           AssessorMail: assessorMailOptionEl.checked ? "Yes" : "No",
