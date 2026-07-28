@@ -162,6 +162,51 @@ test("builds report list from official question bank plus unmapped transcript qu
   assert.ok(model.warnings.some((warning) => /question bank.*24/i.test(warning)));
 });
 
+test("keeps answered JSON transcript questions available when automated assessment failed", () => {
+  const questionText = `You have emailed confidential client information to the wrong recipient.
+Please explain what steps you would take immediately and how you would report the breach.`;
+  const transcript = {
+    candidate: {
+      fullName: "Test Candidate",
+      contactId: "TEST-100",
+    },
+    questions: [
+      {
+        questionNumber: 6,
+        questionText,
+        section: "Ethics",
+        objective: "Confirm privacy-breach containment, reporting and client communication.",
+        aiInterviewerSummary: "The automated preliminary assessment was unavailable. Assessor review is required.",
+        preliminaryStatus: "",
+        attempts: [
+          {
+            attemptNumber: 1,
+            answer: "I would contain the breach, notify the privacy officer, document it and communicate promptly with the client.",
+            feedback: "Your response has been recorded and will be provided to the assessor for review.",
+          },
+        ],
+      },
+    ],
+  };
+  const questionBank = [{
+    questionNumber: 6,
+    questionText,
+    section: "Ethics",
+    objective: "Confirm privacy-breach containment, reporting and client communication.",
+  }];
+
+  const model = review.buildReportModelFromJsonTranscript(transcript, questionBank);
+  const question = model.questions[0];
+
+  assert.equal(question.shortStatus, "Assessor review required");
+  assert.equal(question.preliminaryStatus, "Assessor review required");
+  assert.equal(question.attempts.length, 1);
+  assert.match(question.attempts[0].responseText, /contain the breach/);
+  assert.match(question.assessorActionSuggested, /Review the available transcript response manually/);
+  assert.ok(model.executiveSummaryItems.some((item) => /assessment was unavailable for Question 6/i.test(item)));
+  assert.ok(model.executiveSummaryItems.every((item) => !/No transcript evidence was available for Question 6/i.test(item)));
+});
+
 test("reconciles duplicate transcript questions by text and avoids CT rule sections", () => {
   const transcript = `Question 21: Explain how you handle complaints.
 
