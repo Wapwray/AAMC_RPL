@@ -813,7 +813,7 @@
           src="/RPL%20Bot%20Artwork/2024_logo_black_transparent_outline_HRES.png"
           alt="AAMC Training Group"
         />
-        <div id="welcomeVersionBadge" class="welcomeVersionBadge">V2.5</div>
+        <div id="welcomeVersionBadge" class="welcomeVersionBadge">V2.6</div>
 
         <div class="welcomeContent">
           <div class="welcomeTitle" id="welcomeTitle">Initialising</div>
@@ -1071,6 +1071,7 @@
     <script src="rpl-final-report-generator.js"></script>
     <script src="rpl-incremental-persistence.js"></script>
     <script src="rpl-preferred-interview-times.js"></script>
+    <script src="rpl-question-numbering.js"></script>
     <script>
       // Power Automate webhook URLs - centralized config for easier maintenance
       const WEBHOOK_URLS = {
@@ -1291,7 +1292,7 @@
       let hintOpen = false;
       let preferredTimesEarliest = null;
       let preferredTimesSubmitted = false;
-      const DEFAULT_FOOTER_TEXT = "AI-assisted evidence collection only. A qualified assessor will review your responses and make the assessment decision. V2.5";
+      const DEFAULT_FOOTER_TEXT = "AI-assisted evidence collection only. A qualified assessor will review your responses and make the assessment decision. V2.6";
       const FINAL_FOOTER_TEXT = "Submitting your responses does not guarantee RPL. A qualified assessor will review your evidence and determine the outcome.";
       const NEXT_QUESTION_DISPLAY_SUFFIX = "Please press the Next Question button to continue.";
       const NEXT_QUESTION_DISPLAY_SIGNAL = "press the next question button to continue";
@@ -2311,20 +2312,7 @@
           .filter(Boolean);
       };
 
-      const getQuestionSpecNumber = (question, index) => {
-        const explicitNumber = getQuestionFieldSource(question, [
-          "Question Number",
-          "QuestionNumber",
-          "Question No",
-          "QuestionNo",
-          "Q#",
-          "Number",
-          "No",
-        ]);
-        const titleNumber = extractQuestionNumberFromText(question?.Title || question?.title || "");
-        const candidate = explicitNumber || titleNumber || String(index + 1);
-        return /^\d+$/.test(String(candidate).trim()) ? parseInt(candidate, 10) : String(candidate).trim();
-      };
+      const getQuestionSpecNumber = (question, index) => getQuestionNumber(question, index);
 
       const buildOfficialQuestionBankForReport = (questionList = questions) => {
         if (!Array.isArray(questionList) || !questionList.length) return [];
@@ -4620,37 +4608,18 @@ Job Title: ${jobTitleValue || "N/A"}
         throw lastError || new Error("Unable to load questions.");
       };
 
-      const withOriginalQuestionNumbers = (questionList) => {
-        if (!Array.isArray(questionList)) return [];
-        return questionList.map((question, index) => ({
-          ...(question || {}),
-          // Keep numbering aligned with the Title field in the source JSON.
-          __originalQuestionNumber: (() => {
-            const titleValue = question?.Title ?? question?.title ?? "";
-            const titleNumber = extractQuestionNumberFromText(titleValue);
-            const parsed = Number.parseInt(String(titleNumber || ""), 10);
-            if (Number.isFinite(parsed) && parsed > 0) {
-              return parsed;
-            }
-            return index + 1;
-          })(),
-        }));
+      const getQuestionNumberingModule = () => {
+        if (!window.RplQuestionNumbering) {
+          throw new Error("Question numbering module is not loaded.");
+        }
+        return window.RplQuestionNumbering;
       };
 
-      const getQuestionNumber = (question, fallbackIndex = 0) => {
-        const value = Number(question?.__originalQuestionNumber);
-        if (Number.isFinite(value) && value > 0) {
-          return Math.floor(value);
-        }
+      const withOriginalQuestionNumbers = (questionList) =>
+        getQuestionNumberingModule().withTitleQuestionNumbers(questionList);
 
-        const titleNumber = extractQuestionNumberFromText(question?.Title ?? question?.title ?? "");
-        const parsedTitleNumber = Number.parseInt(String(titleNumber || ""), 10);
-        if (Number.isFinite(parsedTitleNumber) && parsedTitleNumber > 0) {
-          return parsedTitleNumber;
-        }
-
-        return Math.max(1, Number(fallbackIndex) + 1);
-      };
+      const getQuestionNumber = (question, listIndex = 0) =>
+        getQuestionNumberingModule().getQuestionNumber(question, listIndex);
 
       const getCurrentQuestionNumber = () => getQuestionNumber(questions[currentIndex], currentIndex);
 

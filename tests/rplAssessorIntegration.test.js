@@ -8,6 +8,7 @@ const server = fs.readFileSync(path.join(root, "server.js"), "utf8");
 const livePage = fs.readFileSync(path.join(root, "public", "AAMC RPL 2026.html"), "utf8");
 const q3Page = fs.readFileSync(path.join(root, "public", "AAMC RPL 2026 Q3.html"), "utf8");
 const autoTesterPage = fs.readFileSync(path.join(root, "public", "AAMC RPL 2026 Q3 Auto Tester.html"), "utf8");
+const emailerPage = fs.readFileSync(path.join(root, "public", "RPL Emailer.html"), "utf8");
 const assessorDecision = require("../public/rpl-assessor-decision");
 
 test("server builds assessor Responses API requests from existing RPL_ASSESSOR settings", () => {
@@ -112,9 +113,23 @@ test("completion requires two validated preferred interview times", () => {
   assert.match(livePage, /PREFERRED_INTERVIEW_TIMES_WEBHOOK_URL/);
 });
 
-test("all three app variants expose the requested V2.5 release", () => {
-  assert.match(livePage, /welcomeVersionBadge">V2\.5</);
-  assert.match(q3Page, /const WELCOME_VERSION = "V2\.5"/);
-  assert.match(autoTesterPage, /const WELCOME_VERSION = "V2\.5"/);
+test("question numbering is loaded from the SharePoint Title field module", () => {
+  assert.match(livePage, /<script src="rpl-question-numbering\.js"><\/script>/);
+  assert.match(livePage, /withTitleQuestionNumbers\(questionList\)/);
+  assert.match(livePage, /getQuestionNumberingModule\(\)\.getQuestionNumber\(question, listIndex\)/);
+});
+
+test("RPL Emailer displays a waiting state while preparing student storage", () => {
+  assert.match(emailerPage, /Preparing Student Storage Area/);
+  assert.match(emailerPage, /<span>Please Wait<\/span>/);
+  assert.match(emailerPage, /setStudentStoragePreparing\(true\);[\s\S]*?fetch\(ASSESSMENT_COMPLETED_WEBHOOK_URL/);
+  assert.match(emailerPage, /finally \{[\s\S]*?setStudentStoragePreparing\(false\);/);
+  assert.match(emailerPage, /responsePanelEl\.setAttribute\("aria-busy", String\(isPreparing\)\)/);
+});
+
+test("all three app variants expose the requested V2.6 release", () => {
+  assert.match(livePage, /welcomeVersionBadge">V2\.6</);
+  assert.match(q3Page, /const WELCOME_VERSION = "V2\.6"/);
+  assert.match(autoTesterPage, /const WELCOME_VERSION = "V2\.6"/);
   assert.match(autoTesterPage, /const RUNTIME_VERSION = "2\.0"/);
 });
