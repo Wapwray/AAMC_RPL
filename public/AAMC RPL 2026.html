@@ -4503,24 +4503,19 @@ Job Title: ${jobTitleValue || "N/A"}
         const objective = getQuestionObjective(question);
         const hintText = getQuestionHint(question);
         const ctx = getStudentContext();
-        // Always use Azure OpenAI mode prompt builder
-        const promptBuilder = getAssessorDecisionModule().buildAssessmentPrompt;
-        return promptBuilder({
-          candidateMetadata: {
-            fullName: fullName || ctx.fullName,
-            givenName: firstName || ctx.givenName || ctx.fullName,
-            contactId: ctx.contactId,
+        return getAssessorDecisionModule().buildAssessmentPayload({
+          candidateContext: {
             industry: industry || industryEl?.value?.trim() || "",
             jobTitle: jobTitle || jobTitleEl?.value?.trim() || "",
+            qualification: getReportCandidateMetadata().qualification,
           },
           question: {
+            questionNumber: String(getQuestionNumber(question, currentIndex)),
             questionText,
             objective,
             hint: hintText,
           },
           attempts: answers,
-          attemptCount: answers.length,
-          maxAttempts: MAX_ATTEMPTS,
         });
       };
 
@@ -4587,19 +4582,26 @@ END_REVIEW>>>`;
         const debugLabel = options.debugLabel || "";
         const returnRaw = options.returnRaw === true;
         const responseSchemaKey = typeof options.responseSchemaKey === "string" ? options.responseSchemaKey : "";
-        
+        const isAssessmentRequest = mode === "assessor";
+        const promptText = typeof prompt === "string" ? prompt : JSON.stringify(prompt);
+
         const temperature = typeof options.temperature === "number" ? options.temperature : 0.2;
         const maxTokens = Number.isFinite(Number(options.max_tokens)) ? Number(options.max_tokens) : 300;
         logDebug("Calling /api/analysis/chat");
         logDebugDetail("AI mode", mode);
-        logDebugDetail("Prompt length", prompt?.length ?? 0);
-        
-        const requestBody = {
-          prompt,
-          temperature,
-          max_tokens: maxTokens,
-          responseSchemaKey,
-        };
+        logDebugDetail("Prompt length", promptText.length);
+
+        const requestBody = isAssessmentRequest
+          ? {
+              assessmentPayload: prompt,
+              responseSchemaKey: responseSchemaKey || "assessment",
+            }
+          : {
+              prompt: promptText,
+              temperature,
+              max_tokens: maxTokens,
+              responseSchemaKey,
+            };
         const requestHeaders = {
           "Content-Type": "application/json",
           "x-rpl-mode": mode,
@@ -4643,7 +4645,7 @@ END_REVIEW>>>`;
             "HTTP status": `${response.status} ${response.statusText}`,
             "latency": `${getElapsedMs(aiCallStartedAt)}ms`,
             "upstream latency": upstreamLatencyMs ? `${upstreamLatencyMs}ms` : undefined,
-            "prompt chars": prompt?.length ?? 0,
+            "prompt chars": promptText.length,
             "error body": (text || "(empty)").substring(0, 300),
           });
           
@@ -4694,8 +4696,8 @@ END_REVIEW>>>`;
             "finish reason": choice?.finish_reason,
             "temperature": temperature,
             "max_tokens": maxTokens,
-            "prompt chars": prompt?.length ?? 0,
-            "prompt tokens (est.)": promptTokens ? undefined : estimateTokens(prompt),
+            "prompt chars": promptText.length,
+            "prompt tokens (est.)": promptTokens ? undefined : estimateTokens(promptText),
             "response chars": responseText.length,
             "tokens/sec": completionTokens && latencyMs ? Math.round((completionTokens / latencyMs) * 1000) : undefined,
           });
@@ -4736,8 +4738,6 @@ END_REVIEW>>>`;
       const evaluateAssessorPrompt = async (prompt, { debugLabel = "Check Response" } = {}) => {
         let responsePayload = await withCheckResponseTiming("AI assessment", () => callTextModel(prompt, {
           mode: "assessor",
-          temperature: 0,
-          max_tokens: 1600,
           debugLabel,
           responseSchemaKey: "assessment",
           returnRaw: true,
@@ -4754,17 +4754,14 @@ END_REVIEW>>>`;
             throw parseError;
           }
 
-          const retryMaxTokens = 3000;
           appendCheckResponseDebug("AI assessment retry", {
             reason: incompleteReason || responseStatus || "response truncated",
             previousResponseCharacterCount: responseText.length,
-            retryMaxTokens,
+            retryLimit: 1,
           });
 
           responsePayload = await withCheckResponseTiming("AI assessment retry", () => callTextModel(prompt, {
             mode: "assessor",
-            temperature: 0,
-            max_tokens: retryMaxTokens,
             debugLabel: `${debugLabel} retry`,
             responseSchemaKey: "assessment",
             returnRaw: true,
@@ -5179,13 +5176,21 @@ END_REVIEW>>>`;
         if (answerInputEl) answerInputEl.disabled = true;
         showThinkingOverlay();
         let finalButtonState = null;
+        const entry = ensureTranscriptQuestion(currentIndex, questionText, {
+          questionNumber,
+          objective: objectiveText,
+          hint: hintText,
+          section: sectionText,
+        });
+        entry.questionText = questionText;
+        entry.attempts.push(attemptRecord);
 
         try {
           // Run transcript merge, recording upload, and AI evaluation in parallel where possible.
           const transcriptMergePromise = withCheckResponseTiming("Transcript merge", () => ensureCompleteTranscriptQuestions());
           const prompt = buildPrompt(questions[currentIndex], currentResponses);
           appendCheckResponseDebug("Prompt built", {
-            characterCount: prompt.length,
+            characterCount: JSON.stringify(prompt).length,
             attemptCount: currentResponses.length,
           });
           const recordingSavePromise = queueSaveTask(
@@ -5201,14 +5206,6 @@ END_REVIEW>>>`;
           addChatEntry(assessorFeedback.displayText, "ai", assessorFeedback.transcriptAttemptText);
           hideThinkingOverlay();
           attemptRecord.feedback = assessorFeedback.transcriptAttemptText;
-          const entry = ensureTranscriptQuestion(currentIndex, questionText, {
-            questionNumber,
-            objective: objectiveText,
-            hint: hintText,
-            section: sectionText,
-          });
-          entry.questionText = questionText;
-          entry.attempts.push(attemptRecord);
           entry.summary = assessorFeedback.assessorSummary;
           entry.overallAssessment = assessorFeedback.overallAssessment;
           const nextAttemptForWebhook = Math.min(MAX_ATTEMPTS, attemptNumber + 1);
@@ -5271,15 +5268,30 @@ END_REVIEW>>>`;
             logNextDebug("Attempts remaining - nextBtn state", { nextBtnDisabled: nextBtn?.disabled, evaluateBtnDisabled: evaluateBtn?.disabled });
           }
         } catch (err) {
+          const assessmentError = err?.message || String(err);
+          const manualReviewMessage = `Thank you, ${firstName || "there"}. Your response has been recorded and will be provided to the assessor for review. Please press the Next Question button to continue.`;
           appendCheckResponseDebug("Check Response failed", {
             durationMs: getElapsedMs(checkResponseStartedAt),
-            error: err?.message || String(err),
+            error: assessmentError,
           });
+          logAssessmentDebug("Assessment technical error", assessmentError);
           hideThinkingOverlay();
-          addChatEntry(err?.message || String(err), "ai");
-          setStatus("Evaluation failed.");
-          finalButtonState = { nextDisabled: true, evaluateDisabled: false };
-          evaluateBtn.disabled = false;
+          attemptRecord.feedback = manualReviewMessage;
+          entry.summary = "The automated preliminary assessment was unavailable. Assessor review is required.";
+          entry.overallAssessment = "";
+          addChatEntry(manualReviewMessage, "ai", manualReviewMessage);
+          fullTranscript = buildFullTranscript();
+          window.RPLFullTranscript = fullTranscript;
+          queueSaveTask(
+            `Manual-review transcript save (question ${questionNumber}, attempt ${attemptNumber})`,
+            () => Promise.all([
+              sendTranscriptBackupOnEvaluate({ attemptNumber, questionNumber }),
+              sendCurrentAttemptOnEvaluate(attemptNumber, questionNumber),
+            ])
+          );
+          setStatus("Response recorded for assessor review. Press Next to continue.");
+          setAttemptLockState(true);
+          finalButtonState = { nextDisabled: false, evaluateDisabled: true };
         } finally {
           stopCheckResponseTimer(checkResponseStartedAt);
           setUiLockedState(false);

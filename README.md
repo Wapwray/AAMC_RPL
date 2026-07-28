@@ -132,9 +132,9 @@ Azure environment variables:
 - `RPL_ASSESSOR_API_KEY`
 - `RPL_ASSESSOR_AZURE_ENDPOINT`
 - `RPL_ASSESSOR_DEPLOYMENT`
-- `RPL_ASSESSOR_MODEL_NAME`
-- `RPL_ASSESSOR_API_VERSION` when using legacy or azure-native API style
-- `RPL_ASSESSOR_API_STYLE` optional override
+- `RPL_ASSESSOR_AZURE__REASONING_EFFORT` (`medium` by default)
+- `RPL_ASSESSOR_AZURE__VERBOSITY` (`low` by default)
+- `RPL_ASSESSOR_AZURE__MAX_OUTPUT_TOKENS` (`3000` by default)
 - `RPL_FINAL_API_KEY`
 - `RPL_FINAL_AZURE_ENDPOINT`
 - `RPL_FINAL_DEPLOYMENT`
@@ -144,8 +144,8 @@ Azure environment variables:
 
 Token and timeout settings:
 
-- Check Response default request cap: `1600` output tokens
-- Check Response bounded retry cap on incomplete GPT-5.4 output: `3000` output tokens
+- Check Response request cap: `RPL_ASSESSOR_AZURE__MAX_OUTPUT_TOKENS` (`3000` by default)
+- Check Response performs at most one retry when Azure reports an incomplete output
 - Transcript quality check cap: `5000` output tokens
 - Final-report structured request reserve: `9000` output tokens
 - Azure request timeout: `120000` ms
