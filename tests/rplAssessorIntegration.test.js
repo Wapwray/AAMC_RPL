@@ -90,9 +90,17 @@ test("new interviews wait for the student SharePoint structure to be ready", () 
   assert.doesNotMatch(beginFlow[0], /Base64Data|ContentType|FileName:/);
 });
 
-test("all three app variants expose the requested V2.3 release", () => {
-  assert.match(livePage, /welcomeVersionBadge">V2\.3</);
-  assert.match(q3Page, /const WELCOME_VERSION = "V2\.3"/);
-  assert.match(autoTesterPage, /const WELCOME_VERSION = "V2\.3"/);
+test("new-student placeholders do not trigger the existing-session route", () => {
+  assert.match(livePage, /hasMeaningfulResumeEvidence\(\{/);
+  assert.doesNotMatch(
+    livePage,
+    /resumeCurrentQuestionNumber\s*\|\|\s*resumeIncrementalState\?\.recordCount/
+  );
+});
+
+test("all three app variants expose the requested V2.4 release", () => {
+  assert.match(livePage, /welcomeVersionBadge">V2\.4</);
+  assert.match(q3Page, /const WELCOME_VERSION = "V2\.4"/);
+  assert.match(autoTesterPage, /const WELCOME_VERSION = "V2\.4"/);
   assert.match(autoTesterPage, /const RUNTIME_VERSION = "2\.0"/);
 });

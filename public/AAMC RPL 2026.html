@@ -761,7 +761,7 @@
           src="/RPL%20Bot%20Artwork/2024_logo_black_transparent_outline_HRES.png"
           alt="AAMC Training Group"
         />
-        <div id="welcomeVersionBadge" class="welcomeVersionBadge">V2.3</div>
+        <div id="welcomeVersionBadge" class="welcomeVersionBadge">V2.4</div>
 
         <div class="welcomeContent">
           <div class="welcomeTitle" id="welcomeTitle">Initialising</div>
@@ -1212,7 +1212,7 @@
       let nextQuestionInFlight = false;
       let isUiLocked = false;
       let hintOpen = false;
-      const DEFAULT_FOOTER_TEXT = "AI-assisted evidence collection only. A qualified assessor will review your responses and make the assessment decision. V2.3";
+      const DEFAULT_FOOTER_TEXT = "AI-assisted evidence collection only. A qualified assessor will review your responses and make the assessment decision. V2.4";
       const FINAL_FOOTER_TEXT = "Submitting your responses does not guarantee RPL. A qualified assessor will review your evidence and determine the outcome.";
       const NEXT_QUESTION_DISPLAY_SUFFIX = "Please press the Next Question button to continue.";
       const NEXT_QUESTION_DISPLAY_SIGNAL = "press the next question button to continue";
@@ -3187,12 +3187,12 @@ Job Title: ${jobTitleValue || "N/A"}
           }
           setWelcomeResumeData(parsed);
 
-          const hasResumeData = Boolean(
-            resumeCurrentQuestionNumber
-            || resumeIncrementalState?.recordCount
-            || (resumeTranscriptText && resumeTranscriptText.trim())
-            || (resumeGuidanceWindowText && String(resumeGuidanceWindowText).trim())
-          );
+          const hasResumeData = getIncrementalPersistenceModule().hasMeaningfulResumeEvidence({
+            recordCount: resumeIncrementalState?.recordCount,
+            transcriptText: resumeTranscriptText,
+            currentQuestion: resumeCurrentQuestionValue,
+            currentAttempt: resumeCurrentAttemptValue,
+          });
           if (!hasResumeData) {
             logWelcomeDebug("Resume empty", "No prior session data found; switching to new-student flow.");
             welcomeMode = "new";
@@ -5173,10 +5173,12 @@ END_REVIEW>>>`;
           questions = filterQuestionsByManagedStaff(allQuestions, managedStaff);
           if (tableBtn) tableBtn.disabled = false;
           
-          const hasPersistedResumeState = Boolean(
-            resumeIncrementalState?.recordCount
-            || (resumeTranscriptText && resumeTranscriptText.trim())
-          );
+          const hasPersistedResumeState = getIncrementalPersistenceModule().hasMeaningfulResumeEvidence({
+            recordCount: resumeIncrementalState?.recordCount,
+            transcriptText: resumeTranscriptText,
+            currentQuestion: resumeCurrentQuestionValue,
+            currentAttempt: resumeCurrentAttemptValue,
+          });
 
           // Clear AI logging only for a genuinely new assessment. Incremental
           // resume restores prior entries before the next model call.
