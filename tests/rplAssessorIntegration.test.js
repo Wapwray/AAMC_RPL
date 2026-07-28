@@ -30,6 +30,10 @@ test("live page sends dynamic assessment data separately without sampling parame
   assert.match(livePage, /buildAssessmentPayload\(\{/);
   assert.doesNotMatch(livePage.match(/const buildPrompt = \(question, answers\) => \{([\s\S]*?)\n      \};/)[1], /fullName|givenName|contactId|maxAttempts/);
   assert.match(livePage, /entry\.attempts\.push\(attemptRecord\);[\s\S]*?evaluateAssessorPrompt/);
+  assert.match(livePage, /const parseAndValidateAssessorDecision = \(responseText, attemptCount\)/);
+  assert.match(livePage, /learnerEvidenceText: currentResponses\.join\("\\n"\)/);
+  assert.match(livePage, /appendAiDebugEntry\(`\$\{debugLabel\} validation retry`/);
+  assert.match(livePage, /evaluateAssessorPrompt\(prompt, \{[\s\S]*?attemptCount: currentAttempts/);
   assert.match(livePage, /The automated preliminary assessment was unavailable\. Assessor review is required\./);
   assert.match(livePage, /setAttemptLockState\(true\);[\s\S]*?nextDisabled: false, evaluateDisabled: true/);
 });

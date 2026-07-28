@@ -178,7 +178,7 @@
   };
 
   const normaliseDecision = (rawDecision, context = {}) => {
-    const covered = toArray(rawDecision?.covered);
+    const covered = toArray(rawDecision?.covered).slice(0, 3);
     let missing = toArray(rawDecision?.missing);
     let status = normaliseAssessmentStatus(
       rawDecision?.overallAssessment ||
@@ -192,6 +192,8 @@
     }
     if (status === STATUS_LIKELY_SUFFICIENT) {
       missing = [];
+    } else {
+      missing = missing.slice(0, 3);
     }
 
     const attemptCount = Number.isFinite(Number(context.attemptCount)) ? Number(context.attemptCount) : 0;
@@ -273,9 +275,10 @@
 
   const normalizeComparableText = (value) => normalizeWhitespace(value).toLowerCase();
 
-  const hasHintLeakage = (hintText, values) => {
+  const hasHintLeakage = (hintText, values, learnerEvidenceText = "") => {
     const normalizedHint = normalizeComparableText(hintText);
     if (!normalizedHint) return false;
+    const normalizedLearnerEvidence = normalizeComparableText(learnerEvidenceText);
     const candidateValues = (Array.isArray(values) ? values : [values])
       .map((value) => normalizeComparableText(value))
       .filter(Boolean);
@@ -286,7 +289,10 @@
       .map((line) => line.trim())
       .filter((line) => line.length >= 18);
 
-    return hintLines.some((line) => candidateValues.some((value) => value.includes(line)));
+    return hintLines.some((line) => {
+      const isGroundedInLearnerEvidence = normalizedLearnerEvidence.includes(line);
+      return !isGroundedInLearnerEvidence && candidateValues.some((value) => value.includes(line));
+    });
   };
 
   const validateAssessmentDecision = (decision, context = {}) => {
@@ -351,7 +357,7 @@
       ...decision.missing,
       decision.assessorRationale,
       ...decision.objectiveEvidence.map((item) => item.evidence),
-    ])) {
+    ], context.learnerEvidenceText || "")) {
       throw new Error("Assessment response appears to copy hint content into the output.");
     }
 

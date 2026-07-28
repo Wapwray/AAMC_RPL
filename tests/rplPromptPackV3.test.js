@@ -122,4 +122,36 @@ test("validateAssessmentDecision enforces core invariants", () => {
     },
     covered: ["Private hint text."],
   }, { hintText: "Private hint text." }), /hint content/);
+
+  assert.doesNotThrow(() => assessor.validateAssessmentDecision({
+    ...validDecision,
+    covered: ["Private hint text."],
+  }, {
+    hintText: "Private hint text.",
+    learnerEvidenceText: "The learner independently said: Private hint text.",
+  }));
+});
+
+test("normaliseDecision caps feedback lists without dropping objective components", () => {
+  const decision = assessor.normaliseDecision({
+    overallAssessment: assessor.STATUS_LIKELY_SUFFICIENT,
+    covered: ["one", "two", "three", "four"],
+    missing: [],
+    objectiveEvidence: ["one", "two", "three", "four"].map((part) => ({
+      objectivePart: part,
+      status: assessor.STATUS_LIKELY_SUFFICIENT,
+      evidence: `${part} evidence`,
+    })),
+    hintWouldHelp: false,
+    professionalConductConcern: false,
+    assessorRationale: "The learner addressed all four requirements.",
+    confidence: "high",
+  }, {
+    attemptCount: 1,
+    maxAttempts: 3,
+  });
+
+  assert.deepEqual(decision.covered, ["one", "two", "three"]);
+  assert.equal(decision.objectiveEvidence.length, 4);
+  assert.doesNotThrow(() => assessor.validateAssessmentDecision(decision));
 });

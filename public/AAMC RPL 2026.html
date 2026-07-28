@@ -4629,7 +4629,7 @@ Job Title: ${jobTitleValue || "N/A"}
         });
       };
 
-      const buildAssessorFeedbackFromResponse = (responseText, attemptCount) => {
+      const parseAndValidateAssessorDecision = (responseText, attemptCount) => {
         const rawDecision = getAssessorDecisionModule().parseAssessmentResponse(responseText);
         const decision = getAssessorDecisionModule().normaliseDecision(rawDecision, {
           attemptCount,
@@ -4637,7 +4637,13 @@ Job Title: ${jobTitleValue || "N/A"}
         });
         getAssessorDecisionModule().validateAssessmentDecision(decision, {
           hintText: getQuestionHint(questions[currentIndex] || {}),
+          learnerEvidenceText: currentResponses.join("\n"),
         });
+        return decision;
+      };
+
+      const buildAssessorFeedbackFromResponse = (responseText, attemptCount) => {
+        const decision = parseAndValidateAssessorDecision(responseText, attemptCount);
         const ctx = getStudentContext();
         return getAssessorDecisionModule().buildFeedback(decision, {
           givenName: firstName || ctx.givenName || ctx.fullName,
@@ -4845,7 +4851,7 @@ END_REVIEW>>>`;
           : normalized;
       };
 
-      const evaluateAssessorPrompt = async (prompt, { debugLabel = "Check Response" } = {}) => {
+      const evaluateAssessorPrompt = async (prompt, { debugLabel = "Check Response", attemptCount = currentAttempts } = {}) => {
         let responsePayload = await withCheckResponseTiming("AI assessment", () => callTextModel(prompt, {
           mode: "assessor",
           debugLabel,
@@ -4855,19 +4861,25 @@ END_REVIEW>>>`;
 
         let responseText = String(responsePayload?.content || "");
         try {
-          getAssessorDecisionModule().parseAssessmentResponse(responseText);
+          parseAndValidateAssessorDecision(responseText, attemptCount);
           return responseText;
-        } catch (parseError) {
+        } catch (validationError) {
           const incompleteReason = responsePayload?.raw?.incomplete_details?.reason;
           const responseStatus = responsePayload?.raw?.status;
-          if (incompleteReason !== "max_output_tokens" && responseStatus !== "incomplete") {
-            throw parseError;
-          }
+          const retryReason = incompleteReason === "max_output_tokens" || responseStatus === "incomplete"
+            ? incompleteReason || responseStatus || "response truncated"
+            : validationError?.message || "assessment response validation failed";
 
           appendCheckResponseDebug("AI assessment retry", {
-            reason: incompleteReason || responseStatus || "response truncated",
+            reason: retryReason,
             previousResponseCharacterCount: responseText.length,
             retryLimit: 1,
+          });
+          appendAiDebugEntry(`${debugLabel} validation retry`, {
+            mode: "assessor",
+            reason: retryReason,
+            "previous response chars": responseText.length,
+            "retry limit": 1,
           });
 
           responsePayload = await withCheckResponseTiming("AI assessment retry", () => callTextModel(prompt, {
@@ -4878,8 +4890,21 @@ END_REVIEW>>>`;
           }));
 
           responseText = String(responsePayload?.content || "");
-          getAssessorDecisionModule().parseAssessmentResponse(responseText);
-          return responseText;
+          try {
+            parseAndValidateAssessorDecision(responseText, attemptCount);
+            return responseText;
+          } catch (retryError) {
+            appendCheckResponseDebug("AI assessment validation failed", {
+              reason: retryError?.message || String(retryError),
+              responseCharacterCount: responseText.length,
+            });
+            appendAiDebugEntry(`${debugLabel} validation failed`, {
+              mode: "assessor",
+              error: retryError?.message || String(retryError),
+              "response chars": responseText.length,
+            });
+            throw retryError;
+          }
         }
       };
 
@@ -5320,7 +5345,10 @@ END_REVIEW>>>`;
             `Recording upload (question ${questionNumber}, attempt ${attemptNumber})`,
             () => withCheckResponseTiming("Recording upload", () => sendRecordingOnEvaluate(attemptNumber, questionNumber))
           );
-          const responseText = await evaluateAssessorPrompt(prompt, { debugLabel: "Check Response" });
+          const responseText = await evaluateAssessorPrompt(prompt, {
+            debugLabel: "Check Response",
+            attemptCount: currentAttempts,
+          });
           appendCheckResponseDebug("AI response parsed", {
             responseCharacterCount: responseText.length,
           });
