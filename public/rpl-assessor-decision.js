@@ -871,6 +871,7 @@ ${JSON.stringify(payload, null, 2)}`;
   return {
     STATUS_LIKELY_SUFFICIENT,
     STATUS_ADDITIONAL_EVIDENCE,
+    buildAssessmentPayload,
     buildAssessmentPrompt,
     buildDeepseekAssessmentPrompt,
     parseAssessmentResponse,

@@ -8,6 +8,7 @@ const server = fs.readFileSync(path.join(root, "server.js"), "utf8");
 const livePage = fs.readFileSync(path.join(root, "public", "AAMC RPL 2026.html"), "utf8");
 const q3Page = fs.readFileSync(path.join(root, "public", "AAMC RPL 2026 Q3.html"), "utf8");
 const autoTesterPage = fs.readFileSync(path.join(root, "public", "AAMC RPL 2026 Q3 Auto Tester.html"), "utf8");
+const assessorDecision = require("../public/rpl-assessor-decision");
 
 test("server builds assessor Responses API requests from existing RPL_ASSESSOR settings", () => {
   assert.match(server, /RPL_ASSESSOR_AZURE__REASONING_EFFORT/);
@@ -21,6 +22,7 @@ test("server builds assessor Responses API requests from existing RPL_ASSESSOR s
 });
 
 test("live page sends dynamic assessment data separately without sampling parameters", () => {
+  assert.equal(typeof assessorDecision.buildAssessmentPayload, "function");
   const assessorRequest = livePage.match(/const requestBody = isAssessmentRequest([\s\S]*?)const requestHeaders/);
   assert.ok(assessorRequest);
   assert.match(assessorRequest[1], /assessmentPayload: prompt/);
@@ -30,6 +32,14 @@ test("live page sends dynamic assessment data separately without sampling parame
   assert.match(livePage, /entry\.attempts\.push\(attemptRecord\);[\s\S]*?evaluateAssessorPrompt/);
   assert.match(livePage, /The automated preliminary assessment was unavailable\. Assessor review is required\./);
   assert.match(livePage, /setAttemptLockState\(true\);[\s\S]*?nextDisabled: false, evaluateDisabled: true/);
+});
+
+test("technical assessment failures are not exported as likely sufficient", () => {
+  const statusHelper = livePage.match(/const getOverallAssessment = \(feedback\) => \{([\s\S]*?)\n      \};/);
+  assert.ok(statusHelper);
+  assert.match(statusHelper[1], /automated preliminary assessment was unavailable/);
+  assert.match(statusHelper[1], /response has been recorded and will be provided to the assessor for review/);
+  assert.match(statusHelper[1], /return "";\s*$/);
 });
 
 test("Q3 and Auto Tester inherit the current live application source", () => {

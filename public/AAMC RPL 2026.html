@@ -1873,6 +1873,12 @@
       const getOverallAssessment = (feedback) => {
         if (!feedback) return "";
         const normalized = feedback.toLowerCase();
+        if (
+          normalized.includes("automated preliminary assessment was unavailable") ||
+          normalized.includes("response has been recorded and will be provided to the assessor for review")
+        ) {
+          return "";
+        }
         const explicitAssessmentMatch = normalized.match(/(?:preliminary status|overall assessment|final evaluation|evaluation)\s*:\s*(additional evidence may be needed|likely sufficient|unsatisfactory|satisfactory|needs more info|needs more information)/i);
         if (explicitAssessmentMatch) {
           const value = explicitAssessmentMatch[1];
@@ -1902,7 +1908,7 @@
         if (normalized.includes("proceed to the next question") || normalized.includes("sufficient")) {
           return ASSESSMENT_LIKELY_SUFFICIENT;
         }
-        return ASSESSMENT_LIKELY_SUFFICIENT;
+        return "";
       };
 
       const getTranscriptOverallAssessment = (feedback, attemptCount = 0) => {

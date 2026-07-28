@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const promptPack = require("../public/rpl-prompt-pack-v3");
+const assessorDecision = require("../public/rpl-assessor-decision");
 
 const transcriptPath = process.env.RPL_TRANSCRIPT_FIXTURE_PATH || "";
 
@@ -13,7 +14,8 @@ if (!transcriptPath) {
     assert.ok(Array.isArray(transcript.questions));
     assert.ok(transcript.questions.length > 0);
 
-    const payloads = transcript.questions.map((question) => promptPack.normaliseAssessmentPayload({
+    assert.equal(typeof assessorDecision.buildAssessmentPayload, "function");
+    const payloads = transcript.questions.map((question) => assessorDecision.buildAssessmentPayload({
       candidateMetadata: transcript.candidate || {},
       question,
       attempts: question.attempts || [],
