@@ -94,3 +94,50 @@ test("normalises JSON strings returned by Power Automate", () => {
   });
   assert.equal(persistence.normalizeAttemptRecords([JSON.stringify(record)]).length, 1);
 });
+
+test("treats new-student baseline markers as having no resume evidence", () => {
+  assert.equal(persistence.hasMeaningfulResumeEvidence({
+    recordCount: 0,
+    transcriptText: "No Transcript\r\n",
+    currentQuestion: "1",
+    currentAttempt: "1",
+  }), false);
+});
+
+test("does not treat blank guidance-independent state as resume evidence", () => {
+  assert.equal(persistence.hasMeaningfulResumeEvidence({
+    transcriptText: "",
+    currentQuestion: "1",
+    currentAttempt: "1",
+  }), false);
+});
+
+test("recognises each supported form of genuine resume evidence", () => {
+  assert.equal(persistence.hasMeaningfulResumeEvidence({
+    recordCount: 1,
+    transcriptText: "No Transcript",
+    currentQuestion: "1",
+    currentAttempt: "1",
+  }), true);
+  assert.equal(persistence.hasMeaningfulResumeEvidence({
+    recordCount: 0,
+    transcriptText: "Question 1\nStudent: A real answer",
+    currentQuestion: "1",
+    currentAttempt: "1",
+  }), true);
+  assert.equal(persistence.hasMeaningfulResumeEvidence({
+    transcriptText: "No Transcript",
+    currentQuestion: "2",
+    currentAttempt: "1",
+  }), true);
+  assert.equal(persistence.hasMeaningfulResumeEvidence({
+    transcriptText: "No Transcript",
+    currentQuestion: "1",
+    currentAttempt: "2",
+  }), true);
+  assert.equal(persistence.hasMeaningfulResumeEvidence({
+    transcriptText: "No Transcript",
+    currentQuestion: "xxx",
+    currentAttempt: "1",
+  }), true);
+});

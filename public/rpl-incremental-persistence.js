@@ -16,6 +16,31 @@
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
   };
 
+  const isPlaceholderTranscript = (value) => {
+    const normalized = asText(value)
+      .trim()
+      .toLowerCase()
+      .replace(/[.!]+$/g, "")
+      .trim();
+    return !normalized || normalized === "no transcript";
+  };
+
+  const hasMeaningfulResumeEvidence = ({
+    recordCount,
+    transcriptText,
+    currentQuestion,
+    currentAttempt,
+  } = {}) => {
+    const normalizedQuestion = asText(currentQuestion).trim().toLowerCase();
+    if (normalizedQuestion === "xxx") return true;
+    if (asPositiveInteger(recordCount, 0) > 0) return true;
+    if (!isPlaceholderTranscript(transcriptText)) return true;
+
+    const questionNumber = asPositiveInteger(currentQuestion, 1);
+    const attemptNumber = asPositiveInteger(currentAttempt, 1);
+    return questionNumber > 1 || attemptNumber > 1;
+  };
+
   const sanitizeFilePart = (value, fallback) => {
     const cleaned = asText(value)
       .replace(/[\u0000-\u001f"*:<>?/\\|#%]/g, "-")
@@ -219,6 +244,8 @@
   return {
     VERSION,
     buildAttemptEnvelope,
+    hasMeaningfulResumeEvidence,
+    isPlaceholderTranscript,
     makeAttemptFileName,
     mergeAttemptRecords,
     normalizeAttemptRecords,
