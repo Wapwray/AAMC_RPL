@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>RPL Emailer V0.2</title>
+    <title>RPL Emailer V0.3</title>
     <style>
       html,
       body {
@@ -165,6 +165,31 @@
         gap: 10px;
       }
 
+      .studentStorageStatus {
+        display: none;
+        margin-top: 14px;
+        padding: 14px;
+        border: 1px solid #93c5fd;
+        border-radius: 10px;
+        background: #eff6ff;
+        color: #0f172a;
+        text-align: center;
+      }
+
+      .studentStorageStatus.visible {
+        display: grid;
+        gap: 4px;
+      }
+
+      .studentStorageStatus strong {
+        font-size: 16px;
+      }
+
+      .studentStorageStatus span {
+        color: #475569;
+        font-size: 14px;
+      }
+
       .managedStaffPanel {
         margin-top: 18px;
         border: 1px solid #d8e3ee;
@@ -304,7 +329,7 @@
   </head>
   <body>
     <main class="card">
-      <h1>RPL Emailer V0.2</h1>
+      <h1>RPL Emailer V0.3</h1>
       <p class="subtitle">Enter a student Contact ID from Axcelerate and submit to fetch the student details.</p>
 
       <form id="emailerForm" class="formRow">
@@ -324,7 +349,17 @@
         <div id="responseData" class="studentDetails">No response yet.</div>
         <div class="confirmActions">
           <button id="yesBtn" class="primary" type="button">Yes</button>
-          <button class="secondary" type="button">No</button>
+          <button id="noBtn" class="secondary" type="button">No</button>
+        </div>
+        <div
+          id="studentStorageStatus"
+          class="studentStorageStatus"
+          role="status"
+          aria-live="assertive"
+          aria-hidden="true"
+        >
+          <strong>Preparing Student Storage Area</strong>
+          <span>Please Wait</span>
         </div>
       </section>
 
@@ -578,6 +613,8 @@
       const assessorPanelEl = document.getElementById("assessorPanel");
       const managedStaffPanelEl = document.getElementById("managedStaffPanel");
       const yesBtnEl = document.getElementById("yesBtn");
+      const noBtnEl = document.getElementById("noBtn");
+      const studentStorageStatusEl = document.getElementById("studentStorageStatus");
       const managedStaffYesEl = document.querySelector("input[name='managedStaff'][value='yes']");
       const managedStaffNoEl = document.querySelector("input[name='managedStaff'][value='no']");
       const assessorAssignmentAssignedEl = document.querySelector("input[name='assessorAssignment'][value='assigned']");
@@ -594,6 +631,14 @@
         if (kind) {
           statusEl.classList.add(kind);
         }
+      };
+
+      const setStudentStoragePreparing = (isPreparing) => {
+        studentStorageStatusEl.classList.toggle("visible", isPreparing);
+        studentStorageStatusEl.setAttribute("aria-hidden", String(!isPreparing));
+        responsePanelEl.setAttribute("aria-busy", String(isPreparing));
+        yesBtnEl.disabled = isPreparing;
+        noBtnEl.disabled = isPreparing;
       };
 
       const resetAssessorAndEmailState = () => {
@@ -637,8 +682,8 @@
           jobTitle: "",
         };
 
-        setStatus("Saving student details...", "");
-        yesBtnEl.disabled = true;
+        setStatus("", "");
+        setStudentStoragePreparing(true);
 
         try {
           const response = await fetch(ASSESSMENT_COMPLETED_WEBHOOK_URL, {
@@ -659,7 +704,7 @@
           setStatus("Unable to save student details.", "error");
           return;
         } finally {
-          yesBtnEl.disabled = false;
+          setStudentStoragePreparing(false);
         }
 
         resetAssessorAndEmailState();
