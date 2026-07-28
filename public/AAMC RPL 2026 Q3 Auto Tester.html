@@ -135,10 +135,21 @@
       const SOURCE_FILE = "AAMC RPL 2026.html";
       const SESSION_JSON_KEY = "rpl_auto_tester_uploaded_json";
       const RUNTIME_VERSION = "1.9";
+      const WELCOME_VERSION = "V2.1";
 
-      const replaceOnce = (text, matcher, replacement) => {
-        const next = text.replace(matcher, replacement);
-        return next;
+      const replaceIfPresent = (text, matcher, replacement) => {
+        if (!matcher.test(text)) {
+          return text;
+        }
+        return text.replace(matcher, replacement);
+      };
+
+      const resolveSourceUrl = () => {
+        try {
+          return new URL(SOURCE_FILE, window.location.href).toString();
+        } catch (error) {
+          return SOURCE_FILE;
+        }
       };
 
       const setBootStatus = (message) => {
@@ -149,7 +160,7 @@
       const boot = async () => {
         try {
           setBootStatus("Opening Auto Tester page...");
-          const target = new URL(SOURCE_FILE, window.location.href);
+          const target = new URL(resolveSourceUrl());
           const current = new URL(window.location.href);
           ["fullName", "givenName", "contactId"].forEach((name) => {
             const value = current.searchParams.get(name);
@@ -178,15 +189,15 @@
       const removeDebugFunctions = (html) => {
         let next = html;
 
-        next = replaceOnce(
+        next = replaceIfPresent(
           next,
-          /const clearCheckResponseDebug = \(message = "Waiting for Check Response\.\.\."\) => \{[\s\S]*?\n      \};\n\n      const appendCheckResponseDebug = \(label, payload\) => \{[\s\S]*?\n      \};/,
+          /const clearCheckResponseDebug = \(message = "Waiting for Check Response\.\.\."\) => \{[\s\S]*?\n\s*};\n\s*const appendCheckResponseDebug = \(label, payload\) => \{[\s\S]*?\n\s*};/m,
           'const clearCheckResponseDebug = () => {};\n\n      const appendCheckResponseDebug = () => {};'
         );
 
-        next = replaceOnce(
+        next = replaceIfPresent(
           next,
-          /const withCheckResponseTiming = async \(label, task\) => \{[\s\S]*?\n      \};/,
+          /const withCheckResponseTiming = async \(label, task\) => \{[\s\S]*?\n\s*};/m,
           'const withCheckResponseTiming = async (_label, task) => task();'
         );
 
@@ -221,22 +232,31 @@
         return { items: [], error: "Unsupported listitems payload shape." };
       };`;
 
-        return replaceOnce(
-          html,
-          /const parseListItems = \(json\) => \{[\s\S]*?\n      \};/,
-          replacement
-        );
+        const existingPattern = /const parseListItems = \(json\) => \{[\s\S]*?\n\s*};/m;
+        if (existingPattern.test(html)) {
+          return html.replace(existingPattern, replacement);
+        }
+
+        const anchorPattern = /const fetchCurrentQuestionFromWebhook = async \(\) => \{/;
+        const match = html.match(anchorPattern);
+        if (!match || match.index === undefined) {
+          return html;
+        }
+
+        return `${html.slice(0, match.index)}${replacement}\n\n${html.slice(match.index)}`;
       };
 
       const patchTimeouts = (html) => {
         let next = html;
 
-        next = next.replace(
+        next = replaceIfPresent(
+          next,
           /const response = await fetch\(questionsUrl, \{\n\s*method: "POST",\n\s*headers: \{ "Content-Type": "application\/json" \},\n\s*\}\);/,
           'const response = await fetchWithTimeout(questionsUrl, {\n          method: "POST",\n          headers: { "Content-Type": "application/json" },\n        }, 25000);'
         );
 
-        next = next.replace(
+        next = replaceIfPresent(
+          next,
           /const response = await fetch\(url, \{\n\s*method: "POST",\n\s*headers: \{ "Content-Type": "application\/json" \},\n\s*body: JSON\.stringify\(payload\),\n\s*\}\);/g,
           'const response = await fetchWithTimeout(url, {\n            method: "POST",\n            headers: { "Content-Type": "application/json" },\n            body: JSON.stringify(payload),\n          }, 30000);'
         );
@@ -245,15 +265,18 @@
       };
 
       const patchTitle = (html) => {
-        let next = html.replace(/<title>[\s\S]*?<\/title>/, "<title>AAMC RPL Quiz - Q3 Auto Tester</title>");
+        let next = html.replace(/<title>[\s\S]*?<\/title>/i, "<title>AAMC RPL Quiz - Q3 Auto Tester</title>");
         next = next.replace(/AAMC RPL Quiz - V1\.0/g, "AAMC RPL Quiz - V1.9 Auto Tester");
         next = next.replace(/AAMC RPL Quiz - V1\.7/g, "AAMC RPL Quiz - V1.9 Auto Tester");
         next = next.replace(/V3\.0-Ornith/g, "V1.9 Auto Tester");
+        next = next.replace(/V2\.0/g, WELCOME_VERSION);
+        next = next.replace(/V2\.1/g, WELCOME_VERSION);
         return next;
       };
 
       const patchResponseClearOnAttempt = (html) => {
-        return html.replace(
+        return replaceIfPresent(
+          html,
           /currentAttempts \+= 1;\n\s*currentResponses\.push\(answer\);\n\s*const currentQuestion = questions\[currentIndex\];/,
           'currentAttempts += 1;\n        currentResponses.push(answer);\n        answerInputEl.value = "";\n        const currentQuestion = questions[currentIndex];'
         );
@@ -262,12 +285,14 @@
       const patchTranscriptPayloads = (html) => {
         let next = html;
 
-        next = next.replace(
+        next = replaceIfPresent(
+          next,
           /FullTranscript: fullTranscript,\n\s*FullTranscriptJSON: buildFullTranscriptJson\(\),/,
           'FullTranscript: buildFullTranscript(),\n          FullTranscriptJson: buildFullTranscriptJson(),\n          FullTranscriptJSON: buildFullTranscriptJson(),'
         );
 
-        next = next.replace(
+        next = replaceIfPresent(
+          next,
           /FullTranscript: fullTranscript \|\| buildFullTranscript\(\),\n\s*FullTranscriptJson: buildFullTranscriptJson\(\),/,
           'FullTranscript: buildFullTranscript(),\n              FullTranscriptJson: buildFullTranscriptJson(),\n              FullTranscriptJSON: buildFullTranscriptJson(),'
         );
@@ -276,8 +301,21 @@
       };
 
       const removeDebugSectionStyles = (html) => {
-        return html
-          .replace(/\.checkResponseDebug\s*\{[\s\S]*?\}\s*\.checkResponseDebugHeader\s*\{[\s\S]*?\}\s*\.checkResponseDebugHeader button\s*\{[\s\S]*?\}\s*\.checkResponseDebugLog\s*\{[\s\S]*?\}/, "");
+        return html.replace(/\.checkResponseDebug\s*\{[\s\S]*?\}\s*\.checkResponseDebugHeader\s*\{[\s\S]*?\}\s*\.checkResponseDebugHeader button\s*\{[\s\S]*?\}\s*\.checkResponseDebugLog\s*\{[\s\S]*?\}/, "");
+      };
+
+      const verifyTransformedHtml = (html) => {
+        const required = [
+          { label: "welcome screen", pattern: /<div id="welcomeScreen"/ },
+          { label: "fetch timeout helper", pattern: /const fetchWithTimeout/ },
+          { label: "list parser", pattern: /const parseListItems/ },
+          { label: "transcript builder", pattern: /const buildFullTranscriptJson/ }
+        ];
+
+        const missing = required.filter((entry) => !entry.pattern.test(html)).map((entry) => entry.label);
+        if (missing.length) {
+          throw new Error(`Transformed page is missing required content: ${missing.join(", ")}`);
+        }
       };
 
       const wireBootGate = () => {
