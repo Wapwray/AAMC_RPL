@@ -396,6 +396,58 @@
         line-height: 1.6;
         color: var(--text);
       }
+      .preferredTimesForm {
+        width: min(640px, 100%);
+        display: grid;
+        gap: 14px;
+        margin-top: 8px;
+        text-align: left;
+      }
+      .preferredTimesGrid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+      }
+      .preferredTimeField {
+        display: grid;
+        gap: 6px;
+      }
+      .preferredTimeField label {
+        font-weight: 700;
+        color: #0f172a;
+      }
+      .preferredTimeField input {
+        width: 100%;
+        box-sizing: border-box;
+      }
+      .preferredTimesHelp,
+      .preferredTimesStatus {
+        margin: 0;
+        text-align: center;
+        line-height: 1.5;
+      }
+      .preferredTimesHelp {
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .preferredTimesStatus {
+        min-height: 24px;
+        font-weight: 600;
+      }
+      .preferredTimesStatus.error {
+        color: #b91c1c;
+      }
+      .preferredTimesStatus.success {
+        color: #166534;
+      }
+      .preferredTimesForm button {
+        justify-self: center;
+      }
+      @media (max-width: 680px) {
+        .preferredTimesGrid {
+          grid-template-columns: 1fr;
+        }
+      }
       .appDisclaimerFooter {
         position: fixed;
         left: 24px;
@@ -761,7 +813,7 @@
           src="/RPL%20Bot%20Artwork/2024_logo_black_transparent_outline_HRES.png"
           alt="AAMC Training Group"
         />
-        <div id="welcomeVersionBadge" class="welcomeVersionBadge">V2.4</div>
+        <div id="welcomeVersionBadge" class="welcomeVersionBadge">V2.5</div>
 
         <div class="welcomeContent">
           <div class="welcomeTitle" id="welcomeTitle">Initialising</div>
@@ -792,8 +844,24 @@
         <div class="completionContent">
           <div class="completionTitle" id="completionTitle">Thank you for completing your assessment</div>
           <div class="completionBody" id="completionBody">
-            A qualified assessor will review your evidence and contact you if needed. You can now close this window.
+            A qualified assessor will review your evidence.<br />
+            You need to provide two possible times for a follow up meeting to take place.
           </div>
+          <form id="preferredTimesForm" class="preferredTimesForm" novalidate>
+            <div class="preferredTimesGrid">
+              <div class="preferredTimeField">
+                <label for="firstChoiceDateTime">First choice</label>
+                <input id="firstChoiceDateTime" type="datetime-local" step="1800" required />
+              </div>
+              <div class="preferredTimeField">
+                <label for="secondChoiceDateTime">Second choice</label>
+                <input id="secondChoiceDateTime" type="datetime-local" step="1800" required />
+              </div>
+            </div>
+            <p id="preferredTimesHelp" class="preferredTimesHelp"></p>
+            <p id="preferredTimesStatus" class="preferredTimesStatus" role="status" aria-live="polite"></p>
+            <button id="submitPreferredTimesBtn" type="submit">Submit Times</button>
+          </form>
         </div>
       </div>
 
@@ -1002,6 +1070,7 @@
     <script src="rpl-assessor-decision.js"></script>
     <script src="rpl-final-report-generator.js"></script>
     <script src="rpl-incremental-persistence.js"></script>
+    <script src="rpl-preferred-interview-times.js"></script>
     <script>
       // Power Automate webhook URLs - centralized config for easier maintenance
       const WEBHOOK_URLS = {
@@ -1023,7 +1092,8 @@
         finalQuestionStateSync: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/15/workflows/05213948a65042d7bbfb8470a0c04b0d/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=9XshmksZWhOMX-LSfQO1Ug9nbFYC49WIER7OXrjEFNs",
         incrementalAttempt: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/28/workflows/4dc22da25c9b4c7c9ffa6086bfed5370/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=TLlkzIb9lQX6P_JG3-J3uznbrHqjphreAUcG29FbwMA",
         incrementalResume: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/24/workflows/ed154d71deeb46aabf5093fa4f9e2fb4/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=EKqvr517dUCSe6kypFMjO5yiaX47QrBBQ6FNNqFLBZY",
-        finalReconstitution: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/21/workflows/0a9753b6f5ac4f9f9164321f26c50536/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=dssBXFJLkcyseWV0KIsyUqbkFuhXPy0elXsH9Oh15ds"
+        finalReconstitution: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/21/workflows/0a9753b6f5ac4f9f9164321f26c50536/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=dssBXFJLkcyseWV0KIsyUqbkFuhXPy0elXsH9Oh15ds",
+        preferredInterviewTimes: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/22/workflows/d877737f717c48f2a9e7b2e6a0c2c58b/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=ONULbfKNVBPMSZN9rTCv3kCUY4tJLeS97VijJVjsVa8"
       };
 
       const getWebhookUrl = (key) => WEBHOOK_URLS[key] || "";
@@ -1040,6 +1110,7 @@
       const INCREMENTAL_ATTEMPT_WEBHOOK_URL = WEBHOOK_URLS.incrementalAttempt;
       const INCREMENTAL_RESUME_WEBHOOK_URL = WEBHOOK_URLS.incrementalResume;
       const FINAL_RECONSTITUTION_WEBHOOK_URL = WEBHOOK_URLS.finalReconstitution;
+      const PREFERRED_INTERVIEW_TIMES_WEBHOOK_URL = WEBHOOK_URLS.preferredInterviewTimes;
       const STARTUP_WEBHOOK_TIMEOUT_MS = 12000;
       const TRANSCRIPT_VERIFY_DELAYS_MS = [500, 1000, 1500, 2500, 4000, 6000];
 
@@ -1069,6 +1140,12 @@
       const completionScreenEl = document.getElementById("completionScreen");
       const completionTitleEl = document.getElementById("completionTitle");
       const completionBodyEl = document.getElementById("completionBody");
+      const preferredTimesFormEl = document.getElementById("preferredTimesForm");
+      const firstChoiceDateTimeEl = document.getElementById("firstChoiceDateTime");
+      const secondChoiceDateTimeEl = document.getElementById("secondChoiceDateTime");
+      const preferredTimesHelpEl = document.getElementById("preferredTimesHelp");
+      const preferredTimesStatusEl = document.getElementById("preferredTimesStatus");
+      const submitPreferredTimesBtn = document.getElementById("submitPreferredTimesBtn");
       const welcomeTitleEl = document.getElementById("welcomeTitle");
       const welcomeBodyEl = document.getElementById("welcomeBody");
       const welcomeContinueBtn = document.getElementById("welcomeContinueBtn");
@@ -1212,7 +1289,9 @@
       let nextQuestionInFlight = false;
       let isUiLocked = false;
       let hintOpen = false;
-      const DEFAULT_FOOTER_TEXT = "AI-assisted evidence collection only. A qualified assessor will review your responses and make the assessment decision. V2.4";
+      let preferredTimesEarliest = null;
+      let preferredTimesSubmitted = false;
+      const DEFAULT_FOOTER_TEXT = "AI-assisted evidence collection only. A qualified assessor will review your responses and make the assessment decision. V2.5";
       const FINAL_FOOTER_TEXT = "Submitting your responses does not guarantee RPL. A qualified assessor will review your evidence and determine the outcome.";
       const NEXT_QUESTION_DISPLAY_SUFFIX = "Please press the Next Question button to continue.";
       const NEXT_QUESTION_DISPLAY_SIGNAL = "press the next question button to continue";
@@ -2374,6 +2453,57 @@
         appFooterDisclaimerEl.textContent = isFinalScreen ? FINAL_FOOTER_TEXT : DEFAULT_FOOTER_TEXT;
       };
 
+      const getPreferredTimesModule = () => {
+        if (!window.RplPreferredInterviewTimes) {
+          throw new Error("Preferred interview-time validation is unavailable.");
+        }
+        return window.RplPreferredInterviewTimes;
+      };
+
+      const setPreferredTimesStatus = (message = "", type = "") => {
+        if (!preferredTimesStatusEl) return;
+        preferredTimesStatusEl.textContent = message;
+        preferredTimesStatusEl.classList.toggle("error", type === "error");
+        preferredTimesStatusEl.classList.toggle("success", type === "success");
+      };
+
+      const getCourseName = () => {
+        let suppliedCourseName = "";
+        try {
+          const params = new URLSearchParams(window.location?.search || "");
+          suppliedCourseName = pickFirstValue(
+            params.get("courseName"),
+            params.get("CourseName"),
+            params.get("qualification")
+          );
+        } catch {}
+        return suppliedCourseName
+          || getReportCandidateMetadata().qualification
+          || "FNS50322 Diploma of Finance and Mortgage Broking Management";
+      };
+
+      const initialisePreferredTimesForm = (completedAt = new Date()) => {
+        if (!preferredTimesFormEl || preferredTimesSubmitted) return;
+        const preferredTimes = getPreferredTimesModule();
+        preferredTimesEarliest = preferredTimes.getEarliestPreferredDateTime(completedAt);
+        const minimumValue = preferredTimes.toDateTimeLocalValue(preferredTimesEarliest);
+        [firstChoiceDateTimeEl, secondChoiceDateTimeEl].forEach((input) => {
+          if (!input) return;
+          input.min = minimumValue;
+          input.disabled = false;
+        });
+        if (preferredTimesHelpEl) {
+          preferredTimesHelpEl.textContent =
+            `Choose two different Monday–Friday times between 9:00 am and 5:00 pm. ` +
+            `The earliest available time is ${preferredTimes.formatLocalDateTime(preferredTimesEarliest)}.`;
+        }
+        if (submitPreferredTimesBtn) {
+          submitPreferredTimesBtn.disabled = false;
+          submitPreferredTimesBtn.textContent = "Submit Times";
+        }
+        setPreferredTimesStatus();
+      };
+
       const showCompletionScreen = () => {
         const ctx = getStudentContext();
         const givenName = ctx.givenName || ctx.fullName || "";
@@ -2382,13 +2512,93 @@
           completionTitleEl.textContent = `Thank you ${givenName}. Your responses have been submitted.`;
         }
         if (completionBodyEl) {
-          completionBodyEl.textContent = "A qualified assessor will review your evidence and contact you if needed. You can now close this window.";
+          completionBodyEl.innerHTML =
+            "A qualified assessor will review your evidence.<br>" +
+            "You need to provide two possible times for a follow up meeting to take place.";
         }
+        initialisePreferredTimesForm(resumeIncrementalState?.latestSavedAtUtc || new Date());
         if (finalisingOverlayEl) finalisingOverlayEl.classList.add("hidden");
         if (postWelcomePageEl) postWelcomePageEl.classList.add("hidden");
         if (welcomeScreenEl) welcomeScreenEl.classList.add("hidden");
         if (completionScreenEl) completionScreenEl.classList.remove("hidden");
       };
+
+      preferredTimesFormEl?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (preferredTimesSubmitted) return;
+
+        const preferredTimes = getPreferredTimesModule();
+        const validation = preferredTimes.validatePreferredChoices({
+          firstChoice: firstChoiceDateTimeEl?.value,
+          secondChoice: secondChoiceDateTimeEl?.value,
+          earliest: preferredTimesEarliest || preferredTimes.getEarliestPreferredDateTime(new Date()),
+        });
+        if (!validation.valid) {
+          setPreferredTimesStatus(validation.message, "error");
+          const target = validation.field === "first" ? firstChoiceDateTimeEl : secondChoiceDateTimeEl;
+          target?.focus();
+          return;
+        }
+
+        const ctx = getStudentContext();
+        const submittedAt = new Date();
+        const payload = {
+          FullName: ctx.fullName,
+          ContactID: String(ctx.contactId || ""),
+          CourseName: getCourseName(),
+          SubmittedAt: preferredTimes.formatLocalDateTime(submittedAt),
+          FirstChoiceDateTime: preferredTimes.formatLocalDateTime(firstChoiceDateTimeEl.value),
+          SecondChoiceDateTime: preferredTimes.formatLocalDateTime(secondChoiceDateTimeEl.value),
+        };
+
+        if (submitPreferredTimesBtn) {
+          submitPreferredTimesBtn.disabled = true;
+          submitPreferredTimesBtn.textContent = "Submitting...";
+        }
+        [firstChoiceDateTimeEl, secondChoiceDateTimeEl].forEach((input) => {
+          if (input) input.disabled = true;
+        });
+        setPreferredTimesStatus("Submitting your preferred times...");
+
+        try {
+          const response = await fetchWithTimeout(PREFERRED_INTERVIEW_TIMES_WEBHOOK_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          }, 30000);
+          const responseText = await response.text();
+          if (!response.ok) {
+            throw new Error(
+              `Preferred interview times could not be submitted (${response.status}) ${response.statusText}`.trim()
+            );
+          }
+          preferredTimesSubmitted = true;
+          setPreferredTimesStatus(
+            "Thank you. Your preferred times have been submitted. You can now close this window.",
+            "success"
+          );
+          if (submitPreferredTimesBtn) {
+            submitPreferredTimesBtn.textContent = "Times Submitted";
+          }
+          logAssessmentDebug("Preferred interview times submitted", {
+            status: response.status,
+            response: responseText || "Success",
+          });
+        } catch (error) {
+          setPreferredTimesStatus(
+            error?.message || "Unable to submit your preferred times. Please try again.",
+            "error"
+          );
+          if (submitPreferredTimesBtn) {
+            submitPreferredTimesBtn.disabled = false;
+            submitPreferredTimesBtn.textContent = "Submit Times";
+          }
+          [firstChoiceDateTimeEl, secondChoiceDateTimeEl].forEach((input) => {
+            if (input) input.disabled = false;
+          });
+          logAssessmentDebug("Preferred interview times error", error?.message || String(error));
+        }
+      });
 
       const showFinalisingOverlay = () => {
         if (finalisingOverlayEl) finalisingOverlayEl.classList.remove("hidden");
