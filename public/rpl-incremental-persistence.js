@@ -170,6 +170,7 @@
     let candidate = {};
     let latestState = {};
     let latestSavedAt = -1;
+    let latestSavedAtUtc = "";
 
     records.forEach(({ record, order }) => {
       if (record.candidate && typeof record.candidate === "object") {
@@ -220,6 +221,7 @@
 
       if (order.savedAt >= latestSavedAt) {
         latestSavedAt = order.savedAt;
+        latestSavedAtUtc = asText(record.savedAtUtc);
         latestState = { ...(record.state || {}) };
       }
     });
@@ -237,6 +239,7 @@
       currentQuestion: asText(latestState.currentQuestion),
       currentAttempt: asText(latestState.currentAttempt),
       guidanceWindow: latestState.guidanceWindow ?? "",
+      latestSavedAtUtc,
       recordCount: records.length,
     };
   };

@@ -83,6 +83,7 @@ test("merges independently saved attempts and AI log deltas deterministically", 
   assert.equal(merged.transcriptQuestions[0].overallAssessment, "LIKELY SUFFICIENT");
   assert.equal(merged.aiPerformanceEntries.length, 2);
   assert.equal(merged.currentAttempt, "2");
+  assert.equal(merged.latestSavedAtUtc, "2026-07-28T01:03:00.000Z");
 });
 
 test("normalises JSON strings returned by Power Automate", () => {

@@ -98,9 +98,23 @@ test("new-student placeholders do not trigger the existing-session route", () =>
   );
 });
 
-test("all three app variants expose the requested V2.4 release", () => {
-  assert.match(livePage, /welcomeVersionBadge">V2\.4</);
-  assert.match(q3Page, /const WELCOME_VERSION = "V2\.4"/);
-  assert.match(autoTesterPage, /const WELCOME_VERSION = "V2\.4"/);
+test("completion requires two validated preferred interview times", () => {
+  assert.match(livePage, /id="firstChoiceDateTime" type="datetime-local"/);
+  assert.match(livePage, /id="secondChoiceDateTime" type="datetime-local"/);
+  assert.match(livePage, /id="submitPreferredTimesBtn" type="submit">Submit Times/);
+  assert.match(livePage, /validatePreferredChoices\(\{/);
+  assert.match(livePage, /FullName: ctx\.fullName/);
+  assert.match(livePage, /ContactID: String\(ctx\.contactId \|\| ""\)/);
+  assert.match(livePage, /CourseName: getCourseName\(\)/);
+  assert.match(livePage, /SubmittedAt: preferredTimes\.formatLocalDateTime\(submittedAt\)/);
+  assert.match(livePage, /FirstChoiceDateTime:/);
+  assert.match(livePage, /SecondChoiceDateTime:/);
+  assert.match(livePage, /PREFERRED_INTERVIEW_TIMES_WEBHOOK_URL/);
+});
+
+test("all three app variants expose the requested V2.5 release", () => {
+  assert.match(livePage, /welcomeVersionBadge">V2\.5</);
+  assert.match(q3Page, /const WELCOME_VERSION = "V2\.5"/);
+  assert.match(autoTesterPage, /const WELCOME_VERSION = "V2\.5"/);
   assert.match(autoTesterPage, /const RUNTIME_VERSION = "2\.0"/);
 });

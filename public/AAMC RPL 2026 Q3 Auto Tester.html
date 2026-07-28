@@ -135,7 +135,7 @@
       const SOURCE_FILE = "AAMC RPL 2026.html";
       const SESSION_JSON_KEY = "rpl_auto_tester_uploaded_json";
       const RUNTIME_VERSION = "2.0";
-      const WELCOME_VERSION = "V2.4";
+      const WELCOME_VERSION = "V2.5";
 
       const replaceIfPresent = (text, matcher, replacement) => {
         if (!matcher.test(text)) {
@@ -274,6 +274,7 @@
         next = next.replace(/V2\.2/g, WELCOME_VERSION);
         next = next.replace(/V2\.3/g, WELCOME_VERSION);
         next = next.replace(/V2\.4/g, WELCOME_VERSION);
+        next = next.replace(/V2\.5/g, WELCOME_VERSION);
         return next;
       };
 
