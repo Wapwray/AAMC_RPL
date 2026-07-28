@@ -761,7 +761,7 @@
           src="/RPL%20Bot%20Artwork/2024_logo_black_transparent_outline_HRES.png"
           alt="AAMC Training Group"
         />
-        <div id="welcomeVersionBadge" class="welcomeVersionBadge">V2.2</div>
+        <div id="welcomeVersionBadge" class="welcomeVersionBadge">V2.3</div>
 
         <div class="welcomeContent">
           <div class="welcomeTitle" id="welcomeTitle">Initialising</div>
@@ -1212,7 +1212,7 @@
       let nextQuestionInFlight = false;
       let isUiLocked = false;
       let hintOpen = false;
-      const DEFAULT_FOOTER_TEXT = "AI-assisted evidence collection only. A qualified assessor will review your responses and make the assessment decision. V2.2";
+      const DEFAULT_FOOTER_TEXT = "AI-assisted evidence collection only. A qualified assessor will review your responses and make the assessment decision. V2.3";
       const FINAL_FOOTER_TEXT = "Submitting your responses does not guarantee RPL. A qualified assessor will review your evidence and determine the outcome.";
       const NEXT_QUESTION_DISPLAY_SUFFIX = "Please press the Next Question button to continue.";
       const NEXT_QUESTION_DISPLAY_SIGNAL = "press the next question button to continue";
@@ -5095,27 +5095,31 @@ END_REVIEW>>>`;
           return;
         }
 
-        if (lastPhotoDataUrl) {
-          const photoWebhookUrl = getWebhookUrl("createUserFolder");
+        if (!skipCollect) {
+          const structureWebhookUrl = getWebhookUrl("createUserFolder");
           try {
-            const contentType = "image/jpeg";
-            const base64Data = lastPhotoDataUrl.includes(",")
-              ? lastPhotoDataUrl.split(",")[1]
-              : lastPhotoDataUrl;
-            const payload = {
+            setStatus("Preparing your assessment...");
+            const structurePayload = {
               FullName: ctx.fullName,
               ContactID: String(ctx.contactId),
-              FileName: `${ctx.fullName} - ${ctx.contactId} - Photo`,
-              ContentType: contentType,
-              Base64Data: base64Data,
+              GivenName: ctx.givenName || fullName.split(" ").filter(Boolean)[0] || fullName,
+              Industry: industryValue,
+              jobTitle: jobValue,
             };
-            await fetch(photoWebhookUrl, {
+            const structureResponse = await fetch(structureWebhookUrl, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(payload),
+              body: JSON.stringify(structurePayload),
             });
+            const structureText = await structureResponse.text();
+            if (!structureResponse.ok) {
+              throw new Error(
+                `Student assessment setup failed (${structureResponse.status}) ${structureResponse.statusText}`.trim()
+              );
+            }
+            logAssessmentDebug("Student structure ready", structureText || "Ready");
           } catch (error) {
-            setStatus(error?.message || String(error));
+            setStatus(error?.message || "Unable to prepare the student assessment files. Please try again.");
             return;
           }
         }
