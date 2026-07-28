@@ -50,3 +50,37 @@ test("Q3 and Auto Tester inherit the current live application source", () => {
   assert.match(q3Page, /const SOURCE_FILE = "AAMC RPL 2026\.html"/);
   assert.match(autoTesterPage, /const SOURCE_FILE = "AAMC RPL 2026\.html"/);
 });
+
+test("attempt persistence sends compact records instead of full transcript files", () => {
+  assert.match(livePage, /<script src="rpl-incremental-persistence\.js"><\/script>/);
+  const compactSave = livePage.match(/const sendCurrentAttemptOnEvaluate = async \(([\s\S]*?)\n      \};\n\n      const sendFinalReconstitutionWebhook/);
+  assert.ok(compactSave);
+  assert.match(compactSave[0], /FileName: fileName/);
+  assert.match(compactSave[0], /AttemptRecord: incremental \? JSON\.stringify\(incremental\.envelope\) : ""/);
+  assert.doesNotMatch(compactSave[0], /FullTranscript|AI Performance Log/);
+  assert.match(livePage, /aiPerformanceLogEntries\.slice\(incrementalAiLogCursor, aiLogEnd\)/);
+  assert.match(livePage, /incrementalAiLogCursor = Math\.max/);
+});
+
+test("resume prefers compact attempt records and retains a legacy fallback", () => {
+  assert.match(livePage, /INCREMENTAL_RESUME_WEBHOOK_URL/);
+  assert.match(livePage, /mergeAttemptRecords\(attemptRecords\)/);
+  assert.match(livePage, /applyIncrementalResume\(\)/);
+  assert.match(livePage, /postResumeRequest\(RESUME_WEBHOOK_URL, `\$\{label\} legacy fallback`\)/);
+});
+
+test("canonical transcript and AI log files are reconstituted once at completion", () => {
+  const finalSave = livePage.match(/const sendFinalReconstitutionWebhook = async \(\) => \{([\s\S]*?)\n      \};/);
+  assert.ok(finalSave);
+  assert.match(finalSave[1], /FullTranscript: finalTranscript/);
+  assert.match(finalSave[1], /FullTranscriptJSON: finalTranscriptJson/);
+  assert.match(finalSave[1], /"AI Performance Log": finalAiLog/);
+  assert.match(livePage, /await sendFinalReconstitutionWebhook\(\);\s*await sendFinalQuestionCompletedWebhook\(\);/);
+});
+
+test("all three app variants expose the requested V2.2 release", () => {
+  assert.match(livePage, /welcomeVersionBadge">V2\.2</);
+  assert.match(q3Page, /const WELCOME_VERSION = "V2\.2"/);
+  assert.match(autoTesterPage, /const WELCOME_VERSION = "V2\.2"/);
+  assert.match(autoTesterPage, /const RUNTIME_VERSION = "2\.0"/);
+});
