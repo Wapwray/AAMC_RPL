@@ -11,10 +11,12 @@
   const SOURCE_ADDITIONAL_EVIDENCE = "ADDITIONAL EVIDENCE MAY BE NEEDED";
   const SHORT_LIKELY_SUFFICIENT = SOURCE_LIKELY_SUFFICIENT;
   const SHORT_ADDITIONAL_EVIDENCE = SOURCE_ADDITIONAL_EVIDENCE;
+  const SHORT_ASSESSOR_REVIEW_REQUIRED = "Assessor review required";
   const SHORT_NOT_AVAILABLE = "Not available in transcript";
   const SHORT_QUESTION_NOT_ASKED = "Question Not Asked";
   const FULL_LIKELY_SUFFICIENT = SOURCE_LIKELY_SUFFICIENT;
   const FULL_ADDITIONAL_EVIDENCE = SOURCE_ADDITIONAL_EVIDENCE;
+  const FULL_ASSESSOR_REVIEW_REQUIRED = "Assessor review required";
   const FULL_NOT_AVAILABLE = "Not available in transcript";
   const FULL_QUESTION_NOT_ASKED = "Question Not Asked";
   const REPORT_TYPE = "AI-generated preliminary interview review (not a final competency decision)";
@@ -210,6 +212,9 @@
     if (!text) return "";
     if (text.includes("question not asked")) return SHORT_QUESTION_NOT_ASKED;
     if (text.includes("not available in transcript")) return SHORT_NOT_AVAILABLE;
+    if (text.includes("assessor review required") || text.includes("automated preliminary assessment was unavailable")) {
+      return SHORT_ASSESSOR_REVIEW_REQUIRED;
+    }
     if (text.includes("additional evidence") || text.includes("needs more info") || text.includes("needs more information")) {
       return SHORT_ADDITIONAL_EVIDENCE;
     }
@@ -220,19 +225,21 @@
   const fullStatusFromShortStatus = (shortStatus) => {
     if (shortStatus === SHORT_LIKELY_SUFFICIENT) return FULL_LIKELY_SUFFICIENT;
     if (shortStatus === SHORT_ADDITIONAL_EVIDENCE) return FULL_ADDITIONAL_EVIDENCE;
+    if (shortStatus === SHORT_ASSESSOR_REVIEW_REQUIRED) return FULL_ASSESSOR_REVIEW_REQUIRED;
     if (shortStatus === SHORT_QUESTION_NOT_ASKED) return FULL_QUESTION_NOT_ASKED;
     return FULL_NOT_AVAILABLE;
   };
 
   const statusClassName = (shortStatus) => {
     if (shortStatus === SHORT_LIKELY_SUFFICIENT) return "status-likely";
-    if (shortStatus === SHORT_ADDITIONAL_EVIDENCE) return "status-gap";
+    if (shortStatus === SHORT_ADDITIONAL_EVIDENCE || shortStatus === SHORT_ASSESSOR_REVIEW_REQUIRED) return "status-gap";
     return "status-missing";
   };
 
   const statusSortOrder = (shortStatus) => {
     if (shortStatus === SHORT_ADDITIONAL_EVIDENCE) return 1;
-    if (shortStatus === SHORT_NOT_AVAILABLE || shortStatus === SHORT_QUESTION_NOT_ASKED) return 2;
+    if (shortStatus === SHORT_ASSESSOR_REVIEW_REQUIRED) return 2;
+    if (shortStatus === SHORT_NOT_AVAILABLE || shortStatus === SHORT_QUESTION_NOT_ASKED) return 3;
     return 0;
   };
 
@@ -815,6 +822,9 @@ Rules:
     if (shortStatus === SHORT_NOT_AVAILABLE) {
       return "Locate the missing transcript evidence or seek a student response for this question before making a final determination.";
     }
+    if (shortStatus === SHORT_ASSESSOR_REVIEW_REQUIRED) {
+      return "Review the available transcript response manually because the automated preliminary assessment was unavailable.";
+    }
     if (shortStatus === SHORT_ADDITIONAL_EVIDENCE) {
       return "Review this question against the Rules of Evidence (valid, sufficient, authentic, current) and seek additional evidence about the relevant question requirements if required before making a final determination.";
     }
@@ -863,8 +873,9 @@ Rules:
     const attempts = block && Array.isArray(block.attempts) ? block.attempts : [];
     const transcriptStatus = shortStatusFromAnyValue(block?.normalisedOverallAssessment || block?.rawOverallAssessment || "");
     const analysisStatus = shortStatusFromAnyValue(analysis?.shortStatus || analysis?.preliminaryStatus || "");
+    const hasCandidateEvidence = attempts.some((attempt) => cleanMetadataValue(attempt?.responseText || attempt?.answer));
     const shortStatus = hasBlock
-      ? (transcriptStatus || analysisStatus || SHORT_NOT_AVAILABLE)
+      ? (transcriptStatus || analysisStatus || (hasCandidateEvidence ? SHORT_ASSESSOR_REVIEW_REQUIRED : SHORT_NOT_AVAILABLE))
       : (analysisStatus || SHORT_QUESTION_NOT_ASKED);
 
     const section = getDisplaySection({ ...spec, section: spec.section || analysis?.section || item.section });
@@ -932,6 +943,7 @@ Rules:
     const questionList = Array.isArray(questions) ? questions : [];
     const sections = Array.from(new Set(questionList.map((question) => cleanMetadataValue(question.section)).filter(Boolean)));
     const gaps = questionList.filter((question) => question.shortStatus === SHORT_ADDITIONAL_EVIDENCE);
+    const reviewRequired = questionList.filter((question) => question.shortStatus === SHORT_ASSESSOR_REVIEW_REQUIRED);
     const missing = questionList.filter((question) => isMissingTranscriptStatus(question.shortStatus));
     const sectionText = sections.length
       ? ` across ${sections.join(", ")}`
@@ -952,7 +964,10 @@ Rules:
     if (missing.length) {
       sentences.push(`No transcript evidence was available for ${missing.map((question) => `Question ${question.questionNumber}`).join(", ")}.`);
     }
-    if (!gaps.length && !missing.length) {
+    if (reviewRequired.length) {
+      sentences.push(`Automated preliminary assessment was unavailable for ${reviewRequired.map((question) => `Question ${question.questionNumber}`).join(", ")}; assessor review of the available transcript response is required.`);
+    }
+    if (!gaps.length && !reviewRequired.length && !missing.length) {
       sentences.push("All included questions were identified as likely sufficient, pending verification by a qualified assessor.");
     }
     sentences.push(SUMMARY_FINAL_SENTENCE);
@@ -1408,8 +1423,9 @@ Rules:
       const hasTranscript = Boolean(transcriptQuestion);
       const attempts = Array.isArray(transcriptQuestion?.attempts) ? transcriptQuestion.attempts : [];
       const shortStatusSource = cleanMetadataValue(transcriptQuestion?.preliminaryStatus || transcriptQuestion?.overallAssessment || transcriptQuestion?.rawOverallAssessment || "");
+      const hasCandidateEvidence = attempts.some((attempt) => cleanMetadataValue(attempt?.responseText || attempt?.answer));
       const shortStatus = hasTranscript
-        ? (shortStatusFromAnyValue(shortStatusSource) || SHORT_NOT_AVAILABLE)
+        ? (shortStatusFromAnyValue(shortStatusSource) || (hasCandidateEvidence ? SHORT_ASSESSOR_REVIEW_REQUIRED : SHORT_NOT_AVAILABLE))
         : SHORT_QUESTION_NOT_ASKED;
       const section = cleanMetadataValue(bankEntry?.section || transcriptQuestion?.section) || MISSING_VALUE;
       const unitCode = cleanMetadataValue(bankEntry?.unitCode || transcriptQuestion?.unitCode) || "";
@@ -1441,7 +1457,9 @@ Rules:
           ? aiInterviewSummary
           : buildFallbackObservation({ questionNumber, officialQuestionSpec: bankEntry, parsedQuestionBlock: null }, shortStatus),
         assessorActionSuggested: hasTranscript
-          ? ""
+          ? (shortStatus === SHORT_ASSESSOR_REVIEW_REQUIRED
+            ? buildDefaultAssessorAction({ questionNumber, officialQuestionSpec: bankEntry, parsedQuestionBlock: transcriptQuestion }, shortStatus)
+            : "")
           : buildDefaultAssessorAction({ questionNumber, officialQuestionSpec: bankEntry, parsedQuestionBlock: null }, shortStatus),
         attempts: attempts.map((attempt, attemptIndex) => ({
           attemptNumber: Number.isFinite(Number(attempt.attemptNumber)) ? Number(attempt.attemptNumber) : attemptIndex + 1,
@@ -1463,7 +1481,9 @@ Rules:
         ? question.questionNumber
         : bankQuestions.length + index + 1;
       const attempts = Array.isArray(question?.attempts) ? question.attempts : [];
-      const shortStatus = shortStatusFromAnyValue(question?.preliminaryStatus || question?.overallAssessment || question?.rawOverallAssessment || "") || SHORT_NOT_AVAILABLE;
+      const hasCandidateEvidence = attempts.some((attempt) => cleanMetadataValue(attempt?.responseText || attempt?.answer));
+      const shortStatus = shortStatusFromAnyValue(question?.preliminaryStatus || question?.overallAssessment || question?.rawOverallAssessment || "")
+        || (hasCandidateEvidence ? SHORT_ASSESSOR_REVIEW_REQUIRED : SHORT_NOT_AVAILABLE);
       reportQuestions.push({
         questionNumber,
         section: cleanMetadataValue(question?.section) || inferSectionFromQuestion({ questionText, objective: question?.objective || question?.transcriptObjective }) || "Additional transcript question",
@@ -2475,10 +2495,12 @@ Do you want to proceed?</p>
       SOURCE_ADDITIONAL_EVIDENCE,
       SHORT_LIKELY_SUFFICIENT,
       SHORT_ADDITIONAL_EVIDENCE,
+      SHORT_ASSESSOR_REVIEW_REQUIRED,
       SHORT_NOT_AVAILABLE,
       SHORT_QUESTION_NOT_ASKED,
       FULL_LIKELY_SUFFICIENT,
       FULL_ADDITIONAL_EVIDENCE,
+      FULL_ASSESSOR_REVIEW_REQUIRED,
       FULL_NOT_AVAILABLE,
       FULL_QUESTION_NOT_ASKED,
       REPORT_TYPE,
