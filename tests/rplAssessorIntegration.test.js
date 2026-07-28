@@ -78,9 +78,21 @@ test("canonical transcript and AI log files are reconstituted once at completion
   assert.match(livePage, /await sendFinalReconstitutionWebhook\(\);\s*await sendFinalQuestionCompletedWebhook\(\);/);
 });
 
-test("all three app variants expose the requested V2.2 release", () => {
-  assert.match(livePage, /welcomeVersionBadge">V2\.2</);
-  assert.match(q3Page, /const WELCOME_VERSION = "V2\.2"/);
-  assert.match(autoTesterPage, /const WELCOME_VERSION = "V2\.2"/);
+test("new interviews wait for the student SharePoint structure to be ready", () => {
+  const beginFlow = livePage.match(/const beginAssessmentFlow = async \(([\s\S]*?)\n        firstName =/);
+  assert.ok(beginFlow);
+  assert.match(beginFlow[0], /if \(!skipCollect\)/);
+  assert.match(beginFlow[0], /const structureResponse = await fetch\(structureWebhookUrl/);
+  assert.match(beginFlow[0], /GivenName:/);
+  assert.match(beginFlow[0], /Industry: industryValue/);
+  assert.match(beginFlow[0], /jobTitle: jobValue/);
+  assert.match(beginFlow[0], /if \(!structureResponse\.ok\)/);
+  assert.doesNotMatch(beginFlow[0], /Base64Data|ContentType|FileName:/);
+});
+
+test("all three app variants expose the requested V2.3 release", () => {
+  assert.match(livePage, /welcomeVersionBadge">V2\.3</);
+  assert.match(q3Page, /const WELCOME_VERSION = "V2\.3"/);
+  assert.match(autoTesterPage, /const WELCOME_VERSION = "V2\.3"/);
   assert.match(autoTesterPage, /const RUNTIME_VERSION = "2\.0"/);
 });

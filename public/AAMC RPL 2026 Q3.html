@@ -52,7 +52,7 @@
 
     <script>
       const SOURCE_FILE = "AAMC RPL 2026.html";
-      const WELCOME_VERSION = "V2.2";
+      const WELCOME_VERSION = "V2.3";
 
       const replaceIfPresent = (text, matcher, replacement) => {
         if (!matcher.test(text)) {
@@ -160,6 +160,7 @@
         next = next.replace(/V2\.0/g, WELCOME_VERSION);
         next = next.replace(/V2\.1/g, WELCOME_VERSION);
         next = next.replace(/V2\.2/g, WELCOME_VERSION);
+        next = next.replace(/V2\.3/g, WELCOME_VERSION);
         return next;
       };
 

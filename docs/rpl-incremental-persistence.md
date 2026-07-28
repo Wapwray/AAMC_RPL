@@ -51,8 +51,20 @@ At startup, the application:
 3. Loads the old complete transcript files only when no compact attempt files
    exist, maintaining compatibility with interviews started before this change.
 
+For a new interview, the application calls `RPL - New User - Create Structure`
+with the candidate's accepted schema and waits for its `student_structure_ready`
+response before questions can begin. This prevents question, resume and attempt
+flows from racing the SharePoint initialization sequence.
+
 After an answer is assessed, the application saves a single compact attempt
 file. Progress-only updates use the same flow without creating an attempt file.
+The compact-save flow creates missing `Transcription Backups` and `AI Log`
+folders and upserts the current-attempt file. Resume treats absent optional
+startup files as empty/default state rather than failing the request.
+
+`RPL - Write Transcript and Update Question Number` now updates only the current
+question, current attempt and guidance state. It no longer accepts or rewrites
+the complete transcript files.
 
 On the final screen, the application waits for pending compact saves and then
 calls `RPL - Reconstitute Assessment Files`. The existing canonical filenames
