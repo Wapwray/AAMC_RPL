@@ -310,6 +310,46 @@ app.post("/api/speech/token", async (_req, res) => {
   }
 });
 
+const getRetryDelayMs = (response, retryIndex) => {
+  const retryAfterMs = Number(response.headers.get("retry-after-ms"));
+  if (Number.isFinite(retryAfterMs) && retryAfterMs >= 0) {
+    return Math.min(retryAfterMs, 10000);
+  }
+  const retryAfter = response.headers.get("retry-after");
+  const retryAfterSeconds = Number(retryAfter);
+  if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds >= 0) {
+    return Math.min(retryAfterSeconds * 1000, 10000);
+  }
+  return Math.min(500 * (2 ** retryIndex), 4000);
+};
+
+const fetchAzureWithRetry = async (url, options, { maxRetries = 2, timeoutMs = 120000 } = {}) => {
+  let retryCount = 0;
+  while (true) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      const transient = response.status === 429 || response.status >= 500;
+      if (!transient || retryCount >= maxRetries) {
+        return { response, retryCount };
+      }
+      const delayMs = getRetryDelayMs(response, retryCount);
+      retryCount += 1;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    } catch (error) {
+      if (error?.name !== "AbortError" || retryCount >= maxRetries) {
+        throw error;
+      }
+      const delayMs = Math.min(500 * (2 ** retryCount), 4000);
+      retryCount += 1;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+};
+
 // DEBUG: dump current model config (remove after verifying)
 app.get("/api/debug/models", (_req, res) => {
   try {
@@ -425,17 +465,17 @@ app.post("/api/analysis/chat", async (req, res) => {
   const getModelEnv = (suffix) => process.env[`${envPrefix}_${suffix}`] || "";
 
   apiKey = getModelEnv("API_KEY");
-  apiVersion = getModelEnv("API_VERSION");
+  apiVersion = isAssessor ? "" : getModelEnv("API_VERSION");
   endpoint = getModelEnv("AZURE_ENDPOINT");
   deployment = getModelEnv("DEPLOYMENT");
-  modelName = getModelEnv("MODEL_NAME");
+  modelName = isAssessor ? "" : getModelEnv("MODEL_NAME");
   
   // Default to OpenAI v1 format (matches original working behavior).
   useOpenAiV1 = true;  // Always true unless explicitly overridden
   
   // Allow override via API_STYLE env var or endpoint pattern
   const apiStyleOverride = getModelEnv("API_STYLE").toLowerCase();
-  if (apiStyleOverride === "legacy" || apiStyleOverride === "azure-native") {
+  if (!isAssessor && (apiStyleOverride === "legacy" || apiStyleOverride === "azure-native")) {
     useOpenAiV1 = false;
   } else if (/\/openai\/v\d$/i.test(String(endpoint || "").replace(/\/+$/, ""))) {
     // Endpoint already ends with /openai/vN — no need to append again.
@@ -460,10 +500,58 @@ app.post("/api/analysis/chat", async (req, res) => {
     });
     return;
   }
+  if (isAssessor) {
+    let assessorEndpoint;
+    try {
+      assessorEndpoint = new URL(endpoint);
+    } catch {
+      res.status(500).json({ error: "Invalid RPL assessor Azure endpoint configuration." });
+      return;
+    }
+    if (assessorEndpoint.protocol !== "https:" || !/\/openai\/v1\/?$/i.test(assessorEndpoint.pathname)) {
+      res.status(500).json({
+        error: "RPL assessor Azure endpoint must be an HTTPS v1 base URL ending in /openai/v1.",
+      });
+      return;
+    }
+  }
 
-  const { prompt, temperature = 0.2, max_tokens = 300, responseSchemaKey = "" } = req.body || {};
-  if (!prompt || typeof prompt !== "string") {
+  const {
+    prompt,
+    assessmentPayload,
+    temperature = 0.2,
+    max_tokens = 300,
+    responseSchemaKey = "",
+  } = req.body || {};
+  if (isAssessor && (!assessmentPayload || typeof assessmentPayload !== "object" || Array.isArray(assessmentPayload))) {
+    res.status(400).json({ error: "Missing assessmentPayload." });
+    return;
+  }
+  if (!isAssessor && (!prompt || typeof prompt !== "string")) {
     res.status(400).json({ error: "Missing prompt." });
+    return;
+  }
+
+  const assessorReasoningEffort =
+    process.env.RPL_ASSESSOR_AZURE__REASONING_EFFORT ||
+    "medium";
+  const assessorVerbosity =
+    process.env.RPL_ASSESSOR_AZURE__VERBOSITY ||
+    "low";
+  const assessorMaxOutputTokens = Number(
+    process.env.RPL_ASSESSOR_AZURE__MAX_OUTPUT_TOKENS ||
+    3000
+  );
+  if (!["low", "medium", "high"].includes(assessorReasoningEffort)) {
+    res.status(500).json({ error: "Invalid RPL assessor reasoning effort configuration." });
+    return;
+  }
+  if (!["low", "medium", "high"].includes(assessorVerbosity)) {
+    res.status(500).json({ error: "Invalid RPL assessor verbosity configuration." });
+    return;
+  }
+  if (!Number.isInteger(assessorMaxOutputTokens) || assessorMaxOutputTokens <= 0) {
+    res.status(500).json({ error: "Invalid RPL assessor maximum output tokens configuration." });
     return;
   }
 
@@ -502,7 +590,7 @@ app.post("/api/analysis/chat", async (req, res) => {
   const endpointBase = String(endpoint || "").replace(/\/+$/, "");
   
   // Detect if this is a Responses API model (GPT-5.4-Mini)
-  const isResponsesApiModel = String(modelName || deployment).toLowerCase().includes("gpt-5.4");
+  const isResponsesApiModel = isAssessor || String(modelName || deployment).toLowerCase().includes("gpt-5.4");
   
   const normalizedBase = endpointBase
     .replace(/\/api\/projects\/[^/]+$/i, "")
@@ -517,7 +605,8 @@ app.post("/api/analysis/chat", async (req, res) => {
     url = `${normalizedBase}/openai/deployments/${encodeURIComponent(deployment)}/${isResponsesApiModel ? "responses" : "chat/completions"}?api-version=${encodeURIComponent(apiVersion)}`;
   }
 
-  console.log(`[AI] Mode: ${modeHeader} | URL: ${url} | Model: ${modelName}`);
+  const effectiveModel = isAssessor ? deployment : (modelName || deployment);
+  console.log(`[AI] Mode: ${modeHeader} | URL: ${url} | Model: ${effectiveModel}`);
 
   const messages = [
     { role: "system", content: "You are a helpful assistant." },
@@ -545,11 +634,21 @@ app.post("/api/analysis/chat", async (req, res) => {
 
   // Build request body based on API type
   let body;
-  if (isResponsesApiModel) {
+  if (isAssessor) {
+    body = RPLPromptPackV3.makeAssessmentRequest(
+      deployment,
+      assessmentPayload,
+      {
+        reasoningEffort: assessorReasoningEffort,
+        verbosity: assessorVerbosity,
+        maxOutputTokens: assessorMaxOutputTokens,
+      }
+    );
+  } else if (isResponsesApiModel) {
     // GPT-5.4-Mini uses Responses API
     body = {
       input: prompt,
-      model: modelName || deployment,
+      model: effectiveModel,
       max_output_tokens: resolvedMaxTokens,
       reasoning: { effort: "medium" },
     };
@@ -568,7 +667,7 @@ app.post("/api/analysis/chat", async (req, res) => {
     // Other models use Chat Completions API
     body = {
       messages,
-      model: modelName || deployment,
+      model: effectiveModel,
     };
     if (!useOpenAiV1) {
       body.temperature = temperature;
@@ -584,25 +683,25 @@ app.post("/api/analysis/chat", async (req, res) => {
   try {
     const authValue = apiKey;
     const requestTimeoutMs = 120000;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
     upstreamStartedAt = Date.now();
 
-    try {
-      console.log(`[AI] Auth header: ${authHeader} | Model: ${modelName}`);
-      const response = await fetch(url, {
+    console.log(`[AI] Auth header: ${authHeader} | Model: ${effectiveModel}`);
+    const { response, retryCount } = await fetchAzureWithRetry(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           [authHeader]: authValue,
         },
-        signal: controller.signal,
         body: JSON.stringify(body),
+      }, {
+        maxRetries: 2,
+        timeoutMs: requestTimeoutMs,
       });
 
       console.log(`[AI] Upstream status: ${response.status} | URL: ${url}`);
       const upstreamLatencyMs = Math.max(0, Date.now() - upstreamStartedAt);
       res.setHeader("x-ai-upstream-latency-ms", String(upstreamLatencyMs));
+      res.setHeader("x-ai-retry-count", String(retryCount));
       if (!response.ok) {
         const text = await response.text();
         console.error(`[AI] Upstream error (${response.status}):`, text.substring(0, 500));
@@ -665,9 +764,6 @@ app.post("/api/analysis/chat", async (req, res) => {
 
       const content = extractContent(json);
       res.json({ content, raw: json });
-    } finally {
-      clearTimeout(timeout);
-    }
   } catch (error) {
     const upstreamLatencyMs = typeof upstreamStartedAt === "number" ? Math.max(0, Date.now() - upstreamStartedAt) : 0;
     if (!res.headersSent && upstreamLatencyMs >= 0) {

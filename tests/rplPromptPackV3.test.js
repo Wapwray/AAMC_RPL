@@ -14,6 +14,10 @@ test("prompt pack exports schemas and request builders", () => {
   assert.equal(assessmentRequest.max_output_tokens, 3000);
   assert.equal(assessmentRequest.text.format.type, "json_schema");
   assert.equal(assessmentRequest.text.format.strict, true);
+  assert.equal(assessmentRequest.instructions, promptPack.RPL_ASSESSMENT_INSTRUCTIONS);
+  assert.equal(typeof assessmentRequest.input, "string");
+  assert.equal("temperature" in assessmentRequest, false);
+  assert.equal("top_p" in assessmentRequest, false);
 
   const transcriptCheckRequest = promptPack.makeTranscriptCheckRequest("gpt-5.4-mini-au-east", {
     candidateMetadata: {},
@@ -33,18 +37,35 @@ test("prompt pack exports schemas and request builders", () => {
   assert.equal(finalReportRequest.text.format.name, "rpl_final_report_v3");
 });
 
-test("all regression fixtures normalise and preserve attempts in assessment input", () => {
+test("all regression fixtures minimise candidate data and preserve attempts in assessment input", () => {
   for (const fixture of fixtures.fixtures) {
     const normalized = promptPack.normaliseAssessmentPayload(fixture.payload);
     assert.ok(Array.isArray(normalized.attempts), fixture.id);
     assert.equal(normalized.attempts.length, fixture.payload.attempts.length, fixture.id);
-    assert.equal(normalized.currentAttempt, fixture.payload.currentAttempt, fixture.id);
+    assert.equal("currentAttempt" in normalized, false, fixture.id);
+    assert.equal("maxAttempts" in normalized, false, fixture.id);
+    assert.equal("fullName" in normalized.candidateContext, false, fixture.id);
+    assert.equal("givenName" in normalized.candidateContext, false, fixture.id);
+    assert.equal("contactId" in normalized.candidateContext, false, fixture.id);
     normalized.attempts.forEach((attempt, index) => {
       const original = fixture.payload.attempts[index];
       assert.equal(attempt.attemptNumber, original.attemptNumber, fixture.id);
-      assert.equal(attempt.responseText, original.responseText, fixture.id);
+      assert.equal(attempt.answer, original.responseText, fixture.id);
     });
   }
+});
+
+test("assessment request settings are configurable through validated request values", () => {
+  const request = promptPack.makeAssessmentRequest("gpt-5.4-mini-au-east", fixtures.fixtures[0].payload, {
+    reasoningEffort: "high",
+    verbosity: "medium",
+    maxOutputTokens: 2400,
+  });
+  assert.equal(request.reasoning.effort, "high");
+  assert.equal(request.text.verbosity, "medium");
+  assert.equal(request.max_output_tokens, 2400);
+  assert.equal("maxItems" in promptPack.RPL_ASSESSMENT_SCHEMA.properties.covered, false);
+  assert.equal("minItems" in promptPack.RPL_ASSESSMENT_SCHEMA.properties.objectiveEvidence, false);
 });
 
 test("all regression fixtures can be embedded into the compatibility assessment prompt", () => {

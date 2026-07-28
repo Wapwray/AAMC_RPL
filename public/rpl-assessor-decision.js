@@ -230,33 +230,35 @@
     };
   };
 
-  const buildAssessmentPayload = ({ candidateMetadata = {}, question = {}, attempts = [], attemptCount, maxAttempts = 3 } = {}) => {
+  const buildAssessmentPayload = ({ candidateContext = {}, candidateMetadata = {}, question = {}, attempts = [] } = {}) => {
     if (promptPack?.normaliseAssessmentPayload) {
       return promptPack.normaliseAssessmentPayload({
+        candidateContext,
         candidateMetadata,
         question,
         attempts,
-        attemptCount,
-        currentAttempt: attemptCount,
-        maxAttempts,
       });
     }
 
+    const sourceContext = { ...candidateMetadata, ...candidateContext };
     return {
-      candidateMetadata,
+      candidateContext: {
+        industry: String(sourceContext.industry || ""),
+        jobTitle: String(sourceContext.jobTitle || ""),
+        qualification: String(sourceContext.qualification || ""),
+      },
       question: {
+        questionNumber: String(question.questionNumber || ""),
         questionText: question.questionText || "",
         objective: question.objective || "",
         hint: question.hint || "",
       },
       attempts: attempts.map((answer, index) => ({
-        attemptNumber: index + 1,
-        responseText: typeof answer === "string"
+        attemptNumber: Number(answer?.attemptNumber) || index + 1,
+        answer: typeof answer === "string"
           ? answer
           : String(answer?.responseText || answer?.answer || ""),
-      })),
-      currentAttempt: attemptCount || attempts.length,
-      maxAttempts,
+      })).sort((left, right) => left.attemptNumber - right.attemptNumber),
     };
   };
 
@@ -301,6 +303,12 @@
     }
     if (!Array.isArray(decision.objectiveEvidence) || !decision.objectiveEvidence.length) {
       throw new Error("Assessment response must include objectiveEvidence.");
+    }
+    if (decision.objectiveEvidence.length > 5) {
+      throw new Error("Assessment response must include between one and five objectiveEvidence items.");
+    }
+    if (decision.covered.length > 3 || decision.missing.length > 3) {
+      throw new Error("Assessment response must include no more than three covered or missing items.");
     }
     if (typeof raw.hintWouldHelp !== "boolean" || typeof raw.professionalConductConcern !== "boolean") {
       throw new Error("Assessment response must include boolean hintWouldHelp and professionalConductConcern fields.");
@@ -836,13 +844,19 @@ ${JSON.stringify(payload, null, 2)}`;
 
   const buildFeedback = (decision, context = {}) => {
     const summary = buildAssessorSummary(decision, context);
+    const givenName = normalizeWhitespace(context.givenName) || "there";
     const continueMessage = normalizeWhitespace(context.continueMessage) || "Please press the Next Question button to continue.";
     const guidance = buildLearnerGuidance(decision, context);
     const shouldContinue = Boolean(decision.shouldContinue);
+    const finalAttemptMessage = `${givenName === "there" ? "Thank you" : `Thank you, ${givenName}`}. Your responses have been recorded and will be provided to the assessor for review. Please press the Next Question button to continue.`;
+    const displayText = decision.overallAssessment === STATUS_LIKELY_SUFFICIENT
+      ? continueMessage
+      : shouldContinue
+        ? finalAttemptMessage
+        : guidance;
     const transcriptAttemptText = shouldContinue
-      ? `${summary}\n\nPreliminary Status: ${decision.overallAssessment}\n\n${continueMessage}`
+      ? `${summary}\n\nPreliminary Status: ${decision.overallAssessment}\n\n${displayText}`
       : guidance;
-    const displayText = shouldContinue ? continueMessage : guidance;
 
     return {
       assessorSummary: summary,

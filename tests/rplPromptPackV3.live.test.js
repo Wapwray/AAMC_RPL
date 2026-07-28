@@ -22,8 +22,7 @@ if (!shouldRun) {
           "x-rpl-mode": "assessor",
         },
         body: JSON.stringify({
-          prompt: promptPack.buildAssessmentPrompt(fixture.payload),
-          max_tokens: 1600,
+          assessmentPayload: promptPack.normaliseAssessmentPayload(fixture.payload),
           responseSchemaKey: "assessment",
         }),
       });
