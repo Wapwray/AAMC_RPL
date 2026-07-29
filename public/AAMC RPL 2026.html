@@ -970,7 +970,7 @@
           <div class="completionTitle" id="completionTitle">Thank you for completing your assessment</div>
           <div class="completionBody" id="completionBody">
             A qualified assessor will review your evidence.<br />
-            You need to provide two possible times for a follow up meeting to take place.
+            You need to provide two possible time ranges for a follow up meeting to take place with an assessor.
           </div>
           <form id="preferredTimesForm" class="preferredTimesForm" novalidate>
             <div class="preferredTimesGrid">
@@ -2752,7 +2752,7 @@
         if (completionBodyEl) {
           completionBodyEl.innerHTML =
             "A qualified assessor will review your evidence.<br>" +
-            "You need to provide two possible times for a follow up meeting to take place.";
+            "You need to provide two possible time ranges for a follow up meeting to take place with an assessor.";
         }
         initialisePreferredTimesForm(resumeIncrementalState?.latestSavedAtUtc || new Date());
         if (finalisingOverlayEl) finalisingOverlayEl.classList.add("hidden");

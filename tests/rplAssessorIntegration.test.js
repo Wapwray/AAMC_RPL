@@ -102,6 +102,10 @@ test("new-student placeholders do not trigger the existing-session route", () =>
 });
 
 test("completion requires two validated preferred interview times", () => {
+  assert.match(
+    livePage,
+    /You need to provide two possible time ranges for a follow up meeting to take place with an assessor\./
+  );
   assert.match(livePage, /id="firstChoiceDate" type="date"/);
   assert.match(livePage, /id="firstChoiceStartTime" required/);
   assert.match(livePage, /id="firstChoiceEndTime" required/);
