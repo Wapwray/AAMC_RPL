@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>RPL Review 1.0</title>
+    <title>RPL Review 1.1</title>
     <style>
       :root {
         color-scheme: light;
@@ -151,7 +151,7 @@
   <body>
     <main>
       <header>
-        <h1>RPL Review 1.0</h1>
+        <h1>RPL Review 1.1</h1>
         <div id="status" class="status">Ready.</div>
       </header>
 
@@ -198,7 +198,7 @@
     <script src="rpl-preliminary-review.js"></script>
     <script src="rpl-final-report-generator.js"></script>
     <script>
-      const SEND_PDF_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/06/workflows/ad445c5a35534861933f60ee864eecfa/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=qiOM0ZtGoUf_75xUdMZJ6B5zVSzpc9qYVZJbEbYm6pM";
+      const SEND_PDF_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/05/workflows/ec0a8791be6a4b43ad3489e5a7edc71c/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=Y4vFRFtTMNWONA01lBGTXbkUtlaHS3b5UcQwRgVYEy0";
       const ASSESSOR_QUESTIONS_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/776a38fbbe6449c996fd3a4127212eff/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=kA6BlWXbHh-ymnHGDWqRt25m_BEzVEAW1vHmiYur7vw";
       const URL_TRANSCRIPT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/41fdc1293b8547b1ac672c8aa1ccf7f8/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=32qfqtKjiupj1eLtp31QEPjPGqGSCj9AOdZ-c3Bdy7Y";
       const ASSESSOR_SUBMIT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/22/workflows/c16eb7b6410046b9b9c42f9ea0906f6e/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=UK5U-3LpQQjjTe3ObOXLGyNNbfDT7lm3dNtGD188FpY";
@@ -244,6 +244,11 @@
       };
 
       const cleanValue = (value) => String(value || "").trim();
+      const cleanFileNamePart = (value) => cleanValue(value)
+        .replace(/[<>:"/\\|?*\u0000-\u001F]/g, "-")
+        .replace(/\s+/g, " ")
+        .replace(/-{2,}/g, "-")
+        .trim();
 
       const pickFirstValue = (...values) => {
         for (const value of values) {
@@ -794,12 +799,14 @@
         webhookUrl,
         activityLabel,
         includeAssessorIdentity = false,
+        additionalPayload = {},
       }) => {
         const identity = getWebhookIdentityFromTranscript();
         const payload = {
           FullName: identity.fullName,
           ContactID: identity.contactId,
           FinalReport: html,
+          ...additionalPayload,
         };
         if (includeAssessorIdentity) {
           const assessor = getUrlAssessorContext();
@@ -872,6 +879,10 @@
             webhookUrl: SEND_PDF_WEBHOOK_URL,
             activityLabel: "Send PDF",
             includeAssessorIdentity: true,
+            additionalPayload: {
+              Qualification: cleanValue(qualificationEl.value),
+              AssessorSignatureTime: cleanFileNamePart(event.data?.assessorSignatureTime),
+            },
           })
             .then(() => {
               setStatus("PDF report webhook sent.", "ok");
