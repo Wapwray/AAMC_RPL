@@ -7,15 +7,29 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
+  const getSourceNumberValue = (question) => {
+    const candidates = [
+      question?.Title,
+      question?.title,
+      question?.["Question Number"],
+      question?.QuestionNumber,
+      question?.["Question No"],
+      question?.QuestionNo,
+    ];
+    return candidates.find(
+      (value) => value !== undefined && value !== null && String(value).trim()
+    );
+  };
+
   const extractTitleNumber = (question, listIndex = 0) => {
-    const titleValue = question?.Title ?? question?.title;
-    const titleText = String(titleValue ?? "").trim();
-    const match = titleText.match(/(\d{1,3})/);
+    const sourceValue = getSourceNumberValue(question);
+    const sourceText = String(sourceValue ?? "").trim();
+    const match = sourceText.match(/(\d{1,3})/);
     const parsed = match ? Number.parseInt(match[1], 10) : Number.NaN;
 
     if (!Number.isFinite(parsed) || parsed < 1) {
       throw new Error(
-        `Question list item ${Number(listIndex) + 1} must have a numeric Title value.`
+        `Question list item ${Number(listIndex) + 1} must have a numeric Title or Question Number value.`
       );
     }
 
@@ -39,6 +53,7 @@
   };
 
   return {
+    getSourceNumberValue,
     extractTitleNumber,
     withTitleQuestionNumbers,
     getQuestionNumber,
