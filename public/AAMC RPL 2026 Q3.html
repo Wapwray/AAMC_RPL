@@ -50,9 +50,11 @@
       </section>
     </main>
 
+    <script src="rpl-q3-axcelerate-auth.js"></script>
     <script>
       const SOURCE_FILE = "AAMC RPL 2026.html";
-      const WELCOME_VERSION = "V2.9";
+      const WELCOME_VERSION = "V3.0";
+      const AX_AUTH_VERIFY_URL = "/api/axcelerate/verify-login";
 
       const replaceIfPresent = (text, matcher, replacement) => {
         if (!matcher.test(text)) {
@@ -165,6 +167,7 @@
         next = next.replace(/V2\.5/g, WELCOME_VERSION);
         next = next.replace(/V2\.7/g, WELCOME_VERSION);
         next = next.replace(/V2\.8/g, WELCOME_VERSION);
+        next = next.replace(/V2\.9/g, WELCOME_VERSION);
         return next;
       };
 
@@ -226,8 +229,86 @@
         return next;
       };
 
+      const renderAccessError = (message) => {
+        const auth = window.RplQ3AxcelerateAuth;
+        const loginUrl = auth?.buildLoginBridgeUrl(window.location.href) || "#";
+        document.body.innerHTML = `
+          <main class="boot">
+            <section class="bootCard">
+              <h1 class="bootTitle">Check your login details</h1>
+              <p class="bootText">${String(message || "Your aXcelerate login could not be confirmed.")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")}</p>
+              <p class="bootText" style="margin-top: 14px;">
+                <a href="${loginUrl.replace(/&/g, "&amp;").replace(/"/g, "&quot;")}">
+                  Log in with a different aXcelerate account
+                </a>
+              </p>
+            </section>
+          </main>
+        `;
+      };
+
+      const ensureAxcelerateAccess = async () => {
+        const auth = window.RplQ3AxcelerateAuth;
+        if (!auth) {
+          renderAccessError("The aXcelerate login check is unavailable. Please refresh the page.");
+          return false;
+        }
+
+        const expectedContactId = auth.getExpectedContactId(window.location.href);
+        const expectedCheck = auth.compareContactIds(expectedContactId, expectedContactId);
+        if (!expectedCheck.ok) {
+          renderAccessError(expectedCheck.message);
+          return false;
+        }
+
+        const accessToken = auth.getTokenFromHash(window.location.hash);
+        if (!accessToken) {
+          window.location.replace(auth.buildLoginBridgeUrl(window.location.href));
+          return false;
+        }
+
+        const response = await fetch(AX_AUTH_VERIFY_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ accessToken }),
+          cache: "no-store",
+        });
+        const responseText = await response.text();
+        let result = {};
+        try {
+          result = responseText ? JSON.parse(responseText) : {};
+        } catch {
+          result = {};
+        }
+        if (!response.ok || result.authenticated !== true) {
+          renderAccessError(
+            result.error ||
+              "Your aXcelerate login could not be confirmed. Please check your details and try again."
+          );
+          return false;
+        }
+
+        const match = auth.compareContactIds(expectedContactId, result.contactId);
+        if (!match.ok) {
+          renderAccessError(match.message);
+          return false;
+        }
+
+        window.history.replaceState(
+          null,
+          document.title,
+          auth.removeTokenHash(window.location.href)
+        );
+        return true;
+      };
+
       const boot = async () => {
         try {
+          const accessAllowed = await ensureAxcelerateAccess();
+          if (!accessAllowed) return;
           const sourceUrl = resolveSourceUrl();
           const response = await fetch(sourceUrl, { cache: "no-store" });
           if (!response.ok) {

@@ -140,9 +140,9 @@ test("RPL Emailer displays a waiting state while preparing student storage", () 
   assert.match(emailerPage, /responsePanelEl\.setAttribute\("aria-busy", String\(isPreparing\)\)/);
 });
 
-test("all three app variants expose the requested V2.9 release", () => {
+test("published app variants expose their current release versions", () => {
   assert.match(livePage, /welcomeVersionBadge">V2\.9</);
-  assert.match(q3Page, /const WELCOME_VERSION = "V2\.9"/);
+  assert.match(q3Page, /const WELCOME_VERSION = "V3\.0"/);
   assert.match(autoTesterPage, /const WELCOME_VERSION = "V2\.9"/);
   assert.match(autoTesterPage, /const RUNTIME_VERSION = "2\.2"/);
 });

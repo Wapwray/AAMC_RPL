@@ -38,9 +38,90 @@ const port = process.env.PORT || 3000;
 const jsonBodyLimit = process.env.RPL_FILTER_MAX_BODY_SIZE || process.env.RPL_JSON_BODY_LIMIT || "2mb";
 const promptsFilePath = path.join(__dirname, "public", "prompts.json");
 const promptAdminKey = process.env.RPL_PROMPTS_ADMIN_KEY || process.env.RPL_ADMIN_API_KEY || "";
+const AXCELERATE_LOGIN_VALIDATION_URL =
+  process.env.RPL_AXCELERATE_LOGIN_VALIDATION_URL ||
+  "https://aamctraining.edu.au/wp-admin/admin-ajax.php";
+const AXCELERATE_LOGIN_TIMEOUT_MS = 15000;
 
 app.use(express.json({ limit: jsonBodyLimit }));
 app.use(express.static(path.join(__dirname, "public")));
+
+app.post("/api/axcelerate/verify-login", async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  const accessToken =
+    typeof req.body?.accessToken === "string" ? req.body.accessToken.trim() : "";
+  if (
+    accessToken.length < 20 ||
+    accessToken.length > 8192 ||
+    /[\u0000-\u001f\u007f]/.test(accessToken)
+  ) {
+    res.status(400).json({
+      authenticated: false,
+      error: "A valid aXcelerate login token is required.",
+    });
+    return;
+  }
+
+  const abortController = new AbortController();
+  const timeoutId = setTimeout(
+    () => abortController.abort(),
+    AXCELERATE_LOGIN_TIMEOUT_MS
+  );
+  try {
+    const validationResponse = await fetch(AXCELERATE_LOGIN_VALIDATION_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+        Accept: "application/json",
+      },
+      body: new URLSearchParams({
+        action: "ax_validate_access_token",
+        access_token: accessToken,
+      }).toString(),
+      signal: abortController.signal,
+      redirect: "error",
+    });
+    const validationText = await validationResponse.text();
+    if (!validationResponse.ok) {
+      res.status(502).json({
+        authenticated: false,
+        error: "The aXcelerate login service is temporarily unavailable.",
+      });
+      return;
+    }
+
+    let validation;
+    try {
+      validation = validationText ? JSON.parse(validationText) : null;
+    } catch {
+      validation = null;
+    }
+    const contactId = String(validation?.logged_in_contact || "").trim();
+    if (
+      validation?.logged_in !== true ||
+      !/^\d+$/.test(contactId)
+    ) {
+      res.status(401).json({
+        authenticated: false,
+        error:
+          "Your aXcelerate login could not be confirmed. Please check your details and try again.",
+      });
+      return;
+    }
+
+    res.json({ authenticated: true, contactId });
+  } catch (error) {
+    const timedOut = error?.name === "AbortError";
+    res.status(502).json({
+      authenticated: false,
+      error: timedOut
+        ? "The aXcelerate login check timed out. Please try again."
+        : "The aXcelerate login service is temporarily unavailable.",
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+});
 
 const getRplFilter = () => {
   try {
