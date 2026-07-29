@@ -55,6 +55,11 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/RplRecord'
+        managedStaff:
+          oneOf:
+            - type: boolean
+            - type: string
+              enum: [Yes, No]
         config:
           type: object
           additionalProperties: true
@@ -105,6 +110,7 @@ components:
             - questionsExcluded
             - studentQuestions
             - assessorQuestions
+            - managedStaffQuestionsFiltered
           properties:
             unitsReceived: { type: integer }
             ctUnitsFound: { type: integer }
@@ -114,6 +120,7 @@ components:
             questionsExcluded: { type: integer }
             studentQuestions: { type: integer }
             assessorQuestions: { type: integer }
+            managedStaffQuestionsFiltered: { type: integer }
         warnings:
           type: array
           items:

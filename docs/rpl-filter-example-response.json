@@ -31,7 +31,8 @@
     {
       "Title": "Excluded question",
       "Question Live": "Yes",
-      "CT Do Not Ask 1": "BSBABC123, BSBZZZ999"
+      "CT Do Not Ask 1": "BSBABC123, BSBZZZ999",
+      "Do Not Ask If": "The student already holds the relevant units by credit transfer."
     }
   ],
   "counts": {
@@ -42,7 +43,8 @@
     "questionsIncluded": 2,
     "questionsExcluded": 1,
     "studentQuestions": 1,
-    "assessorQuestions": 1
+    "assessorQuestions": 1,
+    "managedStaffQuestionsFiltered": 0
   },
   "warnings": [],
   "diagnostics": {
@@ -50,7 +52,10 @@
       {
         "questionIndex": 1,
         "fields": ["CT Do Not Ask 1"],
-        "unitCodes": ["BSBABC123"]
+        "unitCodes": ["BSBABC123"],
+        "exclusionType": "creditTransfer",
+        "reason": "The student already holds the relevant units by credit transfer.",
+        "reasonField": "Do Not Ask If"
       }
     ],
     "excludedQuestionIndexes": [1],
@@ -71,7 +76,8 @@
       "questionsIncluded": 2,
       "questionsExcluded": 1,
       "studentQuestions": 1,
-      "assessorQuestions": 1
+      "assessorQuestions": 1,
+      "managedStaffQuestionsFiltered": 0
     },
     "warnings": [],
     "resolvedConfig": {
@@ -89,7 +95,10 @@
       "output": {
         "mode": "all",
         "fields": []
-      }
+      },
+      "managedStaffField": "Managed Staff",
+      "managedStaffEnabled": false,
+      "exclusionReasonField": "Do Not Ask If"
     }
   }
 }

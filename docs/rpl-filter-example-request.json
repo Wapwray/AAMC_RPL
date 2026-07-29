@@ -18,7 +18,8 @@
     {
       "Title": "Excluded question",
       "Question Live": "Yes",
-      "CT Do Not Ask 1": "BSBABC123, BSBZZZ999"
+      "CT Do Not Ask 1": "BSBABC123, BSBZZZ999",
+      "Do Not Ask If": "The student already holds the relevant units by credit transfer."
     },
     {
       "Title": "Assessor question",
@@ -26,6 +27,7 @@
       "CT Do Not Ask 1": null
     }
   ],
+  "managedStaff": "No",
   "config": {
     "unitStatusFieldCandidates": ["STATUS", "Status", "status", "Unit Status", "unitStatus"],
     "unitCodeFieldCandidates": ["CODE", "Code", "Unit Code", "unitCode"],
@@ -34,6 +36,7 @@
       "value": "CT"
     },
     "exclusionFields": ["CT Do Not Ask 1"],
+    "exclusionReasonField": "Do Not Ask If",
     "exclusionDelimiters": ["comma"],
     "trimExclusionValues": true,
     "caseSensitive": false,

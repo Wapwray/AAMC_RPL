@@ -21,11 +21,46 @@ test("null CT Do Not Ask 1 does not exclude a question", () => {
 test("multiple comma-separated exclusions exclude matching questions", () => {
   const result = filterRplQuestions({
     units: [ctUnit()],
-    questions: [question({ "CT Do Not Ask 1": "BSBZZZ999, BSBABC123" })],
+    questions: [question({
+      "CT Do Not Ask 1": "BSBZZZ999, BSBABC123",
+      "Do Not Ask If": "The student already holds the relevant units by credit transfer.",
+    })],
   });
   assert.equal(result.counts.questionsIncluded, 0);
   assert.equal(result.counts.questionsExcluded, 1);
   assert.deepEqual(result.diagnostics.excludedBy[0].unitCodes, ["BSBABC123"]);
+  assert.equal(
+    result.diagnostics.excludedBy[0].reason,
+    "The student already holds the relevant units by credit transfer."
+  );
+  assert.equal(result.diagnostics.excludedBy[0].reasonField, "Do Not Ask If");
+  assert.equal(result.diagnostics.excludedBy[0].exclusionType, "creditTransfer");
+});
+
+test("excluded-question reasons fall back to the matched CT unit codes", () => {
+  const result = filterRplQuestions({
+    units: [ctUnit()],
+    questions: [question({ "CT Do Not Ask 1": "BSBABC123" })],
+  });
+  assert.equal(result.diagnostics.excludedBy[0].reason, "Credit transfer recorded for BSBABC123.");
+  assert.equal(result.diagnostics.excludedBy[0].reasonField, "");
+});
+
+test("managed-staff exclusions can use the Do Not Ask If column", () => {
+  const result = filterRplQuestions({
+    units: [],
+    managedStaff: "No",
+    questions: [question({
+      "Managed Staff": "Yes",
+      "Do Not Ask If": "Do not ask when the student has not managed staff.",
+    })],
+  });
+  assert.equal(result.excludedQuestions.length, 1);
+  assert.equal(result.diagnostics.excludedBy[0].exclusionType, "managedStaff");
+  assert.equal(
+    result.diagnostics.excludedBy[0].reason,
+    "Do not ask when the student has not managed staff."
+  );
 });
 
 test("case differences are ignored by default", () => {

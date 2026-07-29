@@ -58,6 +58,7 @@ export interface RplFilterConfig {
   outputFields?: string[];
   diagnostics?: DiagnosticsConfig;
   managedStaffField?: string;
+  exclusionReasonField?: string;
 }
 
 export interface RplFilterInput {
@@ -83,6 +84,9 @@ export interface ExcludedByDiagnostic {
   questionIndex: number;
   fields: string[];
   unitCodes: string[];
+  exclusionType: "creditTransfer" | "managedStaff";
+  reason: string;
+  reasonField: string;
 }
 
 export interface MissingFieldDiagnostics {
@@ -112,6 +116,7 @@ export interface RplDiagnostics {
     output: Required<OutputSelectionConfig>;
     managedStaffField: string;
     managedStaffEnabled: boolean;
+    exclusionReasonField: string;
   };
 }
 
@@ -152,6 +157,7 @@ interface ResolvedFilterConfig {
   diagnostics: Required<DiagnosticsConfig>;
   managedStaffField: string;
   managedStaffEnabled: boolean;
+  exclusionReasonField: string;
 }
 
 interface FieldLookup {
@@ -165,6 +171,7 @@ const DEFAULT_UNIT_CODE_FIELDS = ["CODE", "Code", "code", "Unit Code", "unitCode
 const DEFAULT_EXCLUSION_FIELDS = ["CT Do Not Ask 1"];
 const DEFAULT_QUESTION_LIVE_FIELD = "Question Live";
 const DEFAULT_MANAGED_STAFF_FIELD = "Managed Staff";
+const DEFAULT_EXCLUSION_REASON_FIELD = "Do Not Ask If";
 
 const VALID_RULE_OPERATORS: QuestionRuleOperator[] = [
   "equals",
@@ -249,6 +256,7 @@ export function filterRplQuestions(input: RplFilterInput, configOverride?: RplFi
       if (msLookup.found && toText(msLookup.value).trim().toLowerCase() === "yes") {
         managedStaffQuestionsFiltered += 1;
         excludedQuestions.push(projectedQuestion);
+        excludedBy.push(buildManagedStaffExclusionDiagnostic(questionRecord, questionIndex, config));
         return;
       }
     }
@@ -300,6 +308,7 @@ export function filterRplQuestions(input: RplFilterInput, configOverride?: RplFi
       output: config.output,
       managedStaffField: config.managedStaffField,
       managedStaffEnabled: config.managedStaffEnabled,
+      exclusionReasonField: config.exclusionReasonField,
     },
   };
 
@@ -376,6 +385,7 @@ function resolveConfig(inputConfig?: RplFilterConfig, overrideConfig?: RplFilter
     },
     managedStaffField: cleanString(merged.managedStaffField) || DEFAULT_MANAGED_STAFF_FIELD,
     managedStaffEnabled: resolveManagedStaffFlag(managedStaff),
+    exclusionReasonField: cleanString(merged.exclusionReasonField) || DEFAULT_EXCLUSION_REASON_FIELD,
   };
 }
 
@@ -452,7 +462,14 @@ function getQuestionExclusionMatch(
   const matchedUnitCodes = new Set<string>();
 
   if (!unitCodeSet.size) {
-    return { questionIndex, fields: [], unitCodes: [] };
+    return {
+      questionIndex,
+      fields: [],
+      unitCodes: [],
+      exclusionType: "creditTransfer",
+      reason: "",
+      reasonField: "",
+    };
   }
 
   config.exclusionFields.forEach((field) => {
@@ -471,10 +488,61 @@ function getQuestionExclusionMatch(
     });
   });
 
+  const unitCodes = Array.from(matchedUnitCodes);
+  const reason = getExclusionReason(
+    question,
+    config,
+    unitCodes.length
+      ? `Credit transfer recorded for ${unitCodes.join(", ")}.`
+      : ""
+  );
+
   return {
     questionIndex,
     fields: Array.from(matchedFields),
-    unitCodes: Array.from(matchedUnitCodes),
+    unitCodes,
+    exclusionType: "creditTransfer",
+    reason: reason.text,
+    reasonField: reason.field,
+  };
+}
+
+function buildManagedStaffExclusionDiagnostic(
+  question: RplRecord,
+  questionIndex: number,
+  config: ResolvedFilterConfig
+): ExcludedByDiagnostic {
+  const reason = getExclusionReason(
+    question,
+    config,
+    "This question is only asked when the student has managed staff."
+  );
+  return {
+    questionIndex,
+    fields: [config.managedStaffField],
+    unitCodes: [],
+    exclusionType: "managedStaff",
+    reason: reason.text,
+    reasonField: reason.field,
+  };
+}
+
+function getExclusionReason(
+  question: RplRecord,
+  config: ResolvedFilterConfig,
+  fallback: string
+): { text: string; field: string } {
+  const lookup = resolveField(question, [config.exclusionReasonField]);
+  const suppliedReason = toText(lookup.value).trim();
+  if (suppliedReason) {
+    return {
+      text: suppliedReason,
+      field: lookup.key || config.exclusionReasonField,
+    };
+  }
+  return {
+    text: fallback,
+    field: "",
   };
 }
 

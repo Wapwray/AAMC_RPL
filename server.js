@@ -249,6 +249,12 @@ app.post("/api/rpl/filter", requireRplFilterAuth, (req, res) => {
   if (body.config !== undefined && (!body.config || typeof body.config !== "object" || Array.isArray(body.config))) {
     errors.push("config must be a JSON object when provided.");
   }
+  if (
+    body.managedStaff !== undefined
+    && ![true, false, "Yes", "No"].includes(body.managedStaff)
+  ) {
+    errors.push("managedStaff must be true, false, Yes, or No when provided.");
+  }
 
   if (errors.length) {
     res.status(400).json({ success: false, error: "Invalid RPL filter request.", details: errors });
@@ -260,6 +266,7 @@ app.post("/api/rpl/filter", requireRplFilterAuth, (req, res) => {
     const result = filterRplQuestions({
       units: body.units,
       questions: body.questions,
+      managedStaff: body.managedStaff,
       config: body.config || {},
     });
     res.json(result);
