@@ -2368,6 +2368,7 @@ Do you want to proceed?</p>
         function sendPdf() {
           var statusEl = document.getElementById("globalSubmitStatus");
           var btn = document.getElementById("sendPdfBtn");
+          var assessorDateTimeEl = document.getElementById("assessor-date-time");
           if (btn) btn.disabled = true;
           if (statusEl) { statusEl.textContent = "Sending PDF..."; statusEl.className = "global-status"; }
           if (window.parent === window) {
@@ -2377,7 +2378,8 @@ Do you want to proceed?</p>
           }
           window.parent.postMessage({
             type: "rpl-assessor-send-pdf",
-            html: serializeCurrentReportHtml(true)
+            html: serializeCurrentReportHtml(true),
+            assessorSignatureTime: assessorDateTimeEl ? assessorDateTimeEl.value : ""
           }, "*");
         }
 

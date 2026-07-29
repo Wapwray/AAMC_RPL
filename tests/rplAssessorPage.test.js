@@ -38,7 +38,7 @@ test("assessor page automatically loads comments, generates the report, and hand
 });
 
 test("Send PDF posts the button-free live report to the dedicated webhook", () => {
-  assert.match(page, /const SEND_PDF_WEBHOOK_URL = "https:\/\/default63871d3cd05d49fa86b6420054699f\.b4\.environment\.api\.powerplatform\.com:443\/powerautomate\/automations\/direct\/cu\/06\/workflows\/ad445c5a35534861933f60ee864eecfa\/triggers\/manual\/paths\/invoke\?/);
+  assert.match(page, /const SEND_PDF_WEBHOOK_URL = "https:\/\/default63871d3cd05d49fa86b6420054699f\.b4\.environment\.api\.powerplatform\.com:443\/powerautomate\/automations\/direct\/cu\/05\/workflows\/ec0a8791be6a4b43ad3489e5a7edc71c\/triggers\/manual\/paths\/invoke\?/);
   assert.match(page, /event\.data\?\.type === "rpl-assessor-send-pdf"/);
   assert.match(page, /sendWebhookWithIdentity\(\{/);
   assert.match(page, /html: currentReportHtml/);
@@ -50,6 +50,9 @@ test("Send PDF posts the button-free live report to the dedicated webhook", () =
   assert.match(page, /FinalReport: html/);
   assert.match(page, /payload\.AssessorName = assessor\.assessorName/);
   assert.match(page, /payload\.AssessorEmail = assessor\.assessorEmail/);
+  assert.match(page, /Qualification: cleanValue\(qualificationEl\.value\)/);
+  assert.match(page, /AssessorSignatureTime: cleanFileNamePart\(event\.data\?\.assessorSignatureTime\)/);
+  assert.match(page, /\.\.\.additionalPayload/);
 });
 
 test("PDF sections start on new pages with their first question kept under the heading", () => {
