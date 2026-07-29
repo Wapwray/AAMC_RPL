@@ -2227,6 +2227,21 @@ Do you want to proceed?</p>
             var clonedField = clonedFields[index];
             if (!clonedField) return;
             if (field.tagName === "TEXTAREA") {
+              if (removeButtons) {
+                var expandedField = clone.ownerDocument.createElement("div");
+                if (clonedField.id) expandedField.id = clonedField.id;
+                expandedField.className = clonedField.className;
+                expandedField.setAttribute("data-exported-from", "textarea");
+                expandedField.setAttribute("style", clonedField.getAttribute("style") || "");
+                expandedField.style.height = "auto";
+                expandedField.style.maxHeight = "none";
+                expandedField.style.overflow = "visible";
+                expandedField.style.whiteSpace = "pre-wrap";
+                expandedField.style.wordBreak = "break-word";
+                expandedField.textContent = field.value || "";
+                clonedField.replaceWith(expandedField);
+                return;
+              }
               clonedField.textContent = field.value;
               return;
             }
