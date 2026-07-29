@@ -419,6 +419,13 @@ test("renders assessor-mode sign-off fields and keeps assessor identity read-onl
   assert.match(html, /html: serializeCurrentReportHtml\(true\)/);
   assert.match(html, /assessorSignatureTime: assessorDateTimeEl \? assessorDateTimeEl\.value : ""/);
   assert.match(html, /clone\.querySelectorAll\("button"\)/);
+  assert.match(html, /data-exported-from", "textarea"/);
+  assert.match(html, /expandedField\.style\.height = "auto"/);
+  assert.match(html, /expandedField\.style\.maxHeight = "none"/);
+  assert.match(html, /expandedField\.style\.overflow = "visible"/);
+  assert.match(html, /expandedField\.style\.whiteSpace = "pre-wrap"/);
+  assert.match(html, /expandedField\.textContent = field\.value \|\| ""/);
+  assert.match(html, /clonedField\.replaceWith\(expandedField\)/);
   assert.match(html, /@page \{ size: A4 portrait; margin: 12mm; \}/);
   assert.match(html, /\.report \{ width: 100%; max-width: 186mm;/);
   assert.match(html, /<section class="status-summary-section" aria-labelledby="statusTableTitle">/);
