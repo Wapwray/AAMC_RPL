@@ -100,14 +100,21 @@ test("new-student placeholders do not trigger the existing-session route", () =>
 });
 
 test("completion requires two validated preferred interview times", () => {
-  assert.match(livePage, /id="firstChoiceDateTime" type="datetime-local"/);
-  assert.match(livePage, /id="secondChoiceDateTime" type="datetime-local"/);
+  assert.match(livePage, /id="firstChoiceDate" type="date"/);
+  assert.match(livePage, /id="firstChoiceStartTime" required/);
+  assert.match(livePage, /id="firstChoiceEndTime" required/);
+  assert.match(livePage, /id="secondChoiceDate" type="date"/);
+  assert.match(livePage, /id="secondChoiceStartTime" required/);
+  assert.match(livePage, /id="secondChoiceEndTime" required/);
   assert.match(livePage, /id="submitPreferredTimesBtn" type="submit">Submit Times/);
   assert.match(livePage, /validatePreferredChoices\(\{/);
   assert.match(livePage, /FullName: ctx\.fullName/);
   assert.match(livePage, /ContactID: String\(ctx\.contactId \|\| ""\)/);
   assert.match(livePage, /CourseName: getCourseName\(\)/);
   assert.match(livePage, /SubmittedAt: preferredTimes\.formatLocalDateTime\(submittedAt\)/);
+  assert.match(livePage, /StudentTimeZone:/);
+  assert.match(livePage, /FirstChoiceTimeRange:/);
+  assert.match(livePage, /SecondChoiceTimeRange:/);
   assert.match(livePage, /FirstChoiceDateTime:/);
   assert.match(livePage, /SecondChoiceDateTime:/);
   assert.match(livePage, /PREFERRED_INTERVIEW_TIMES_WEBHOOK_URL/);
@@ -127,9 +134,9 @@ test("RPL Emailer displays a waiting state while preparing student storage", () 
   assert.match(emailerPage, /responsePanelEl\.setAttribute\("aria-busy", String\(isPreparing\)\)/);
 });
 
-test("all three app variants expose the requested V2.7 release", () => {
-  assert.match(livePage, /welcomeVersionBadge">V2\.7</);
-  assert.match(q3Page, /const WELCOME_VERSION = "V2\.7"/);
-  assert.match(autoTesterPage, /const WELCOME_VERSION = "V2\.7"/);
-  assert.match(autoTesterPage, /const RUNTIME_VERSION = "2\.0"/);
+test("all three app variants expose the requested V2.8 release", () => {
+  assert.match(livePage, /welcomeVersionBadge">V2\.8</);
+  assert.match(q3Page, /const WELCOME_VERSION = "V2\.8"/);
+  assert.match(autoTesterPage, /const WELCOME_VERSION = "V2\.8"/);
+  assert.match(autoTesterPage, /const RUNTIME_VERSION = "2\.1"/);
 });

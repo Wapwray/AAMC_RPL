@@ -5,9 +5,12 @@ student must submit two possible follow-up meeting times.
 
 ## Student-side rules
 
-- Both choices are required and must be different.
+- Both choices are required and must be on different days.
 - Choices must fall on Monday to Friday.
 - Business hours are 9:00 am to 5:00 pm in the student's browser time zone.
+- Start and end times use half-hour increments only.
+- A session cannot start after 4:30 pm or end after 5:00 pm.
+- Each choice is submitted as a date with a start-to-end time range.
 - The completion day is excluded.
 - Five complete Monday-to-Friday business days must pass before the earliest
   selectable meeting day.
@@ -27,10 +30,21 @@ The HTTP trigger requires:
   "ContactID": "123456",
   "CourseName": "Course or qualification name",
   "SubmittedAt": "Tuesday 28 July 2026 at 8:15 pm AEST",
-  "FirstChoiceDateTime": "Wednesday 05 August 2026 at 10:00 am AEST",
-  "SecondChoiceDateTime": "Thursday 06 August 2026 at 2:30 pm AEST"
+  "StudentTimeZone": "Australia/Brisbane",
+  "FirstChoiceDate": "2026-08-05",
+  "FirstChoiceStartTime": "13:00",
+  "FirstChoiceEndTime": "16:00",
+  "FirstChoiceTimeRange": "Wednesday 5th of August 1pm to 4pm",
+  "SecondChoiceDate": "2026-08-06",
+  "SecondChoiceStartTime": "09:00",
+  "SecondChoiceEndTime": "12:30",
+  "SecondChoiceTimeRange": "Thursday 6th of August 9am to 12:30pm"
 }
 ```
+
+The browser also sends `FirstChoiceDateTime` and `SecondChoiceDateTime` as
+temporary aliases of the formatted range strings for backward compatibility
+while the Power Automate trigger is updated.
 
 The flow sends the existing internal Outlook notification and returns:
 

@@ -410,15 +410,34 @@
       }
       .preferredTimeField {
         display: grid;
-        gap: 6px;
+        gap: 8px;
       }
-      .preferredTimeField label {
+      .preferredTimeChoiceLabel {
         font-weight: 700;
         color: #0f172a;
       }
-      .preferredTimeField input {
+      .preferredTimeField input,
+      .preferredTimeField select {
         width: 100%;
         box-sizing: border-box;
+      }
+      .preferredTimeRange {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+        gap: 8px;
+        align-items: end;
+      }
+      .preferredTimeRange label {
+        display: grid;
+        gap: 5px;
+        color: #334155;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .preferredTimeRangeSeparator {
+        padding-bottom: 10px;
+        color: var(--muted);
+        font-weight: 700;
       }
       .preferredTimesHelp,
       .preferredTimesStatus {
@@ -446,6 +465,13 @@
       @media (max-width: 680px) {
         .preferredTimesGrid {
           grid-template-columns: 1fr;
+        }
+        .preferredTimeRange {
+          grid-template-columns: 1fr;
+        }
+        .preferredTimeRangeSeparator {
+          padding: 0;
+          text-align: center;
         }
       }
       .appDisclaimerFooter {
@@ -813,7 +839,7 @@
           src="/RPL%20Bot%20Artwork/2024_logo_black_transparent_outline_HRES.png"
           alt="AAMC Training Group"
         />
-        <div id="welcomeVersionBadge" class="welcomeVersionBadge">V2.7</div>
+        <div id="welcomeVersionBadge" class="welcomeVersionBadge">V2.8</div>
 
         <div class="welcomeContent">
           <div class="welcomeTitle" id="welcomeTitle">Initialising</div>
@@ -850,12 +876,34 @@
           <form id="preferredTimesForm" class="preferredTimesForm" novalidate>
             <div class="preferredTimesGrid">
               <div class="preferredTimeField">
-                <label for="firstChoiceDateTime">First choice</label>
-                <input id="firstChoiceDateTime" type="datetime-local" step="1800" required />
+                <label class="preferredTimeChoiceLabel" for="firstChoiceDate">First choice</label>
+                <input id="firstChoiceDate" type="date" required />
+                <div class="preferredTimeRange">
+                  <label for="firstChoiceStartTime">
+                    Start time
+                    <select id="firstChoiceStartTime" required></select>
+                  </label>
+                  <span class="preferredTimeRangeSeparator" aria-hidden="true">to</span>
+                  <label for="firstChoiceEndTime">
+                    End time
+                    <select id="firstChoiceEndTime" required></select>
+                  </label>
+                </div>
               </div>
               <div class="preferredTimeField">
-                <label for="secondChoiceDateTime">Second choice</label>
-                <input id="secondChoiceDateTime" type="datetime-local" step="1800" required />
+                <label class="preferredTimeChoiceLabel" for="secondChoiceDate">Second choice</label>
+                <input id="secondChoiceDate" type="date" required />
+                <div class="preferredTimeRange">
+                  <label for="secondChoiceStartTime">
+                    Start time
+                    <select id="secondChoiceStartTime" required></select>
+                  </label>
+                  <span class="preferredTimeRangeSeparator" aria-hidden="true">to</span>
+                  <label for="secondChoiceEndTime">
+                    End time
+                    <select id="secondChoiceEndTime" required></select>
+                  </label>
+                </div>
               </div>
             </div>
             <p id="preferredTimesHelp" class="preferredTimesHelp"></p>
@@ -1142,8 +1190,12 @@
       const completionTitleEl = document.getElementById("completionTitle");
       const completionBodyEl = document.getElementById("completionBody");
       const preferredTimesFormEl = document.getElementById("preferredTimesForm");
-      const firstChoiceDateTimeEl = document.getElementById("firstChoiceDateTime");
-      const secondChoiceDateTimeEl = document.getElementById("secondChoiceDateTime");
+      const firstChoiceDateEl = document.getElementById("firstChoiceDate");
+      const firstChoiceStartTimeEl = document.getElementById("firstChoiceStartTime");
+      const firstChoiceEndTimeEl = document.getElementById("firstChoiceEndTime");
+      const secondChoiceDateEl = document.getElementById("secondChoiceDate");
+      const secondChoiceStartTimeEl = document.getElementById("secondChoiceStartTime");
+      const secondChoiceEndTimeEl = document.getElementById("secondChoiceEndTime");
       const preferredTimesHelpEl = document.getElementById("preferredTimesHelp");
       const preferredTimesStatusEl = document.getElementById("preferredTimesStatus");
       const submitPreferredTimesBtn = document.getElementById("submitPreferredTimesBtn");
@@ -1292,7 +1344,7 @@
       let hintOpen = false;
       let preferredTimesEarliest = null;
       let preferredTimesSubmitted = false;
-      const DEFAULT_FOOTER_TEXT = "AI-assisted evidence collection only. A qualified assessor will review your responses and make the assessment decision. V2.7";
+      const DEFAULT_FOOTER_TEXT = "AI-assisted evidence collection only. A qualified assessor will review your responses and make the assessment decision. V2.8";
       const FINAL_FOOTER_TEXT = "Submitting your responses does not guarantee RPL. A qualified assessor will review your evidence and determine the outcome.";
       const NEXT_QUESTION_DISPLAY_SUFFIX = "Please press the Next Question button to continue.";
       const NEXT_QUESTION_DISPLAY_SIGNAL = "press the next question button to continue";
@@ -2474,16 +2526,52 @@
         if (!preferredTimesFormEl || preferredTimesSubmitted) return;
         const preferredTimes = getPreferredTimesModule();
         preferredTimesEarliest = preferredTimes.getEarliestPreferredDateTime(completedAt);
-        const minimumValue = preferredTimes.toDateTimeLocalValue(preferredTimesEarliest);
-        [firstChoiceDateTimeEl, secondChoiceDateTimeEl].forEach((input) => {
+        const minimumDate = preferredTimes.toDateInputValue(preferredTimesEarliest);
+        [firstChoiceDateEl, secondChoiceDateEl].forEach((input) => {
           if (!input) return;
-          input.min = minimumValue;
+          input.min = minimumDate;
           input.disabled = false;
         });
+
+        const populateTimeSelect = (select, values, placeholder) => {
+          if (!select) return;
+          const currentValue = select.value;
+          select.replaceChildren(new Option(placeholder, ""));
+          values.forEach((value) => {
+            select.add(new Option(preferredTimes.formatTimeValue(value), value));
+          });
+          if (values.includes(currentValue)) {
+            select.value = currentValue;
+          }
+          select.disabled = false;
+        };
+
+        populateTimeSelect(
+          firstChoiceStartTimeEl,
+          preferredTimes.getStartTimeOptions(),
+          "Select start"
+        );
+        populateTimeSelect(
+          secondChoiceStartTimeEl,
+          preferredTimes.getStartTimeOptions(),
+          "Select start"
+        );
+        populateTimeSelect(
+          firstChoiceEndTimeEl,
+          preferredTimes.getEndTimeOptions(),
+          "Select end"
+        );
+        populateTimeSelect(
+          secondChoiceEndTimeEl,
+          preferredTimes.getEndTimeOptions(),
+          "Select end"
+        );
+
         if (preferredTimesHelpEl) {
           preferredTimesHelpEl.textContent =
-            `Choose two different Monday–Friday times between 9:00 am and 5:00 pm. ` +
-            `The earliest available time is ${preferredTimes.formatLocalDateTime(preferredTimesEarliest)}.`;
+            "Choose two different Monday–Friday dates. Use half-hour times between 9am and 5pm; " +
+            "a session cannot start after 4:30pm. " +
+            `The earliest available date is ${minimumDate}.`;
         }
         if (submitPreferredTimesBtn) {
           submitPreferredTimesBtn.disabled = false;
@@ -2511,41 +2599,104 @@
         if (completionScreenEl) completionScreenEl.classList.remove("hidden");
       };
 
+      const preferredTimeControls = [
+        firstChoiceDateEl,
+        firstChoiceStartTimeEl,
+        firstChoiceEndTimeEl,
+        secondChoiceDateEl,
+        secondChoiceStartTimeEl,
+        secondChoiceEndTimeEl,
+      ];
+
+      const setPreferredTimeControlsDisabled = (disabled) => {
+        preferredTimeControls.forEach((input) => {
+          if (input) input.disabled = disabled;
+        });
+      };
+
+      const syncPreferredEndTimes = (startEl, endEl) => {
+        if (!startEl || !endEl) return;
+        const preferredTimes = getPreferredTimesModule();
+        const startMinutes = preferredTimes.parseTimeValue(startEl.value);
+        Array.from(endEl.options).forEach((option) => {
+          if (!option.value) return;
+          option.disabled =
+            Number.isFinite(startMinutes)
+            && preferredTimes.parseTimeValue(option.value) <= startMinutes;
+        });
+        if (endEl.selectedOptions[0]?.disabled) {
+          endEl.value = "";
+        }
+      };
+
+      firstChoiceStartTimeEl?.addEventListener("change", () => {
+        syncPreferredEndTimes(firstChoiceStartTimeEl, firstChoiceEndTimeEl);
+      });
+      secondChoiceStartTimeEl?.addEventListener("change", () => {
+        syncPreferredEndTimes(secondChoiceStartTimeEl, secondChoiceEndTimeEl);
+      });
+
       preferredTimesFormEl?.addEventListener("submit", async (event) => {
         event.preventDefault();
         if (preferredTimesSubmitted) return;
 
         const preferredTimes = getPreferredTimesModule();
+        const firstChoice = {
+          date: firstChoiceDateEl?.value || "",
+          startTime: firstChoiceStartTimeEl?.value || "",
+          endTime: firstChoiceEndTimeEl?.value || "",
+        };
+        const secondChoice = {
+          date: secondChoiceDateEl?.value || "",
+          startTime: secondChoiceStartTimeEl?.value || "",
+          endTime: secondChoiceEndTimeEl?.value || "",
+        };
         const validation = preferredTimes.validatePreferredChoices({
-          firstChoice: firstChoiceDateTimeEl?.value,
-          secondChoice: secondChoiceDateTimeEl?.value,
+          firstChoice,
+          secondChoice,
           earliest: preferredTimesEarliest || preferredTimes.getEarliestPreferredDateTime(new Date()),
         });
         if (!validation.valid) {
           setPreferredTimesStatus(validation.message, "error");
-          const target = validation.field === "first" ? firstChoiceDateTimeEl : secondChoiceDateTimeEl;
-          target?.focus();
+          const targetByField = {
+            firstDate: firstChoiceDateEl,
+            firstStart: firstChoiceStartTimeEl,
+            firstEnd: firstChoiceEndTimeEl,
+            secondDate: secondChoiceDateEl,
+            secondStart: secondChoiceStartTimeEl,
+            secondEnd: secondChoiceEndTimeEl,
+          };
+          targetByField[validation.field]?.focus();
           return;
         }
 
         const ctx = getStudentContext();
         const submittedAt = new Date();
+        const firstChoiceTimeRange = preferredTimes.formatPreferredTimeRange(firstChoice);
+        const secondChoiceTimeRange = preferredTimes.formatPreferredTimeRange(secondChoice);
         const payload = {
           FullName: ctx.fullName,
           ContactID: String(ctx.contactId || ""),
           CourseName: getCourseName(),
           SubmittedAt: preferredTimes.formatLocalDateTime(submittedAt),
-          FirstChoiceDateTime: preferredTimes.formatLocalDateTime(firstChoiceDateTimeEl.value),
-          SecondChoiceDateTime: preferredTimes.formatLocalDateTime(secondChoiceDateTimeEl.value),
+          StudentTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Student local time",
+          FirstChoiceDate: firstChoice.date,
+          FirstChoiceStartTime: firstChoice.startTime,
+          FirstChoiceEndTime: firstChoice.endTime,
+          FirstChoiceTimeRange: firstChoiceTimeRange,
+          SecondChoiceDate: secondChoice.date,
+          SecondChoiceStartTime: secondChoice.startTime,
+          SecondChoiceEndTime: secondChoice.endTime,
+          SecondChoiceTimeRange: secondChoiceTimeRange,
+          FirstChoiceDateTime: firstChoiceTimeRange,
+          SecondChoiceDateTime: secondChoiceTimeRange,
         };
 
         if (submitPreferredTimesBtn) {
           submitPreferredTimesBtn.disabled = true;
           submitPreferredTimesBtn.textContent = "Submitting...";
         }
-        [firstChoiceDateTimeEl, secondChoiceDateTimeEl].forEach((input) => {
-          if (input) input.disabled = true;
-        });
+        setPreferredTimeControlsDisabled(true);
         setPreferredTimesStatus("Submitting your preferred times...");
 
         try {
@@ -2581,9 +2732,9 @@
             submitPreferredTimesBtn.disabled = false;
             submitPreferredTimesBtn.textContent = "Submit Times";
           }
-          [firstChoiceDateTimeEl, secondChoiceDateTimeEl].forEach((input) => {
-            if (input) input.disabled = false;
-          });
+          setPreferredTimeControlsDisabled(false);
+          syncPreferredEndTimes(firstChoiceStartTimeEl, firstChoiceEndTimeEl);
+          syncPreferredEndTimes(secondChoiceStartTimeEl, secondChoiceEndTimeEl);
           logAssessmentDebug("Preferred interview times error", error?.message || String(error));
         }
       });
