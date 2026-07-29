@@ -80,15 +80,17 @@ test("canonical transcript and AI log files are reconstituted once at completion
 });
 
 test("new interviews wait for the student SharePoint structure to be ready", () => {
-  const beginFlow = livePage.match(/const beginAssessmentFlow = async \(([\s\S]*?)\n        firstName =/);
-  assert.ok(beginFlow);
-  assert.match(beginFlow[0], /if \(!skipCollect\)/);
-  assert.match(beginFlow[0], /const structureResponse = await fetch\(structureWebhookUrl/);
-  assert.match(beginFlow[0], /GivenName:/);
-  assert.match(beginFlow[0], /Industry: industryValue/);
-  assert.match(beginFlow[0], /jobTitle: jobValue/);
-  assert.match(beginFlow[0], /if \(!structureResponse\.ok\)/);
-  assert.doesNotMatch(beginFlow[0], /Base64Data|ContentType|FileName:/);
+  const structureFlow = livePage.match(
+    /const ensureStudentAssessmentStructure = async \(([\s\S]*?)\n      \};/
+  );
+  assert.ok(structureFlow);
+  assert.match(structureFlow[0], /const structureResponse = await fetchWithTimeout\(structureWebhookUrl/);
+  assert.match(structureFlow[0], /GivenName:/);
+  assert.match(structureFlow[0], /Industry: industryValue/);
+  assert.match(structureFlow[0], /jobTitle: jobValue/);
+  assert.match(structureFlow[0], /if \(!structureResponse\.ok\)/);
+  assert.doesNotMatch(structureFlow[0], /Base64Data|ContentType|FileName:/);
+  assert.match(livePage, /await ensureStudentAssessmentStructure\(\{ ctx, industryValue, jobValue \}\);/);
 });
 
 test("new-student placeholders do not trigger the existing-session route", () => {
@@ -134,9 +136,9 @@ test("RPL Emailer displays a waiting state while preparing student storage", () 
   assert.match(emailerPage, /responsePanelEl\.setAttribute\("aria-busy", String\(isPreparing\)\)/);
 });
 
-test("all three app variants expose the requested V2.8 release", () => {
-  assert.match(livePage, /welcomeVersionBadge">V2\.8</);
-  assert.match(q3Page, /const WELCOME_VERSION = "V2\.8"/);
-  assert.match(autoTesterPage, /const WELCOME_VERSION = "V2\.8"/);
-  assert.match(autoTesterPage, /const RUNTIME_VERSION = "2\.1"/);
+test("all three app variants expose the requested V2.9 release", () => {
+  assert.match(livePage, /welcomeVersionBadge">V2\.9</);
+  assert.match(q3Page, /const WELCOME_VERSION = "V2\.9"/);
+  assert.match(autoTesterPage, /const WELCOME_VERSION = "V2\.9"/);
+  assert.match(autoTesterPage, /const RUNTIME_VERSION = "2\.2"/);
 });

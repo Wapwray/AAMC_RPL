@@ -283,6 +283,105 @@
       .hintHeader { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
       .hintTitle { font-weight: 700; font-size: 16px; }
       .hintBody { font-size: 14px; line-height: 1.5; color: var(--text); }
+      .personalDeclarationOverlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.68);
+        display: grid;
+        place-items: center;
+        z-index: 100;
+        padding: 20px;
+        overflow-y: auto;
+      }
+      .personalDeclarationModal {
+        width: min(760px, 94vw);
+        max-height: calc(100vh - 40px);
+        overflow-y: auto;
+        background: #ffffff;
+        border-radius: 16px;
+        border: 1px solid var(--border);
+        box-shadow: 0 24px 52px rgba(15, 23, 42, 0.3);
+        padding: 24px;
+        display: grid;
+        gap: 16px;
+      }
+      .personalDeclarationTitle {
+        margin: 0;
+        font-size: 22px;
+        color: #0f172a;
+      }
+      .personalDeclarationIntro {
+        margin: 0;
+        font-weight: 700;
+      }
+      .personalDeclarationList {
+        margin: 0;
+        padding-left: 24px;
+        display: grid;
+        gap: 10px;
+        line-height: 1.55;
+      }
+      .personalDeclarationConfirm {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 12px;
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        background: #f8fafc;
+        font-weight: 600;
+      }
+      .personalDeclarationConfirm input {
+        width: 18px;
+        height: 18px;
+        margin: 2px 0 0;
+        flex: 0 0 auto;
+      }
+      .personalDeclarationFields {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(220px, 0.55fr);
+        gap: 14px;
+      }
+      .personalDeclarationField {
+        display: grid;
+        gap: 6px;
+        font-weight: 700;
+      }
+      .personalDeclarationField input {
+        width: 100%;
+        box-sizing: border-box;
+      }
+      .personalDeclarationDateTime {
+        min-height: 42px;
+        display: flex;
+        align-items: center;
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #f8fafc;
+        font-weight: 500;
+      }
+      .personalDeclarationStatus {
+        min-height: 22px;
+        margin: 0;
+        text-align: center;
+        font-weight: 600;
+      }
+      .personalDeclarationStatus.error { color: #b91c1c; }
+      .personalDeclarationActions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      @media (max-width: 680px) {
+        .personalDeclarationModal {
+          padding: 18px;
+        }
+        .personalDeclarationFields {
+          grid-template-columns: 1fr;
+        }
+      }
       .finalisingOverlay {
         position: fixed;
         inset: 0;
@@ -839,7 +938,7 @@
           src="/RPL%20Bot%20Artwork/2024_logo_black_transparent_outline_HRES.png"
           alt="AAMC Training Group"
         />
-        <div id="welcomeVersionBadge" class="welcomeVersionBadge">V2.8</div>
+        <div id="welcomeVersionBadge" class="welcomeVersionBadge">V2.9</div>
 
         <div class="welcomeContent">
           <div class="welcomeTitle" id="welcomeTitle">Initialising</div>
@@ -1092,6 +1191,52 @@
 
     <div id="appFooterDisclaimer" class="appDisclaimerFooter">AI-assisted evidence collection only. A qualified assessor will review your responses and make the assessment decision. V1.9</div>
 
+    <div
+      id="personalDeclarationOverlay"
+      class="personalDeclarationOverlay hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="personalDeclarationTitle"
+    >
+      <form id="personalDeclarationForm" class="personalDeclarationModal" novalidate>
+        <h2 id="personalDeclarationTitle" class="personalDeclarationTitle">Personal Declaration</h2>
+        <p id="personalDeclarationIntro" class="personalDeclarationIntro"></p>
+        <ol id="personalDeclarationList" class="personalDeclarationList"></ol>
+        <label class="personalDeclarationConfirm" for="personalDeclarationAccepted">
+          <input id="personalDeclarationAccepted" type="checkbox" required />
+          <span>I have read and understand this declaration.</span>
+        </label>
+        <div class="personalDeclarationFields">
+          <label class="personalDeclarationField" for="personalDeclarationSignature">
+            Signature – please type your name
+            <input
+              id="personalDeclarationSignature"
+              type="text"
+              autocomplete="name"
+              maxlength="160"
+              required
+            />
+          </label>
+          <div class="personalDeclarationField">
+            Current date and time
+            <div id="personalDeclarationDateTime" class="personalDeclarationDateTime"></div>
+          </div>
+        </div>
+        <p
+          id="personalDeclarationStatus"
+          class="personalDeclarationStatus"
+          role="status"
+          aria-live="polite"
+        ></p>
+        <div class="personalDeclarationActions">
+          <button id="personalDeclarationCancelBtn" type="button" class="secondary">
+            Return to Student Information
+          </button>
+          <button id="personalDeclarationSubmitBtn" type="submit">Submit</button>
+        </div>
+      </form>
+    </div>
+
     <div id="hintOverlay" class="hintOverlay hidden" role="dialog" aria-modal="true" aria-labelledby="hintTitle">
       <div class="hintModal">
         <div class="hintHeader">
@@ -1119,6 +1264,7 @@
     <script src="rpl-final-report-generator.js"></script>
     <script src="rpl-incremental-persistence.js"></script>
     <script src="rpl-preferred-interview-times.js"></script>
+    <script src="rpl-personal-declaration.js"></script>
     <script src="rpl-question-numbering.js"></script>
     <script>
       // Power Automate webhook URLs - centralized config for easier maintenance
@@ -1142,6 +1288,7 @@
         incrementalAttempt: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/28/workflows/4dc22da25c9b4c7c9ffa6086bfed5370/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=TLlkzIb9lQX6P_JG3-J3uznbrHqjphreAUcG29FbwMA",
         incrementalResume: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/24/workflows/ed154d71deeb46aabf5093fa4f9e2fb4/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=EKqvr517dUCSe6kypFMjO5yiaX47QrBBQ6FNNqFLBZY",
         finalReconstitution: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/21/workflows/0a9753b6f5ac4f9f9164321f26c50536/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=dssBXFJLkcyseWV0KIsyUqbkFuhXPy0elXsH9Oh15ds",
+        personalDeclaration: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/07/workflows/f2d84a872e36463cb00dbf662f4e81ff/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=FHIIOWyLDZLeGbZjnNfnufJV2p9qsqObx1EltjV9bxI",
         preferredInterviewTimes: "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/22/workflows/d877737f717c48f2a9e7b2e6a0c2c58b/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=ONULbfKNVBPMSZN9rTCv3kCUY4tJLeS97VijJVjsVa8"
       };
 
@@ -1159,6 +1306,7 @@
       const INCREMENTAL_ATTEMPT_WEBHOOK_URL = WEBHOOK_URLS.incrementalAttempt;
       const INCREMENTAL_RESUME_WEBHOOK_URL = WEBHOOK_URLS.incrementalResume;
       const FINAL_RECONSTITUTION_WEBHOOK_URL = WEBHOOK_URLS.finalReconstitution;
+      const PERSONAL_DECLARATION_WEBHOOK_URL = WEBHOOK_URLS.personalDeclaration;
       const PREFERRED_INTERVIEW_TIMES_WEBHOOK_URL = WEBHOOK_URLS.preferredInterviewTimes;
       const STARTUP_WEBHOOK_TIMEOUT_MS = 12000;
       const TRANSCRIPT_VERIFY_DELAYS_MS = [500, 1000, 1500, 2500, 4000, 6000];
@@ -1171,6 +1319,16 @@
       const industryEl = document.getElementById("industry");
       const jobTitleEl = document.getElementById("jobTitle");
       const beginBtn = document.getElementById("beginBtn");
+      const personalDeclarationOverlayEl = document.getElementById("personalDeclarationOverlay");
+      const personalDeclarationFormEl = document.getElementById("personalDeclarationForm");
+      const personalDeclarationIntroEl = document.getElementById("personalDeclarationIntro");
+      const personalDeclarationListEl = document.getElementById("personalDeclarationList");
+      const personalDeclarationAcceptedEl = document.getElementById("personalDeclarationAccepted");
+      const personalDeclarationSignatureEl = document.getElementById("personalDeclarationSignature");
+      const personalDeclarationDateTimeEl = document.getElementById("personalDeclarationDateTime");
+      const personalDeclarationStatusEl = document.getElementById("personalDeclarationStatus");
+      const personalDeclarationCancelBtn = document.getElementById("personalDeclarationCancelBtn");
+      const personalDeclarationSubmitBtn = document.getElementById("personalDeclarationSubmitBtn");
       const collectGreetingEl = document.getElementById("collectGreeting");
       const cameraSelectEl = document.getElementById("cameraSelect");
       const takePhotoBtn = document.getElementById("takePhotoBtn");
@@ -1344,7 +1502,11 @@
       let hintOpen = false;
       let preferredTimesEarliest = null;
       let preferredTimesSubmitted = false;
-      const DEFAULT_FOOTER_TEXT = "AI-assisted evidence collection only. A qualified assessor will review your responses and make the assessment decision. V2.8";
+      let personalDeclarationOpen = false;
+      let personalDeclarationSubmitting = false;
+      let personalDeclarationSubmitted = false;
+      let personalDeclarationClock = null;
+      const DEFAULT_FOOTER_TEXT = "AI-assisted evidence collection only. A qualified assessor will review your responses and make the assessment decision. V2.9";
       const FINAL_FOOTER_TEXT = "Submitting your responses does not guarantee RPL. A qualified assessor will review your evidence and determine the outcome.";
       const NEXT_QUESTION_DISPLAY_SUFFIX = "Please press the Next Question button to continue.";
       const NEXT_QUESTION_DISPLAY_SIGNAL = "press the next question button to continue";
@@ -5411,7 +5573,186 @@ END_REVIEW>>>`;
         return true;
       };
 
-      const beginAssessmentFlow = async ({ skipValidation = false, skipCollect = false } = {}) => {
+      const getPersonalDeclarationModule = () => {
+        if (!window.RplPersonalDeclaration) {
+          throw new Error("The Personal Declaration form is unavailable. Please refresh the page.");
+        }
+        return window.RplPersonalDeclaration;
+      };
+
+      const setPersonalDeclarationStatus = (message = "", type = "") => {
+        if (!personalDeclarationStatusEl) return;
+        personalDeclarationStatusEl.textContent = message;
+        personalDeclarationStatusEl.classList.toggle("error", type === "error");
+      };
+
+      const updatePersonalDeclarationDateTime = (date = new Date()) => {
+        if (!personalDeclarationDateTimeEl) return;
+        personalDeclarationDateTimeEl.textContent = getPersonalDeclarationModule().formatSignedAt(date);
+      };
+
+      const closePersonalDeclaration = ({ restoreBegin = true } = {}) => {
+        personalDeclarationOpen = false;
+        if (personalDeclarationClock) {
+          window.clearInterval(personalDeclarationClock);
+          personalDeclarationClock = null;
+        }
+        personalDeclarationOverlayEl?.classList.add("hidden");
+        if (restoreBegin && beginBtn) beginBtn.disabled = false;
+      };
+
+      const openPersonalDeclaration = () => {
+        const ctx = getStudentContext();
+        const declaration = getPersonalDeclarationModule();
+        const industryValue = industryEl?.value?.trim() || industry || "";
+        const jobValue = jobTitleEl?.value?.trim() || jobTitle || "";
+        if (!industryValue || !jobValue) {
+          setStatus("Please complete and confirm your industry and job title.");
+          return;
+        }
+        if (!lastPhotoDataUrl) {
+          setStatus("Please take or upload a recent photo before continuing.");
+          return;
+        }
+
+        if (personalDeclarationIntroEl) {
+          personalDeclarationIntroEl.textContent = `I ${ctx.fullName} confirm that:`;
+        }
+        if (personalDeclarationListEl) {
+          personalDeclarationListEl.replaceChildren(
+            ...declaration.DECLARATION_POINTS.map((point) => {
+              const item = document.createElement("li");
+              item.textContent = point;
+              return item;
+            })
+          );
+        }
+        if (personalDeclarationAcceptedEl) personalDeclarationAcceptedEl.checked = false;
+        if (personalDeclarationSignatureEl) {
+          personalDeclarationSignatureEl.value = "";
+        }
+        setPersonalDeclarationStatus("");
+        updatePersonalDeclarationDateTime();
+        if (personalDeclarationClock) window.clearInterval(personalDeclarationClock);
+        personalDeclarationClock = window.setInterval(() => updatePersonalDeclarationDateTime(), 1000);
+        personalDeclarationOpen = true;
+        if (beginBtn) beginBtn.disabled = true;
+        personalDeclarationOverlayEl?.classList.remove("hidden");
+        window.setTimeout(() => personalDeclarationAcceptedEl?.focus(), 0);
+      };
+
+      const ensureStudentAssessmentStructure = async ({ ctx, industryValue, jobValue }) => {
+        const structureWebhookUrl = getWebhookUrl("createUserFolder");
+        if (!structureWebhookUrl) {
+          throw new Error("The student storage service is unavailable.");
+        }
+        setStatus("Preparing your assessment...");
+        const structurePayload = {
+          FullName: ctx.fullName,
+          ContactID: String(ctx.contactId),
+          GivenName: ctx.givenName || fullName.split(" ").filter(Boolean)[0] || fullName,
+          Industry: industryValue,
+          jobTitle: jobValue,
+        };
+        const structureResponse = await fetchWithTimeout(structureWebhookUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(structurePayload),
+        }, 30000);
+        const structureText = await structureResponse.text();
+        if (!structureResponse.ok) {
+          throw new Error(
+            `Student assessment setup failed (${structureResponse.status}) ${structureResponse.statusText}`.trim()
+          );
+        }
+        logAssessmentDebug("Student structure ready", structureText || "Ready");
+      };
+
+      const submitPersonalDeclaration = async () => {
+        if (personalDeclarationSubmitting || personalDeclarationSubmitted) return;
+        const declaration = getPersonalDeclarationModule();
+        const validation = declaration.validateDeclaration({
+          accepted: personalDeclarationAcceptedEl?.checked === true,
+          signature: personalDeclarationSignatureEl?.value,
+          photoDataUrl: lastPhotoDataUrl,
+        });
+        if (!validation.ok) {
+          setPersonalDeclarationStatus(validation.message, "error");
+          return;
+        }
+        if (!PERSONAL_DECLARATION_WEBHOOK_URL
+          || PERSONAL_DECLARATION_WEBHOOK_URL.includes("__RPL_PERSONAL_DECLARATION_WEBHOOK__")) {
+          setPersonalDeclarationStatus("The declaration service is not currently available. Please try again later.", "error");
+          return;
+        }
+
+        personalDeclarationSubmitting = true;
+        if (personalDeclarationSubmitBtn) personalDeclarationSubmitBtn.disabled = true;
+        if (personalDeclarationCancelBtn) personalDeclarationCancelBtn.disabled = true;
+        setPersonalDeclarationStatus("Saving your declaration...");
+
+        const ctx = getStudentContext();
+        const industryValue = industryEl?.value?.trim() || industry || "";
+        const jobValue = jobTitleEl?.value?.trim() || jobTitle || "";
+        try {
+          await ensureStudentAssessmentStructure({ ctx, industryValue, jobValue });
+          const signedAt = new Date();
+          updatePersonalDeclarationDateTime(signedAt);
+          const courseName = getCourseName();
+          const payload = declaration.buildDeclarationPayload({
+            fullName: ctx.fullName,
+            givenName: ctx.givenName,
+            contactId: ctx.contactId,
+            qualification: getReportCandidateMetadata().qualification || courseName,
+            courseName,
+            industry: industryValue,
+            jobTitle: jobValue,
+            photoDataUrl: lastPhotoDataUrl,
+            accepted: personalDeclarationAcceptedEl?.checked === true,
+            signature: personalDeclarationSignatureEl?.value,
+            signedAt,
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          });
+
+          const response = await fetchWithTimeout(PERSONAL_DECLARATION_WEBHOOK_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          }, 45000);
+          const responseText = await response.text();
+          if (!response.ok) {
+            throw new Error(
+              `The declaration could not be saved (${response.status}) ${response.statusText}`.trim()
+            );
+          }
+          logAssessmentDebug("Personal declaration saved", responseText || declaration.getDeclarationFileName(payload));
+          personalDeclarationSubmitted = true;
+          setPersonalDeclarationStatus("Declaration saved.");
+          closePersonalDeclaration({ restoreBegin: false });
+          stopCameraStream();
+          await beginAssessmentFlow({
+            skipValidation: false,
+            skipCollect: false,
+            skipStructure: true,
+          });
+        } catch (error) {
+          setPersonalDeclarationStatus(
+            error?.message || "Unable to save your declaration. Please try again.",
+            "error"
+          );
+          setStatus(error?.message || "Unable to save your declaration. Please try again.");
+        } finally {
+          personalDeclarationSubmitting = false;
+          if (personalDeclarationSubmitBtn) personalDeclarationSubmitBtn.disabled = personalDeclarationSubmitted;
+          if (personalDeclarationCancelBtn) personalDeclarationCancelBtn.disabled = personalDeclarationSubmitted;
+        }
+      };
+
+      const beginAssessmentFlow = async ({
+        skipValidation = false,
+        skipCollect = false,
+        skipStructure = false,
+      } = {}) => {
         const ctx = getStudentContext();
         fullName = fullNameEl ? fullNameEl.value.trim() : "";
         if (!fullName) {
@@ -5425,29 +5766,9 @@ END_REVIEW>>>`;
           return;
         }
 
-        if (!skipCollect) {
-          const structureWebhookUrl = getWebhookUrl("createUserFolder");
+        if (!skipCollect && !skipStructure) {
           try {
-            setStatus("Preparing your assessment...");
-            const structurePayload = {
-              FullName: ctx.fullName,
-              ContactID: String(ctx.contactId),
-              GivenName: ctx.givenName || fullName.split(" ").filter(Boolean)[0] || fullName,
-              Industry: industryValue,
-              jobTitle: jobValue,
-            };
-            const structureResponse = await fetch(structureWebhookUrl, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(structurePayload),
-            });
-            const structureText = await structureResponse.text();
-            if (!structureResponse.ok) {
-              throw new Error(
-                `Student assessment setup failed (${structureResponse.status}) ${structureResponse.statusText}`.trim()
-              );
-            }
-            logAssessmentDebug("Student structure ready", structureText || "Ready");
+            await ensureStudentAssessmentStructure({ ctx, industryValue, jobValue });
           } catch (error) {
             setStatus(error?.message || "Unable to prepare the student assessment files. Please try again.");
             return;
@@ -5563,8 +5884,27 @@ END_REVIEW>>>`;
       };
 
       beginBtn.addEventListener("click", async () => {
-        stopCameraStream();
-        await beginAssessmentFlow({ skipValidation: false });
+        if (personalDeclarationSubmitted) {
+          stopCameraStream();
+          await beginAssessmentFlow({
+            skipValidation: false,
+            skipCollect: false,
+            skipStructure: true,
+          });
+          return;
+        }
+        openPersonalDeclaration();
+      });
+
+      personalDeclarationFormEl?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        await submitPersonalDeclaration();
+      });
+
+      personalDeclarationCancelBtn?.addEventListener("click", () => {
+        if (personalDeclarationSubmitting) return;
+        closePersonalDeclaration();
+        setStatus("Review your Student Information, then press Begin when you are ready.");
       });
 
       questionRefreshBtn?.addEventListener("click", async () => {
