@@ -105,7 +105,7 @@ test("main page blocks Begin on the Personal Declaration flow", () => {
 test("published page variants expose their current declaration runtime", () => {
   assert.match(mainPage, /welcomeVersionBadge">V2\.9</);
   assert.match(mainPage, /src="rpl-personal-declaration\.js"/);
-  assert.match(q3Page, /WELCOME_VERSION = "V3\.1"/);
+  assert.match(q3Page, /WELCOME_VERSION = "V3\.2"/);
   assert.match(q3Page, /V2\\\.9\/g, WELCOME_VERSION/);
   assert.match(q3Page, /V2\\\.8\/g, WELCOME_VERSION/);
   assert.match(autoTesterPage, /RUNTIME_VERSION = "2\.2"/);

@@ -82,11 +82,10 @@
       </section>
     </main>
 
-    <script src="rpl-q3-axcelerate-auth.js"></script>
+    <script src="rpl-q3-app-window.js"></script>
     <script>
       const SOURCE_FILE = "AAMC RPL 2026.html";
-      const WELCOME_VERSION = "V3.1";
-      const AX_AUTH_VERIFY_URL = "/api/axcelerate/verify-login";
+      const WELCOME_VERSION = "V3.2";
 
       const replaceIfPresent = (text, matcher, replacement) => {
         if (!matcher.test(text)) {
@@ -261,60 +260,37 @@
         return next;
       };
 
-      const renderAccessError = (message) => {
-        const auth = window.RplQ3AxcelerateAuth;
-        const loginUrl = auth?.buildLoginBridgeUrl(window.location.href) || "#";
-        document.body.innerHTML = `
-          <main class="boot">
-            <section class="bootCard">
-              <h1 class="bootTitle">Check your login details</h1>
-              <p class="bootText">${String(message || "Your aXcelerate login could not be confirmed.")
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;")}</p>
-              <p class="bootText" style="margin-top: 14px;">
-                <a href="${loginUrl.replace(/&/g, "&amp;").replace(/"/g, "&quot;")}">
-                  Log in with a different aXcelerate account
-                </a>
-              </p>
-            </section>
-          </main>
-        `;
-      };
-
-      const renderLoginLauncher = (auth) => {
-        const appWindowReturnUrl = auth.buildAppWindowReturnUrl(
+      const renderAppLauncher = (appWindowRuntime) => {
+        const appWindowUrl = appWindowRuntime.buildAppWindowUrl(
           window.location.href
         );
-        const loginUrl = auth.buildLoginBridgeUrl(appWindowReturnUrl);
         document.body.innerHTML = `
           <main class="boot">
             <section class="bootCard">
-              <h1 class="bootTitle">Verify your student login</h1>
+              <h1 class="bootTitle">Open your RPL interview</h1>
               <p class="bootText">
-                Log in with the aXcelerate student account linked to this interview.
                 The interview will open in a separate, resizable application window.
               </p>
-              <button class="bootAction" id="openAxcelerateLogin" type="button">
-                Log in and open the interview
+              <button class="bootAction" id="openRplInterview" type="button">
+                Open the interview
               </button>
-              <p class="bootStatus" id="axcelerateLaunchStatus" role="status">
+              <p class="bootStatus" id="rplLaunchStatus" role="status">
                 Keep this page open while the interview window starts.
               </p>
             </section>
           </main>
         `;
 
-        const launchButton = document.getElementById("openAxcelerateLogin");
-        const status = document.getElementById("axcelerateLaunchStatus");
+        const launchButton = document.getElementById("openRplInterview");
+        const status = document.getElementById("rplLaunchStatus");
         launchButton?.addEventListener("click", () => {
-          const features = auth.buildPopupFeatures(
+          const features = appWindowRuntime.buildPopupFeatures(
             window.screen?.availWidth,
             window.screen?.availHeight
           );
           const appWindow = window.open(
-            loginUrl,
-            auth.APP_WINDOW_NAME,
+            appWindowUrl,
+            appWindowRuntime.APP_WINDOW_NAME,
             features
           );
           if (!appWindow) {
@@ -324,7 +300,7 @@
             return;
           }
           status.textContent =
-            "The login window is open. After a successful login, that window will continue directly into your interview.";
+            "The interview window is opening.";
           status.classList.remove("isError");
           appWindow.focus();
         });
@@ -332,7 +308,7 @@
         window.addEventListener("message", (event) => {
           if (
             event.origin !== window.location.origin ||
-            event.data?.type !== auth.APP_WINDOW_MESSAGE_TYPE
+            event.data?.type !== appWindowRuntime.APP_WINDOW_MESSAGE_TYPE
           ) {
             return;
           }
@@ -342,77 +318,18 @@
         });
       };
 
-      const ensureAxcelerateAccess = async () => {
-        const auth = window.RplQ3AxcelerateAuth;
-        if (!auth) {
-          renderAccessError("The aXcelerate login check is unavailable. Please refresh the page.");
-          return false;
-        }
-
-        const expectedContactId = auth.getExpectedContactId(window.location.href);
-        const expectedCheck = auth.compareContactIds(expectedContactId, expectedContactId);
-        if (!expectedCheck.ok) {
-          renderAccessError(expectedCheck.message);
-          return false;
-        }
-
-        const accessToken = auth.getTokenFromHash(window.location.hash);
-        if (!accessToken) {
-          if (auth.isAppWindowUrl(window.location.href)) {
-            renderAccessError(
-              "The aXcelerate login did not return the required confirmation. Please log in again."
-            );
-          } else {
-            renderLoginLauncher(auth);
-          }
-          return false;
-        }
-
-        const response = await fetch(AX_AUTH_VERIFY_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ accessToken }),
-          cache: "no-store",
-        });
-        const responseText = await response.text();
-        let result = {};
-        try {
-          result = responseText ? JSON.parse(responseText) : {};
-        } catch {
-          result = {};
-        }
-        if (!response.ok || result.authenticated !== true) {
-          renderAccessError(
-            result.error ||
-              "Your aXcelerate login could not be confirmed. Please check your details and try again."
-          );
-          return false;
-        }
-
-        const match = auth.compareContactIds(expectedContactId, result.contactId);
-        if (!match.ok) {
-          renderAccessError(match.message);
-          return false;
-        }
-
-        window.history.replaceState(
-          null,
-          document.title,
-          auth.removeTokenHash(window.location.href)
-        );
-        if (window.opener && !window.opener.closed) {
-          window.opener.postMessage(
-            { type: auth.APP_WINDOW_MESSAGE_TYPE },
-            window.location.origin
-          );
-        }
-        return true;
-      };
-
       const boot = async () => {
         try {
-          const accessAllowed = await ensureAxcelerateAccess();
-          if (!accessAllowed) return;
+          const appWindowRuntime = window.RplQ3AppWindow;
+          if (!appWindowRuntime) {
+            throw new Error(
+              "The application window could not be prepared. Please refresh the page."
+            );
+          }
+          if (!appWindowRuntime.isAppWindowUrl(window.location.href)) {
+            renderAppLauncher(appWindowRuntime);
+            return;
+          }
           const sourceUrl = resolveSourceUrl();
           const response = await fetch(sourceUrl, { cache: "no-store" });
           if (!response.ok) {
@@ -420,6 +337,12 @@
           }
           const sourceHtml = await response.text();
           const q3Html = applyQ3Transforms(sourceHtml);
+          if (window.opener && !window.opener.closed) {
+            window.opener.postMessage(
+              { type: appWindowRuntime.APP_WINDOW_MESSAGE_TYPE },
+              window.location.origin
+            );
+          }
           document.open();
           document.write(q3Html);
           document.close();
