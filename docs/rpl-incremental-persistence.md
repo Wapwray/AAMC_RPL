@@ -18,8 +18,10 @@ while preserving the existing final transcript and report contracts.
 | `RPL - Get Incremental Assessment State` | `2c30da85-34db-4062-9d63-745219a38638` | Loads compact attempt files and current progress. It falls back to the legacy transcript files when no compact records exist. |
 | `RPL - Reconstitute Assessment Files` | `c4bc67d9-93f5-412c-a0ca-ad4e849f0f00` | Writes the final AI performance log, JSON transcript and text transcript once the interview is complete. |
 
-The previous combined-write flow remains available for rollback but is no
-longer called by the live application after every attempt.
+The previous combined-write flow is no longer used to rewrite complete
+transcript files after every attempt. It is still called when the learner moves
+to the next question so the legacy current-question marker, reset attempt
+number, and cleared guidance-window file remain compatible with restart logic.
 
 ## SharePoint layout
 
@@ -63,8 +65,11 @@ folders and upserts the current-attempt file. Resume treats absent optional
 startup files as empty/default state rather than failing the request.
 
 `RPL - Write Transcript and Update Question Number` now updates only the current
-question, current attempt and guidance state. It no longer accepts or rewrites
-the complete transcript files.
+question, resets the current attempt to one, and clears the guidance state when
+the learner moves to another question. It no longer accepts or rewrites the
+complete transcript files. Each assessed response is still saved through
+`RPL - Save Incremental Assessment Attempt`, which stores its current attempt
+and guidance snapshot in the compact attempt record.
 
 On the final screen, the application waits for pending compact saves and then
 calls `RPL - Reconstitute Assessment Files`. The existing canonical filenames

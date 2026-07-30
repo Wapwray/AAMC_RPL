@@ -63,6 +63,23 @@ test("attempt persistence sends compact records instead of full transcript files
   assert.match(livePage, /incrementalAiLogCursor = Math\.max/);
 });
 
+test("moving to the next question updates the legacy question progress markers", () => {
+  assert.match(
+    livePage,
+    /transcript:\s*"https:\/\/[^"]+\/workflows\/903538467bfb426fb4b074ef9cc3caa4\/triggers\/manual\/paths\/invoke\?/
+  );
+  const progressSave = livePage.match(
+    /const sendQuestionProgressOnNext = async \(currentQuestion\) => \{([\s\S]*?)\n      \};/
+  );
+  assert.ok(progressSave);
+  assert.match(progressSave[1], /CurrentQuestion: String\(currentQuestion\)/);
+  assert.match(progressSave[1], /fetchWithTimeout\(TRANSCRIPT_WEBHOOK_URL/);
+  assert.match(
+    livePage,
+    /Promise\.all\(\[\s*sendQuestionProgressOnNext\(nextQuestionValue\),\s*sendNextWebhook\(\),\s*sendResetAttemptWebhook\(\)/
+  );
+});
+
 test("resume prefers compact attempt records and retains a legacy fallback", () => {
   assert.match(livePage, /INCREMENTAL_RESUME_WEBHOOK_URL/);
   assert.match(livePage, /mergeAttemptRecords\(attemptRecords\)/);
@@ -91,6 +108,33 @@ test("new interviews wait for the student SharePoint structure to be ready", () 
   assert.match(structureFlow[0], /if \(!structureResponse\.ok\)/);
   assert.doesNotMatch(structureFlow[0], /Base64Data|ContentType|FileName:/);
   assert.match(livePage, /await ensureStudentAssessmentStructure\(\{ ctx, industryValue, jobValue \}\);/);
+});
+
+test("declaration submission also saves the standard student photo before questions begin", () => {
+  assert.match(
+    livePage,
+    /photoSaver:\s*"https:\/\/[^"]+\/workflows\/eed37019d13445dca3ed1328184834cd\/triggers\/manual\/paths\/invoke\?/
+  );
+  assert.match(
+    livePage,
+    /createUserFolder:\s*"https:\/\/[^"]+\/workflows\/b4b86e7b16654f45bd2b7308c92d239f\/triggers\/manual\/paths\/invoke\?/
+  );
+  const photoSave = livePage.match(
+    /const saveStandardStudentPhoto = async \(\{ ctx, photoDataUrl \}\) => \{([\s\S]*?)\n      \};/
+  );
+  assert.ok(photoSave);
+  assert.match(photoSave[1], /FileName: fileName/);
+  assert.match(photoSave[1], /const fileName = `\$\{ctx\.fullName\} - \$\{ctx\.contactId\} - Photo`/);
+  assert.match(photoSave[1], /ContentType: "image\/jpeg"/);
+  assert.match(photoSave[1], /Base64Data: base64Data/);
+  assert.match(
+    livePage,
+    /await ensureStudentAssessmentStructure\(\{ ctx, industryValue, jobValue \}\);[\s\S]*?await saveStandardStudentPhoto\([\s\S]*?fetchWithTimeout\(PERSONAL_DECLARATION_WEBHOOK_URL/
+  );
+  assert.match(
+    livePage,
+    /beginAssessmentFlow\(\{\s*skipValidation: false,\s*skipCollect: true,\s*skipStructure: true/
+  );
 });
 
 test("new-student placeholders do not trigger the existing-session route", () => {
@@ -141,8 +185,8 @@ test("RPL Emailer displays a waiting state while preparing student storage", () 
 });
 
 test("published app variants expose their current release versions", () => {
-  assert.match(livePage, /welcomeVersionBadge">V2\.9</);
-  assert.match(q3Page, /const WELCOME_VERSION = "V3\.2"/);
-  assert.match(autoTesterPage, /const WELCOME_VERSION = "V2\.9"/);
+  assert.match(livePage, /welcomeVersionBadge">V2\.10</);
+  assert.match(q3Page, /const WELCOME_VERSION = "V3\.3"/);
+  assert.match(autoTesterPage, /const WELCOME_VERSION = "V2\.10"/);
   assert.match(autoTesterPage, /const RUNTIME_VERSION = "2\.2"/);
 });

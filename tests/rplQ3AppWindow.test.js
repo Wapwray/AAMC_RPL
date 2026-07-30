@@ -46,7 +46,7 @@ test("Q3 application popup is resizable, scrollable and sized to the screen", ()
 });
 
 test("Q3 uses the standalone application launcher without aXcelerate code", () => {
-  assert.match(q3Page, /const WELCOME_VERSION = "V3\.2"/);
+  assert.match(q3Page, /const WELCOME_VERSION = "V3\.3"/);
   assert.match(q3Page, /src="rpl-q3-app-window\.js"/);
   assert.match(q3Page, /renderAppLauncher/);
   assert.match(q3Page, /window\.open\(/);

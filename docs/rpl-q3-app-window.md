@@ -20,8 +20,8 @@ guarantee removal of every browser control.
 
 ## Deployment notes
 
-- Q3 release: `V3.2`
-- Main app release: unchanged
-- Q3 Auto Tester release: unchanged
+- Q3 release: `V3.3`
+- Main app release: `V2.10`
+- Q3 Auto Tester release: `V2.10`
 - No aXcelerate, WordPress login bridge, token validation, Microsoft Foundry,
   or Azure App Service setting is required by the application-window launcher.

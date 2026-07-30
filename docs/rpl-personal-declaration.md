@@ -13,8 +13,17 @@ question page is shown. The learner must:
 - have a captured or uploaded photo in the current Student Information
   session.
 
-The application ensures the student's SharePoint storage structure exists,
-saves the declaration, and only then starts the question workflow.
+The declaration **Submit** action combines the previous Begin workflow with the
+declaration workflow. It:
+
+1. ensures the student's SharePoint storage structure exists;
+2. calls `RPL - Save Photo` to create
+   `[Full Name] - [Contact ID] - Photo.jpg`;
+3. saves the declaration and its separate declaration photo; and
+4. only then starts the question workflow.
+
+The `RPL - Save Photo` flow appends `.jpg`, so the application sends its
+`FileName` value without the extension.
 
 ## HTTP request contract
 

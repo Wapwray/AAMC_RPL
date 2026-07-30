@@ -94,6 +94,10 @@ test("main page blocks Begin on the Personal Declaration flow", () => {
   assert.match(mainPage, /openPersonalDeclaration\(\);/);
   assert.match(mainPage, /await submitPersonalDeclaration\(\);/);
   assert.match(mainPage, /PhotoDataUrl/);
+  assert.match(mainPage, /await saveStandardStudentPhoto\(/);
+  assert.match(mainPage, /FileName: fileName/);
+  assert.match(mainPage, /ContentType: "image\/jpeg"/);
+  assert.match(mainPage, /Base64Data: base64Data/);
   assert.match(mainPage, /skipStructure: true/);
   assert.doesNotMatch(
     mainPage,
@@ -103,12 +107,11 @@ test("main page blocks Begin on the Personal Declaration flow", () => {
 });
 
 test("published page variants expose their current declaration runtime", () => {
-  assert.match(mainPage, /welcomeVersionBadge">V2\.9</);
+  assert.match(mainPage, /welcomeVersionBadge">V2\.10</);
   assert.match(mainPage, /src="rpl-personal-declaration\.js"/);
-  assert.match(q3Page, /WELCOME_VERSION = "V3\.2"/);
-  assert.match(q3Page, /V2\\\.9\/g, WELCOME_VERSION/);
-  assert.match(q3Page, /V2\\\.8\/g, WELCOME_VERSION/);
+  assert.match(q3Page, /WELCOME_VERSION = "V3\.3"/);
+  assert.match(q3Page, /V2\\\.\(\?:10\|9\|8/);
   assert.match(autoTesterPage, /RUNTIME_VERSION = "2\.2"/);
-  assert.match(autoTesterPage, /WELCOME_VERSION = "V2\.9"/);
-  assert.match(autoTesterPage, /V2\\\.8\/g, WELCOME_VERSION/);
+  assert.match(autoTesterPage, /WELCOME_VERSION = "V2\.10"/);
+  assert.match(autoTesterPage, /V2\\\.\(\?:10\|9\|8/);
 });

@@ -85,7 +85,7 @@
     <script src="rpl-q3-app-window.js"></script>
     <script>
       const SOURCE_FILE = "AAMC RPL 2026.html";
-      const WELCOME_VERSION = "V3.2";
+      const WELCOME_VERSION = "V3.3";
 
       const replaceIfPresent = (text, matcher, replacement) => {
         if (!matcher.test(text)) {
@@ -190,15 +190,7 @@
         let next = html.replace(/<title>[\s\S]*?<\/title>/i, "<title>AAMC RPL Quiz - Q3</title>");
         next = next.replace(/AAMC RPL Quiz - V1\.0/g, "AAMC RPL Quiz - Q3");
         next = next.replace(/V3\.0-Ornith/g, "Q3");
-        next = next.replace(/V2\.0/g, WELCOME_VERSION);
-        next = next.replace(/V2\.1/g, WELCOME_VERSION);
-        next = next.replace(/V2\.2/g, WELCOME_VERSION);
-        next = next.replace(/V2\.3/g, WELCOME_VERSION);
-        next = next.replace(/V2\.4/g, WELCOME_VERSION);
-        next = next.replace(/V2\.5/g, WELCOME_VERSION);
-        next = next.replace(/V2\.7/g, WELCOME_VERSION);
-        next = next.replace(/V2\.8/g, WELCOME_VERSION);
-        next = next.replace(/V2\.9/g, WELCOME_VERSION);
+        next = next.replace(/V2\.(?:10|9|8|7|5|4|3|2|1|0)\b/g, WELCOME_VERSION);
         return next;
       };
 
