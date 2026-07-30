@@ -9,6 +9,7 @@
       body {
         margin: 0;
         height: 100%;
+        overflow: auto;
         font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
         background: #f4f6f9;
         color: #0f172a;
@@ -40,6 +41,37 @@
         color: #475569;
         line-height: 1.5;
       }
+
+      .bootAction {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 18px;
+        padding: 12px 20px;
+        border: 0;
+        border-radius: 8px;
+        background: #0877b7;
+        color: #ffffff;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .bootAction:hover,
+      .bootAction:focus-visible {
+        background: #075f91;
+      }
+
+      .bootStatus {
+        margin-top: 14px;
+        color: #475569;
+        line-height: 1.5;
+      }
+
+      .bootStatus.isError {
+        color: #9b1c1c;
+        font-weight: 600;
+      }
     </style>
   </head>
   <body>
@@ -53,7 +85,7 @@
     <script src="rpl-q3-axcelerate-auth.js"></script>
     <script>
       const SOURCE_FILE = "AAMC RPL 2026.html";
-      const WELCOME_VERSION = "V3.0";
+      const WELCOME_VERSION = "V3.1";
       const AX_AUTH_VERIFY_URL = "/api/axcelerate/verify-login";
 
       const replaceIfPresent = (text, matcher, replacement) => {
@@ -250,6 +282,66 @@
         `;
       };
 
+      const renderLoginLauncher = (auth) => {
+        const appWindowReturnUrl = auth.buildAppWindowReturnUrl(
+          window.location.href
+        );
+        const loginUrl = auth.buildLoginBridgeUrl(appWindowReturnUrl);
+        document.body.innerHTML = `
+          <main class="boot">
+            <section class="bootCard">
+              <h1 class="bootTitle">Verify your student login</h1>
+              <p class="bootText">
+                Log in with the aXcelerate student account linked to this interview.
+                The interview will open in a separate, resizable application window.
+              </p>
+              <button class="bootAction" id="openAxcelerateLogin" type="button">
+                Log in and open the interview
+              </button>
+              <p class="bootStatus" id="axcelerateLaunchStatus" role="status">
+                Keep this page open while the interview window starts.
+              </p>
+            </section>
+          </main>
+        `;
+
+        const launchButton = document.getElementById("openAxcelerateLogin");
+        const status = document.getElementById("axcelerateLaunchStatus");
+        launchButton?.addEventListener("click", () => {
+          const features = auth.buildPopupFeatures(
+            window.screen?.availWidth,
+            window.screen?.availHeight
+          );
+          const appWindow = window.open(
+            loginUrl,
+            auth.APP_WINDOW_NAME,
+            features
+          );
+          if (!appWindow) {
+            status.textContent =
+              "The interview window was blocked. Allow pop-ups for this site, then press the button again.";
+            status.classList.add("isError");
+            return;
+          }
+          status.textContent =
+            "The login window is open. After a successful login, that window will continue directly into your interview.";
+          status.classList.remove("isError");
+          appWindow.focus();
+        });
+
+        window.addEventListener("message", (event) => {
+          if (
+            event.origin !== window.location.origin ||
+            event.data?.type !== auth.APP_WINDOW_MESSAGE_TYPE
+          ) {
+            return;
+          }
+          status.textContent =
+            "Your interview is open in the application window. You may close this launcher page.";
+          status.classList.remove("isError");
+        });
+      };
+
       const ensureAxcelerateAccess = async () => {
         const auth = window.RplQ3AxcelerateAuth;
         if (!auth) {
@@ -266,7 +358,13 @@
 
         const accessToken = auth.getTokenFromHash(window.location.hash);
         if (!accessToken) {
-          window.location.replace(auth.buildLoginBridgeUrl(window.location.href));
+          if (auth.isAppWindowUrl(window.location.href)) {
+            renderAccessError(
+              "The aXcelerate login did not return the required confirmation. Please log in again."
+            );
+          } else {
+            renderLoginLauncher(auth);
+          }
           return false;
         }
 
@@ -302,6 +400,12 @@
           document.title,
           auth.removeTokenHash(window.location.href)
         );
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage(
+            { type: auth.APP_WINDOW_MESSAGE_TYPE },
+            window.location.origin
+          );
+        }
         return true;
       };
 

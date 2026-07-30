@@ -21,17 +21,41 @@ const autoTesterPage = fs.readFileSync(
 );
 const server = fs.readFileSync(path.join(__dirname, "..", "server.js"), "utf8");
 
-test("Q3 login bridge retains the interview link without exposing a token", () => {
+test("Q3 login bridge safely retains the interview link without exposing a token", () => {
   const interviewUrl =
     "https://aamc-rpl-live-ecgua6ceb4fkgfh0.australiaeast-01.azurewebsites.net/" +
-    "AAMC%20RPL%202026%20Q3.html?fullName=Billy+Broker&givenName=Billy&contactId=123456";
+    "AAMC%20RPL%202026%20Q3.html?fullName=Chlo%C3%AB-Anne+Middleton&givenName=Chlo%C3%AB-Anne&contactId=123456";
   const loginUrl = new URL(auth.buildLoginBridgeUrl(interviewUrl));
+  const encodedReturnState = loginUrl.searchParams.get("rpl_q3_return");
 
   assert.equal(loginUrl.origin, "https://aamctraining.edu.au");
   assert.equal(loginUrl.pathname, "/rpl-pre-eligibility-test/");
   assert.equal(loginUrl.searchParams.get("rpl_q3_auth"), "1");
-  assert.equal(loginUrl.searchParams.get("rpl_q3_return"), interviewUrl);
+  assert.match(encodedReturnState, /^v1\.[A-Za-z0-9_-]+$/);
+  assert.equal(bridge.decodeReturnState(encodedReturnState), interviewUrl);
   assert.equal(loginUrl.hash, "");
+});
+
+test("Q3 launcher marks the return as an application window", () => {
+  const interviewUrl =
+    "https://aamc-rpl-live-ecgua6ceb4fkgfh0.australiaeast-01.azurewebsites.net/" +
+    "AAMC%20RPL%202026%20Q3.html?fullName=Billy+Broker&givenName=Billy&contactId=123456";
+  const appWindowUrl = new URL(auth.buildAppWindowReturnUrl(interviewUrl));
+
+  assert.equal(appWindowUrl.searchParams.get("rpl_app_window"), "1");
+  assert.equal(auth.isAppWindowUrl(appWindowUrl.toString()), true);
+  assert.equal(auth.isAppWindowUrl(interviewUrl), false);
+  assert.equal(appWindowUrl.hash, "");
+});
+
+test("Q3 application popup is resizable, scrollable and sized to the screen", () => {
+  const features = auth.buildPopupFeatures(1920, 1080);
+
+  assert.match(features, /popup=yes/);
+  assert.match(features, /width=1440/);
+  assert.match(features, /height=1000/);
+  assert.match(features, /resizable=yes/);
+  assert.match(features, /scrollbars=yes/);
 });
 
 test("Q3 access token is accepted only from the URL hash", () => {
@@ -67,6 +91,13 @@ test("WordPress bridge permits only the production Q3 return address", () => {
   );
   assert.equal(validRequest.ok, true);
 
+  const encodedRequest = bridge.getBridgeRequest(
+    `https://aamctraining.edu.au/rpl-pre-eligibility-test/?rpl_q3_auth=1&` +
+      `rpl_q3_return=${encodeURIComponent(auth.encodeReturnState(validReturn))}`
+  );
+  assert.equal(encodedRequest.ok, true);
+  assert.equal(encodedRequest.returnUrl.toString(), validReturn);
+
   const invalidRequest = bridge.getBridgeRequest(
     "https://aamctraining.edu.au/rpl-pre-eligibility-test/?rpl_q3_auth=1&" +
       "rpl_q3_return=https%3A%2F%2Fevil.example%2Fsteal"
@@ -75,10 +106,18 @@ test("WordPress bridge permits only the production Q3 return address", () => {
 });
 
 test("aXcelerate pre-access gate is limited to the Q3 entry page", () => {
-  assert.match(q3Page, /const WELCOME_VERSION = "V3\.0"/);
+  assert.match(q3Page, /const WELCOME_VERSION = "V3\.1"/);
   assert.match(q3Page, /src="rpl-q3-axcelerate-auth\.js"/);
   assert.match(q3Page, /ensureAxcelerateAccess/);
+  assert.match(q3Page, /renderLoginLauncher/);
+  assert.match(q3Page, /window\.open\(/);
+  assert.match(q3Page, /auth\.APP_WINDOW_NAME/);
+  assert.match(q3Page, /auth\.APP_WINDOW_MESSAGE_TYPE/);
   assert.match(q3Page, /\/api\/axcelerate\/verify-login/);
+  assert.doesNotMatch(
+    q3Page,
+    /window\.location\.replace\(auth\.buildLoginBridgeUrl/
+  );
   assert.doesNotMatch(mainPage, /rpl-q3-axcelerate-auth\.js/);
   assert.doesNotMatch(autoTesterPage, /rpl-q3-axcelerate-auth\.js/);
 });

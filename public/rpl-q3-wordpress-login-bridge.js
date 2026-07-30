@@ -4,11 +4,35 @@
   const AUTH_MODE_PARAMETER = "rpl_q3_auth";
   const RETURN_URL_PARAMETER = "rpl_q3_return";
   const TOKEN_HASH_PARAMETER = "rpl_ax_token";
+  const RETURN_STATE_PREFIX = "v1.";
   const ALLOWED_RETURN_ORIGIN =
     "https://aamc-rpl-live-ecgua6ceb4fkgfh0.australiaeast-01.azurewebsites.net";
   const ALLOWED_RETURN_PATH = "/AAMC RPL 2026 Q3.html";
   const POLL_INTERVAL_MS = 250;
   const MAX_WAIT_MS = 15 * 60 * 1000;
+
+  const decodeReturnState = (value) => {
+    const state = String(value || "").trim();
+    if (!state.startsWith(RETURN_STATE_PREFIX)) return state;
+    const encoded = state.slice(RETURN_STATE_PREFIX.length);
+    if (!encoded || encoded.length > 16384 || !/^[A-Za-z0-9_-]+$/.test(encoded)) {
+      return "";
+    }
+    try {
+      const padding = "=".repeat((4 - (encoded.length % 4)) % 4);
+      const base64 = encoded.replace(/-/g, "+").replace(/_/g, "/") + padding;
+      if (typeof Buffer !== "undefined") {
+        return Buffer.from(base64, "base64").toString("utf8");
+      }
+      const binary = globalScope.atob(base64);
+      const bytes = Uint8Array.from(binary, (character) =>
+        character.charCodeAt(0)
+      );
+      return new TextDecoder().decode(bytes);
+    } catch {
+      return "";
+    }
+  };
 
   const getBridgeRequest = (href) => {
     try {
@@ -16,7 +40,7 @@
       if (pageUrl.searchParams.get(AUTH_MODE_PARAMETER) !== "1") return null;
       const returnValue = pageUrl.searchParams.get(RETURN_URL_PARAMETER);
       if (!returnValue) return null;
-      const returnUrl = new URL(returnValue);
+      const returnUrl = new URL(decodeReturnState(returnValue));
       if (
         returnUrl.origin !== ALLOWED_RETURN_ORIGIN ||
         decodeURIComponent(returnUrl.pathname) !== ALLOWED_RETURN_PATH
@@ -157,8 +181,10 @@
     AUTH_MODE_PARAMETER,
     RETURN_URL_PARAMETER,
     TOKEN_HASH_PARAMETER,
+    RETURN_STATE_PREFIX,
     ALLOWED_RETURN_ORIGIN,
     ALLOWED_RETURN_PATH,
+    decodeReturnState,
     getBridgeRequest,
     buildReturnUrl,
     start,
