@@ -107,11 +107,11 @@ test("main page blocks Begin on the Personal Declaration flow", () => {
 });
 
 test("published page variants expose their current declaration runtime", () => {
-  assert.match(mainPage, /welcomeVersionBadge">V2\.10</);
+  assert.match(mainPage, /welcomeVersionBadge">V2\.11</);
   assert.match(mainPage, /src="rpl-personal-declaration\.js"/);
-  assert.match(q3Page, /WELCOME_VERSION = "V3\.3"/);
-  assert.match(q3Page, /V2\\\.\(\?:10\|9\|8/);
+  assert.match(q3Page, /WELCOME_VERSION = "V3\.4"/);
+  assert.match(q3Page, /V2\\\.\(\?:11\|10\|9\|8/);
   assert.match(autoTesterPage, /RUNTIME_VERSION = "2\.2"/);
-  assert.match(autoTesterPage, /WELCOME_VERSION = "V2\.10"/);
-  assert.match(autoTesterPage, /V2\\\.\(\?:10\|9\|8/);
+  assert.match(autoTesterPage, /WELCOME_VERSION = "V2\.11"/);
+  assert.match(autoTesterPage, /V2\\\.\(\?:11\|10\|9\|8/);
 });

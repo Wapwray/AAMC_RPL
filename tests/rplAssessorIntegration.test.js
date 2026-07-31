@@ -76,8 +76,9 @@ test("moving to the next question updates the legacy question progress markers",
   assert.match(progressSave[1], /fetchWithTimeout\(TRANSCRIPT_WEBHOOK_URL/);
   assert.match(
     livePage,
-    /Promise\.all\(\[\s*sendQuestionProgressOnNext\(nextQuestionValue\),\s*sendNextWebhook\(\),\s*sendResetAttemptWebhook\(\)/
+    /Promise\.all\(\[\s*sendQuestionProgressOnNext\(nextQuestionValue\),\s*sendNextWebhook\(\),/
   );
+  assert.doesNotMatch(livePage, /sendResetAttemptWebhook/);
 });
 
 test("resume prefers compact attempt records and retains a legacy fallback", () => {
@@ -185,8 +186,8 @@ test("RPL Emailer displays a waiting state while preparing student storage", () 
 });
 
 test("published app variants expose their current release versions", () => {
-  assert.match(livePage, /welcomeVersionBadge">V2\.10</);
-  assert.match(q3Page, /const WELCOME_VERSION = "V3\.3"/);
-  assert.match(autoTesterPage, /const WELCOME_VERSION = "V2\.10"/);
+  assert.match(livePage, /welcomeVersionBadge">V2\.11</);
+  assert.match(q3Page, /const WELCOME_VERSION = "V3\.4"/);
+  assert.match(autoTesterPage, /const WELCOME_VERSION = "V2\.11"/);
   assert.match(autoTesterPage, /const RUNTIME_VERSION = "2\.2"/);
 });

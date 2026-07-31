@@ -71,6 +71,13 @@ complete transcript files. Each assessed response is still saved through
 `RPL - Save Incremental Assessment Attempt`, which stores its current attempt
 and guidance snapshot in the compact attempt record.
 
+The question-transition flow is the sole owner of the attempt reset during a
+Next Question transition. The browser does not start a second incremental
+current-attempt write in parallel. Its SharePoint write actions use exponential
+retry settings, and the current-attempt update has an additional delayed retry
+after 60 seconds for SharePoint responses that report a storage problem as HTTP
+400 with a `Retry-After` header.
+
 On the final screen, the application waits for pending compact saves and then
 calls `RPL - Reconstitute Assessment Files`. The existing canonical filenames
 and report data contract are unchanged.
