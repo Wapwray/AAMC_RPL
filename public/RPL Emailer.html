@@ -399,11 +399,32 @@
       .spacedBottom {
         margin-bottom: 12px;
       }
+
+      .processingOverlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.45);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+      }
+
+      .processingBox {
+        background: #ffffff;
+        border: 1px solid #d8e3ee;
+        border-radius: 16px;
+        padding: 24px 32px;
+        box-shadow: 0 14px 30px rgba(15, 23, 42, 0.15);
+        font-size: 16px;
+        font-weight: 600;
+        color: #0f172a;
+      }
     </style>
   </head>
   <body>
     <main class="card">
-      <h1>RPL Emailer V0.5</h1>
+      <h1>RPL Emailer V0.6</h1>
       <p class="subtitle">Enter a student Contact ID from Axcelerate and submit to fetch the student details.</p>
 
       <form id="emailerForm" class="formRow">
@@ -457,10 +478,10 @@
       </section>
 
       <section id="assessorPanel" class="assessorPanel">
-        <p>Select the assigned assessor</p>
+        <p>Online or In-Person</p>
         <div class="radioGroup spacedBottom">
-          <label><input type="radio" name="assessorAssignment" value="assigned" checked /> Assessor Assigned</label>
-          <label><input type="radio" name="assessorAssignment" value="none" /> No Assessor Assigned</label>
+          <label><input type="radio" name="assessorAssignment" value="none" /> Online</label>
+          <label><input type="radio" name="assessorAssignment" value="assigned" checked /> In-Person</label>
         </div>
         <select id="assessorSelect">
           <option value="">Loading assessors…</option>
@@ -542,6 +563,10 @@
       </section>
     </main>
 
+    <div id="processingOverlay" class="processingOverlay" role="status" aria-live="assertive">
+      <div class="processingBox">Processing -Please Wait</div>
+    </div>
+
     <script src="rpl-student-email-draft.js"></script>
     <script>
       const WEBHOOK_URL =
@@ -567,6 +592,7 @@
       let selectedRplQuestions = "";
       let selectedCourseName = "";
       let selectedStudentRecord = null;
+      let assessorConfirmed = false;
       let draftDefaultRecipient = "rwray@aamctraining.edu.au";
 
       const assessorSelectEl = document.getElementById("assessorSelect");
@@ -593,6 +619,15 @@
       const draftEmailStatusEl = document.getElementById("draftEmailStatus");
       const aiInterviewLinkPanelEl = document.getElementById("aiInterviewLinkPanel");
       const aiInterviewLinkEl = document.getElementById("aiInterviewLink");
+      const processingOverlayEl = document.getElementById("processingOverlay");
+
+      const showProcessingOverlay = () => {
+        if (processingOverlayEl) processingOverlayEl.style.display = "flex";
+      };
+
+      const hideProcessingOverlay = () => {
+        if (processingOverlayEl) processingOverlayEl.style.display = "none";
+      };
 
       const AI_INTERVIEW_BASE_URL =
         "https://aamc-rpl-live-ecgua6ceb4fkgfh0.australiaeast-01.azurewebsites.net/AAMC%20RPL%202026%20Q3.html";
@@ -659,13 +694,18 @@
       const updateEmailsPanelVisibility = () => {
         const noAssessorAssigned = getAssessorAssignmentMode() === "none";
         const hasAssessorSelection = Boolean(assessorSelectEl.value);
-        const shouldShow = noAssessorAssigned || hasAssessorSelection;
+        const shouldShow = assessorConfirmed && (noAssessorAssigned || hasAssessorSelection);
         emailsPanelEl.style.display = shouldShow ? "block" : "none";
         if (!shouldShow) {
           studentMailOptionEl.checked = false;
           assessorMailOptionEl.checked = false;
         }
         updateAssessorMailAvailability();
+      };
+
+      const updateConfirmButtonState = () => {
+        const inPersonSelected = getAssessorAssignmentMode() === "assigned";
+        assessorConfirmBtnEl.disabled = inPersonSelected && !assessorSelectEl.value;
       };
 
       const buildAiInterviewUrl = (record) => {
@@ -731,11 +771,13 @@
       };
 
       assessorSelectEl.addEventListener("change", () => {
+        assessorConfirmed = false;
+        updateEmailsPanelVisibility();
         const selected = assessorsData.find((a) => String(a["ID"]) === assessorSelectEl.value);
         if (!selected) {
           assessorDetailEl.style.display = "none";
           assessorDetailEl.innerHTML = "";
-          updateEmailsPanelVisibility();
+          updateConfirmButtonState();
           return;
         }
         assessorDetailEl.innerHTML = [
@@ -746,7 +788,7 @@
           `<div class="studentRow"><div class="studentLabel">Phone</div><div class="studentValue">${escapeHtml(selected["Phone"] || "-")}</div></div>`,
         ].join("");
         assessorDetailEl.style.display = "block";
-        updateEmailsPanelVisibility();
+        updateConfirmButtonState();
       });
 
       loadAssessors();
@@ -874,6 +916,7 @@
       };
 
       const resetAssessorAndEmailState = () => {
+        assessorConfirmed = false;
         selectedRplQuestions = "";
         selectedCourseName = "";
         qualificationsPanelEl.style.display = "none";
@@ -899,6 +942,7 @@
         aiInterviewLinkEl.href = "#";
         aiInterviewLinkEl.textContent = "";
         updateSendEmailsButtonState();
+        updateConfirmButtonState();
       };
 
       yesBtnEl.addEventListener("click", async () => {
@@ -997,6 +1041,7 @@
         if (e.target.name !== "assessorAssignment") {
           return;
         }
+        assessorConfirmed = false;
         const noAssessorAssigned = getAssessorAssignmentMode() === "none";
         assessorSelectEl.disabled = noAssessorAssigned;
         if (noAssessorAssigned) {
@@ -1004,19 +1049,23 @@
           assessorDetailEl.style.display = "none";
           assessorDetailEl.innerHTML = "";
         }
+        updateConfirmButtonState();
         updateEmailsPanelVisibility();
       });
 
       assessorConfirmBtnEl.addEventListener("click", () => {
         const noAssessorAssigned = getAssessorAssignmentMode() === "none";
         if (!noAssessorAssigned && !assessorSelectEl.value) {
-          setStatus("Please select an assessor, or choose No Assessor Assigned.", "error");
+          setStatus("Please select an assessor, or choose Online.", "error");
           return;
         }
+        assessorConfirmed = true;
         updateAiInterviewLink();
         updateEmailsPanelVisibility();
         emailsPanelEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
       });
+
+      updateConfirmButtonState();
 
       studentMailOptionEl.addEventListener("change", () => {
         updateSendEmailsButtonState();
@@ -1066,6 +1115,7 @@
         };
 
         sendEmailsBtnEl.disabled = true;
+        showProcessingOverlay();
         setStatus("Sending email request...", "");
 
         try {
@@ -1098,6 +1148,7 @@
           console.error("Send email webhook error:", error);
           setStatus("Unable to prepare the selected email request.", "error");
         } finally {
+          hideProcessingOverlay();
           updateSendEmailsButtonState();
         }
       });
