@@ -2063,11 +2063,25 @@
               }
             }
           }
+          updatePageTitle();
           return nextInfo;
         } catch (err) {
 
           return {};
         }
+      };
+
+      const updatePageTitle = () => {
+        const studentInfo = window.RPLStudentInfo || window.rplStudentInfo || window.studentInfo || {};
+        const bodyDataset = document.body?.dataset || {};
+        const qualification = studentInfo.courseName || studentInfo.qualification || bodyDataset.courseName || "";
+        const fullName = studentInfo.fullName || studentInfo.studentName || bodyDataset.fullName || "";
+        const contactId = studentInfo.contactId || bodyDataset.contactId || "";
+        const parts = ["AAMC Training - AI Assisted RPL Interview"];
+        if (qualification.trim()) parts.push(qualification.trim());
+        if (fullName.trim()) parts.push(fullName.trim());
+        if (contactId.trim()) parts.push(contactId.trim());
+        document.title = parts.join(" - ");
       };
 
       const getStudentContext = () => {
@@ -3703,6 +3717,7 @@ Job Title: ${jobTitleValue || "N/A"}
       };
 
       const updateWelcomeMessage = (responseText) => {
+        updatePageTitle();
         const ctx = getStudentContext();
         const bodyText = getWelcomeBodyText(responseText);
         const normalized = bodyText.toLowerCase();
