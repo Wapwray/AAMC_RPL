@@ -938,7 +938,7 @@
           src="/RPL%20Bot%20Artwork/2024_logo_black_transparent_outline_HRES.png"
           alt="AAMC Training Group"
         />
-        <div id="welcomeVersionBadge" class="welcomeVersionBadge">V2.11</div>
+        <div id="welcomeVersionBadge" class="welcomeVersionBadge">V2.12</div>
 
         <div class="welcomeContent">
           <div class="welcomeTitle" id="welcomeTitle">Initialising</div>
@@ -1506,7 +1506,7 @@
       let personalDeclarationSubmitting = false;
       let personalDeclarationSubmitted = false;
       let personalDeclarationClock = null;
-      const DEFAULT_FOOTER_TEXT = "AI-assisted evidence collection only. A qualified assessor will review your responses and make the assessment decision. V2.11";
+      const DEFAULT_FOOTER_TEXT = "AI-assisted evidence collection only. A qualified assessor will review your responses and make the assessment decision. V2.12";
       const FINAL_FOOTER_TEXT = "Submitting your responses does not guarantee RPL. A qualified assessor will review your evidence and determine the outcome.";
       const NEXT_QUESTION_DISPLAY_SUFFIX = "Please press the Next Question button to continue.";
       const NEXT_QUESTION_DISPLAY_SIGNAL = "press the next question button to continue";
@@ -1984,9 +1984,33 @@
         if (typeof window.URLSearchParams !== "function") return {};
         try {
           const params = new URLSearchParams(window.location?.search || "");
-          const fullName = params.get("fullName") ?? params.get("FullName") ?? params.get("studentName") ?? params.get("StudentName");
-          const givenName = params.get("givenName") ?? params.get("GivenName");
-          const contactId = params.get("contactId") ?? params.get("ContactID") ?? params.get("ContactId");
+          const launchParams = window.RPLLaunchParams && typeof window.RPLLaunchParams === "object"
+            ? window.RPLLaunchParams
+            : {};
+          const fullName = params.get("fullName")
+            ?? params.get("FullName")
+            ?? params.get("studentName")
+            ?? params.get("StudentName")
+            ?? launchParams.fullName
+            ?? launchParams.FullName
+            ?? launchParams.studentName
+            ?? launchParams.StudentName;
+          const givenName = params.get("givenName")
+            ?? params.get("GivenName")
+            ?? launchParams.givenName
+            ?? launchParams.GivenName;
+          const contactId = params.get("contactId")
+            ?? params.get("ContactID")
+            ?? params.get("ContactId")
+            ?? launchParams.contactId
+            ?? launchParams.ContactID
+            ?? launchParams.ContactId;
+          const courseName = params.get("courseName")
+            ?? params.get("CourseName")
+            ?? params.get("qualification")
+            ?? launchParams.courseName
+            ?? launchParams.CourseName
+            ?? launchParams.qualification;
 
           const nextInfo = {
             ...(typeof window.RPLStudentInfo === "object" && window.RPLStudentInfo ? window.RPLStudentInfo : {}),
@@ -2006,8 +2030,18 @@
             nextInfo.contactId = contactId.trim();
             mutated = true;
           }
+          if (courseName && courseName.trim()) {
+            nextInfo.courseName = courseName.trim();
+            nextInfo.qualification = courseName.trim();
+            mutated = true;
+          }
 
-          const managedStaffParam = params.get("managedStaff") ?? params.get("ManagedStaff") ?? params.get("managedstaff");
+          const managedStaffParam = params.get("managedStaff")
+            ?? params.get("ManagedStaff")
+            ?? params.get("managedstaff")
+            ?? launchParams.managedStaff
+            ?? launchParams.ManagedStaff
+            ?? launchParams.managedstaff;
           if (managedStaffParam) {
             managedStaff = managedStaffParam.trim().toLowerCase() === "yes";
           }
@@ -2023,6 +2057,9 @@
               }
               if (nextInfo.contactId) {
                 document.body.dataset.contactId = nextInfo.contactId;
+              }
+              if (nextInfo.courseName || nextInfo.qualification) {
+                document.body.dataset.courseName = nextInfo.courseName || nextInfo.qualification;
               }
             }
           }
@@ -2676,7 +2713,8 @@
           suppliedCourseName = pickFirstValue(
             params.get("courseName"),
             params.get("CourseName"),
-            params.get("qualification")
+            params.get("qualification"),
+            document.body?.dataset?.courseName
           );
         } catch {}
         return suppliedCourseName
@@ -5099,8 +5137,10 @@ Job Title: ${jobTitleValue || "N/A"}
 
       const updateQuestionAttemptHeader = (attemptCount = currentAttempts) => {
         if (!headerTitleEl) return;
-        const total = allQuestions.length || questions.length;
-        const number = getCurrentQuestionNumber();
+        const total = questions.length;
+        const number = total
+          ? Math.min(total, Math.max(1, currentIndex + 1))
+          : 0;
         const displayAttempt = Math.min(MAX_ATTEMPTS, Math.max(0, attemptCount) + 1);
         headerTitleEl.textContent = `Compliance - Question ${number} of ${total} - Attempt ${displayAttempt}`;
       };

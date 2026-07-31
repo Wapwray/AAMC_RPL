@@ -82,10 +82,10 @@
       </section>
     </main>
 
-    <script src="rpl-q3-app-window.js"></script>
     <script>
       const SOURCE_FILE = "AAMC RPL 2026.html";
-      const WELCOME_VERSION = "V3.4";
+      const WELCOME_VERSION = "V3.5";
+      const LAUNCH_CONTEXT_STORAGE_KEY = "rpl:q3-launch-context";
 
       const replaceIfPresent = (text, matcher, replacement) => {
         if (!matcher.test(text)) {
@@ -190,7 +190,7 @@
         let next = html.replace(/<title>[\s\S]*?<\/title>/i, "<title>AAMC RPL Quiz - Q3</title>");
         next = next.replace(/AAMC RPL Quiz - V1\.0/g, "AAMC RPL Quiz - Q3");
         next = next.replace(/V3\.0-Ornith/g, "Q3");
-        next = next.replace(/V2\.(?:11|10|9|8|7|5|4|3|2|1|0)\b/g, WELCOME_VERSION);
+        next = next.replace(/V2\.(?:12|11|10|9|8|7|5|4|3|2|1|0)\b/g, WELCOME_VERSION);
         return next;
       };
 
@@ -252,76 +252,40 @@
         return next;
       };
 
-      const renderAppLauncher = (appWindowRuntime) => {
-        const appWindowUrl = appWindowRuntime.buildAppWindowUrl(
-          window.location.href
+      const captureLaunchContext = () => {
+        const url = new URL(window.location.href);
+        const suppliedContext = Object.fromEntries(url.searchParams.entries());
+        const hasStudentContext = Boolean(
+          suppliedContext.fullName
+          || suppliedContext.FullName
+          || suppliedContext.contactId
+          || suppliedContext.ContactID
         );
-        document.body.innerHTML = `
-          <main class="boot">
-            <section class="bootCard">
-              <h1 class="bootTitle">Open your RPL interview</h1>
-              <p class="bootText">
-                The interview will open in a separate, resizable application window.
-              </p>
-              <button class="bootAction" id="openRplInterview" type="button">
-                Open the interview
-              </button>
-              <p class="bootStatus" id="rplLaunchStatus" role="status">
-                Keep this page open while the interview window starts.
-              </p>
-            </section>
-          </main>
-        `;
+        let launchContext = suppliedContext;
 
-        const launchButton = document.getElementById("openRplInterview");
-        const status = document.getElementById("rplLaunchStatus");
-        launchButton?.addEventListener("click", () => {
-          const features = appWindowRuntime.buildPopupFeatures(
-            window.screen?.availWidth,
-            window.screen?.availHeight
-          );
-          const appWindow = window.open(
-            appWindowUrl,
-            appWindowRuntime.APP_WINDOW_NAME,
-            features
-          );
-          if (!appWindow) {
-            status.textContent =
-              "The interview window was blocked. Allow pop-ups for this site, then press the button again.";
-            status.classList.add("isError");
-            return;
+        if (hasStudentContext) {
+          sessionStorage.setItem(LAUNCH_CONTEXT_STORAGE_KEY, JSON.stringify(suppliedContext));
+        } else {
+          try {
+            launchContext = JSON.parse(sessionStorage.getItem(LAUNCH_CONTEXT_STORAGE_KEY) || "{}");
+          } catch {
+            launchContext = {};
           }
-          status.textContent =
-            "The interview window is opening.";
-          status.classList.remove("isError");
-          appWindow.focus();
-        });
+        }
 
-        window.addEventListener("message", (event) => {
-          if (
-            event.origin !== window.location.origin ||
-            event.data?.type !== appWindowRuntime.APP_WINDOW_MESSAGE_TYPE
-          ) {
-            return;
-          }
-          status.textContent =
-            "Your interview is open in the application window. You may close this launcher page.";
-          status.classList.remove("isError");
-        });
+        window.RPLLaunchParams = launchContext;
+        return launchContext;
+      };
+
+      const removeStudentDetailsFromVisibleUrl = () => {
+        const cleanUrl = `${window.location.pathname}${window.location.hash || ""}`;
+        window.history.replaceState(window.history.state, document.title, cleanUrl);
       };
 
       const boot = async () => {
         try {
-          const appWindowRuntime = window.RplQ3AppWindow;
-          if (!appWindowRuntime) {
-            throw new Error(
-              "The application window could not be prepared. Please refresh the page."
-            );
-          }
-          if (!appWindowRuntime.isAppWindowUrl(window.location.href)) {
-            renderAppLauncher(appWindowRuntime);
-            return;
-          }
+          captureLaunchContext();
+          removeStudentDetailsFromVisibleUrl();
           const sourceUrl = resolveSourceUrl();
           const response = await fetch(sourceUrl, { cache: "no-store" });
           if (!response.ok) {
@@ -329,12 +293,6 @@
           }
           const sourceHtml = await response.text();
           const q3Html = applyQ3Transforms(sourceHtml);
-          if (window.opener && !window.opener.closed) {
-            window.opener.postMessage(
-              { type: appWindowRuntime.APP_WINDOW_MESSAGE_TYPE },
-              window.location.origin
-            );
-          }
           document.open();
           document.write(q3Html);
           document.close();

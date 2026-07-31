@@ -3,8 +3,6 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const appWindow = require("../public/rpl-q3-app-window.js");
-
 const publicDir = path.join(__dirname, "..", "public");
 const q3Page = fs.readFileSync(
   path.join(publicDir, "AAMC RPL 2026 Q3.html"),
@@ -20,38 +18,38 @@ const autoTesterPage = fs.readFileSync(
 );
 const server = fs.readFileSync(path.join(__dirname, "..", "server.js"), "utf8");
 
-test("Q3 launcher preserves student details in the application window URL", () => {
-  const interviewUrl =
-    "https://aamc-rpl-live-ecgua6ceb4fkgfh0.australiaeast-01.azurewebsites.net/" +
-    "AAMC%20RPL%202026%20Q3.html?fullName=Chlo%C3%AB-Anne+Middleton&givenName=Chlo%C3%AB-Anne&contactId=123456";
-  const appWindowUrl = new URL(appWindow.buildAppWindowUrl(interviewUrl));
-
-  assert.equal(appWindowUrl.searchParams.get("fullName"), "Chloë-Anne Middleton");
-  assert.equal(appWindowUrl.searchParams.get("givenName"), "Chloë-Anne");
-  assert.equal(appWindowUrl.searchParams.get("contactId"), "123456");
-  assert.equal(appWindowUrl.searchParams.get("rpl_app_window"), "1");
-  assert.equal(appWindow.isAppWindowUrl(appWindowUrl.toString()), true);
-  assert.equal(appWindow.isAppWindowUrl(interviewUrl), false);
-  assert.equal(appWindowUrl.hash, "");
+test("Q3 loads the interview directly without the intermediate launcher", () => {
+  assert.match(q3Page, /const WELCOME_VERSION = "V3\.5"/);
+  assert.match(q3Page, /captureLaunchContext\(\);[\s\S]*?removeStudentDetailsFromVisibleUrl\(\);[\s\S]*?fetch\(sourceUrl/);
+  assert.doesNotMatch(q3Page, /Open your RPL interview|Open the interview/);
+  assert.doesNotMatch(q3Page, /renderAppLauncher|window\.open\(/);
+  assert.doesNotMatch(q3Page, /src="rpl-q3-app-window\.js"/);
 });
 
-test("Q3 application popup is resizable, scrollable and sized to the screen", () => {
-  const features = appWindow.buildPopupFeatures(1920, 1080);
-
-  assert.match(features, /popup=yes/);
-  assert.match(features, /width=1440/);
-  assert.match(features, /height=1000/);
-  assert.match(features, /resizable=yes/);
-  assert.match(features, /scrollbars=yes/);
+test("Q3 retains launch context per tab and removes student details from the visible URL", () => {
+  assert.match(q3Page, /Object\.fromEntries\(url\.searchParams\.entries\(\)\)/);
+  assert.match(q3Page, /sessionStorage\.setItem\(LAUNCH_CONTEXT_STORAGE_KEY/);
+  assert.match(q3Page, /sessionStorage\.getItem\(LAUNCH_CONTEXT_STORAGE_KEY\)/);
+  assert.match(q3Page, /window\.RPLLaunchParams = launchContext/);
+  assert.match(q3Page, /window\.history\.replaceState\(window\.history\.state, document\.title, cleanUrl\)/);
+  assert.match(mainPage, /launchParams\.fullName/);
+  assert.match(mainPage, /launchParams\.contactId/);
+  assert.match(mainPage, /document\.body\.dataset\.courseName/);
+  assert.match(mainPage, /document\.body\?\.dataset\?\.courseName/);
 });
 
-test("Q3 uses the standalone application launcher without aXcelerate code", () => {
-  assert.match(q3Page, /const WELCOME_VERSION = "V3\.4"/);
-  assert.match(q3Page, /src="rpl-q3-app-window\.js"/);
-  assert.match(q3Page, /renderAppLauncher/);
-  assert.match(q3Page, /window\.open\(/);
-  assert.match(q3Page, /appWindowRuntime\.APP_WINDOW_NAME/);
-  assert.match(q3Page, /appWindowRuntime\.APP_WINDOW_MESSAGE_TYPE/);
+test("question progress uses the asked-question position while source numbers remain authoritative elsewhere", () => {
+  const headerFunction = mainPage.match(
+    /const updateQuestionAttemptHeader = \(attemptCount = currentAttempts\) => \{([\s\S]*?)\n      \};/
+  );
+  assert.ok(headerFunction);
+  assert.match(headerFunction[1], /const total = questions\.length/);
+  assert.match(headerFunction[1], /currentIndex \+ 1/);
+  assert.doesNotMatch(headerFunction[1], /allQuestions|getCurrentQuestionNumber/);
+  assert.match(mainPage, /const getCurrentQuestionNumber = \(\) => getQuestionNumber\(questions\[currentIndex\], currentIndex\)/);
+});
+
+test("Q3 direct entry contains no aXcelerate integration", () => {
   assert.doesNotMatch(q3Page, /aXcelerate|axcelerate|rpl_ax_token|verify-login/i);
   assert.doesNotMatch(server, /aXcelerate|axcelerate|verify-login/i);
   assert.doesNotMatch(mainPage, /rpl-q3-app-window\.js/);
