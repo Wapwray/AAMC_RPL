@@ -718,13 +718,12 @@
       };
 
       const fetchAssessorQuestions = async ({ candidateMetadata } = {}) => {
+        const studentContext = getStudentContext();
+        const fullName = cleanValue(candidateMetadata?.candidateName || candidateMetadata?.fullName || studentContext.fullName || fullNameEl.value);
         const payload = {
-          candidateName: cleanValue(candidateMetadata?.candidateName || candidateMetadata?.fullName || fullNameEl.value),
-          contactId: cleanValue(candidateMetadata?.contactId || contactIdEl.value),
-          qualification: cleanValue(candidateMetadata?.qualification || qualificationEl.value),
-          interviewDate: cleanValue(candidateMetadata?.interviewDate || interviewDateEl.value),
-          industry: cleanValue(candidateMetadata?.industry || industryEl.value),
-          jobTitle: cleanValue(candidateMetadata?.jobTitle || jobTitleEl.value),
+          FullName: fullName,
+          ContactID: String(cleanValue(candidateMetadata?.contactId || studentContext.contactId || contactIdEl.value)),
+          GivenName: cleanValue(studentContext.givenName) || fullName.split(/\s+/).filter(Boolean)[0] || "",
         };
 
         log("Fetching assessor questions...");

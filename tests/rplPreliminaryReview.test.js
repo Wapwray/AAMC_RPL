@@ -264,6 +264,7 @@ test("executive summary reflects the highest source question number when stored 
   const model = review.buildReportModelFromJsonTranscript(transcript);
 
   assert.equal(model.questions.length, 8);
+  assert.equal(model.metadata.questionCountReviewed, 24);
   assert.match(model.executiveSummaryItems[0], /considered 24 question\(s\)/);
 });
 

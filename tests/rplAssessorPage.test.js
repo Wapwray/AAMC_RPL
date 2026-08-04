@@ -42,6 +42,9 @@ test("assessor page automatically loads comments, generates the report, and hand
 test("assessor page loads the student's stored assessor-question file", () => {
   assert.match(page, /const STUDENT_QUESTIONS_WEBHOOK_URL = .*workflows\/37f4aa51417c4a31827a9c43cc84952a/);
   assert.match(page, /responsePayload\?\.AssessorQuestions/);
+  assert.match(page, /FullName: fullName/);
+  assert.match(page, /ContactID: String/);
+  assert.match(page, /GivenName: cleanValue\(studentContext\.givenName\)/);
   assert.doesNotMatch(page, /workflows\/776a38fbbe6449c996fd3a4127212eff/);
 });
 

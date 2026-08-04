@@ -939,14 +939,19 @@ Rules:
     return warnings;
   };
 
-  const buildExecutiveSummaryItems = (questions) => {
+  const getReviewedQuestionCount = (questions) => {
     const questionList = Array.isArray(questions) ? questions : [];
     const numericQuestionNumbers = questionList
       .map((question) => Number.parseInt(String(question?.questionNumber ?? "").trim(), 10))
       .filter((questionNumber) => Number.isFinite(questionNumber) && questionNumber > 0);
-    const reviewedQuestionCount = numericQuestionNumbers.length
+    return numericQuestionNumbers.length
       ? Math.max(questionList.length, ...numericQuestionNumbers)
       : questionList.length;
+  };
+
+  const buildExecutiveSummaryItems = (questions) => {
+    const questionList = Array.isArray(questions) ? questions : [];
+    const reviewedQuestionCount = getReviewedQuestionCount(questionList);
     const sections = Array.from(new Set(questionList.map((question) => cleanMetadataValue(question.section)).filter(Boolean)));
     const gaps = questionList.filter((question) => question.shortStatus === SHORT_ADDITIONAL_EVIDENCE);
     const reviewRequired = questionList.filter((question) => question.shortStatus === SHORT_ASSESSOR_REVIEW_REQUIRED);
@@ -1018,7 +1023,7 @@ Rules:
       industry: cleanMetadataValue(suppliedMetadata.industry || parsedMetadata.industry) || MISSING_VALUE,
       jobTitle: cleanMetadataValue(suppliedMetadata.jobTitle || parsedMetadata.jobTitle) || MISSING_VALUE,
       assessmentName: cleanMetadataValue(suppliedMetadata.assessmentName || parsedMetadata.assessmentName),
-      questionCountReviewed: questions.length,
+      questionCountReviewed: getReviewedQuestionCount(questions),
       transcriptQuestionCount: parsedQuestionBlocks.length,
       questionBankCount: questionBank.length || undefined,
       reportType: REPORT_TYPE,
@@ -1528,7 +1533,7 @@ Rules:
       industry: cleanMetadataValue(candidate.industry) || MISSING_VALUE,
       jobTitle: cleanMetadataValue(candidate.jobTitle) || MISSING_VALUE,
       assessmentName: cleanMetadataValue(candidate.assessmentName) || "RPL",
-      questionCountReviewed: reportQuestions.length,
+      questionCountReviewed: getReviewedQuestionCount(reportQuestions),
       transcriptQuestionCount: transcriptQuestions.length,
       questionBankCount: bankQuestions.length || undefined,
       reportType: REPORT_TYPE,
