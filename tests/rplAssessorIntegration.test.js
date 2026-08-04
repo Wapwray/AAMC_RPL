@@ -54,7 +54,7 @@ test("Q3 and Auto Tester inherit the current live application source", () => {
 
 test("attempt persistence sends compact records instead of full transcript files", () => {
   assert.match(livePage, /<script src="rpl-incremental-persistence\.js"><\/script>/);
-  const compactSave = livePage.match(/const sendCurrentAttemptOnEvaluate = async \(([\s\S]*?)\n      \};\n\n      const sendTranscriptBackupOnEvaluate/);
+  const compactSave = livePage.match(/const sendCurrentAttemptOnEvaluate = async \(([\s\S]*?)\r?\n\s*\};\r?\n\s*const sendTranscriptBackupOnEvaluate/);
   assert.ok(compactSave);
   assert.match(compactSave[0], /FileName: fileName/);
   assert.match(compactSave[0], /AttemptRecord: incremental \? JSON\.stringify\(incremental\.envelope\) : ""/);

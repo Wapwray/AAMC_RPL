@@ -941,6 +941,12 @@ Rules:
 
   const buildExecutiveSummaryItems = (questions) => {
     const questionList = Array.isArray(questions) ? questions : [];
+    const numericQuestionNumbers = questionList
+      .map((question) => Number.parseInt(String(question?.questionNumber ?? "").trim(), 10))
+      .filter((questionNumber) => Number.isFinite(questionNumber) && questionNumber > 0);
+    const reviewedQuestionCount = numericQuestionNumbers.length
+      ? Math.max(questionList.length, ...numericQuestionNumbers)
+      : questionList.length;
     const sections = Array.from(new Set(questionList.map((question) => cleanMetadataValue(question.section)).filter(Boolean)));
     const gaps = questionList.filter((question) => question.shortStatus === SHORT_ADDITIONAL_EVIDENCE);
     const reviewRequired = questionList.filter((question) => question.shortStatus === SHORT_ASSESSOR_REVIEW_REQUIRED);
@@ -948,7 +954,7 @@ Rules:
     const sectionText = sections.length
       ? ` across ${sections.join(", ")}`
       : "";
-    const sentences = [`The preliminary review considered ${questionList.length} question(s)${sectionText}.`];
+    const sentences = [`The preliminary review considered ${reviewedQuestionCount} question(s)${sectionText}.`];
 
     if (gaps.length) {
       const gapText = gaps

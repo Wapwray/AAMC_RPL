@@ -250,6 +250,23 @@ Answer three.`;
   assert.ok(model.warnings.some((warning) => warning.includes("non-contiguous")));
 });
 
+test("executive summary reflects the highest source question number when stored numbering has gaps", () => {
+  const transcript = {
+    candidate: { fullName: "Patrick Example", contactId: "15585423" },
+    questions: [1, 2, 18, 19, 20, 21, 22, 24].map((questionNumber) => ({
+      questionNumber,
+      questionText: `Question ${questionNumber}`,
+      preliminaryStatus: "LIKELY SUFFICIENT",
+      attempts: [{ attemptNumber: 1, answer: `Answer ${questionNumber}` }],
+    })),
+  };
+
+  const model = review.buildReportModelFromJsonTranscript(transcript);
+
+  assert.equal(model.questions.length, 8);
+  assert.match(model.executiveSummaryItems[0], /considered 24 question\(s\)/);
+});
+
 test("uses transcript objective and hint when active question data is unavailable", () => {
   const transcript = `Question 1: Describe a recent regulatory change that impacted your role?
 What new procedures were introduced and how did these changes affect the way you manage your day-to-day work?

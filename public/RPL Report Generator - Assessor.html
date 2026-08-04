@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>RPL Review 1.2</title>
+    <title>RPL Review 1.3</title>
     <style>
       :root {
         color-scheme: light;
@@ -151,7 +151,7 @@
   <body>
     <main>
       <header>
-        <h1>RPL Review 1.2</h1>
+        <h1>RPL Review 1.3</h1>
         <div id="status" class="status">Ready.</div>
       </header>
 
@@ -199,7 +199,7 @@
     <script src="rpl-final-report-generator.js"></script>
     <script>
       const SEND_PDF_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/05/workflows/ec0a8791be6a4b43ad3489e5a7edc71c/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=Y4vFRFtTMNWONA01lBGTXbkUtlaHS3b5UcQwRgVYEy0";
-      const ASSESSOR_QUESTIONS_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/776a38fbbe6449c996fd3a4127212eff/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=kA6BlWXbHh-ymnHGDWqRt25m_BEzVEAW1vHmiYur7vw";
+      const STUDENT_QUESTIONS_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/24/workflows/37f4aa51417c4a31827a9c43cc84952a/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=2kqcJMZD1Re9Y4ZdatNl_rvzS4TSkCuk3afQ1nl3P-U";
       const URL_TRANSCRIPT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/41fdc1293b8547b1ac672c8aa1ccf7f8/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=32qfqtKjiupj1eLtp31QEPjPGqGSCj9AOdZ-c3Bdy7Y";
       const ASSESSOR_SUBMIT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/22/workflows/c16eb7b6410046b9b9c42f9ea0906f6e/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=UK5U-3LpQQjjTe3ObOXLGyNNbfDT7lm3dNtGD188FpY";
       const GET_COMMENTS_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/fae53cfbfdf34e41ad287e99b5e5ae27/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=zKGiLS6UJMScAyuFibK9yFNdn1e8jMlwmZ7nQ97c5OU";
@@ -728,7 +728,7 @@
         };
 
         log("Fetching assessor questions...");
-        const response = await fetch(ASSESSOR_QUESTIONS_WEBHOOK_URL, {
+        const response = await fetch(STUDENT_QUESTIONS_WEBHOOK_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -736,13 +736,17 @@
 
         if (!response.ok) {
           const errorText = await response.text().catch(() => "");
-          throw new Error(`Assessor questions webhook failed (${response.status}) ${response.statusText} ${errorText}`.trim());
+          throw new Error(`Student questions webhook failed (${response.status}) ${response.statusText} ${errorText}`.trim());
         }
 
         const responseText = await response.text();
         if (!responseText.trim()) return [];
         try {
-          return JSON.parse(responseText);
+          const responsePayload = JSON.parse(responseText);
+          return responsePayload?.AssessorQuestions
+            ?? responsePayload?.assessorQuestions
+            ?? responsePayload?.["Assessor Questions"]
+            ?? [];
         } catch {
           return responseText;
         }

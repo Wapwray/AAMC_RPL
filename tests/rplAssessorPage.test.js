@@ -29,14 +29,20 @@ test("assessor page automatically loads comments, generates the report, and hand
   const initialiseBody = page.match(/const initialiseAssessorPage = async \(\) => \{([\s\S]*?)\n      \};/);
 
   assert.ok(initialiseBody);
-  assert.match(page, /<title>RPL Review 1\.2<\/title>/);
-  assert.match(page, /<h1>RPL Review 1\.2<\/h1>/);
+  assert.match(page, /<title>RPL Review 1\.3<\/title>/);
+  assert.match(page, /<h1>RPL Review 1\.3<\/h1>/);
   assert.match(initialiseBody[1], /await loadTranscriptFromUrlContext\(\)/);
   assert.match(initialiseBody[1], /await loadAssessorCommentsFromWebhook\(\)/);
   assert.match(initialiseBody[1], /await generateReport\(\{ sendWebhook: false \}\)/);
   assert.match(page, /event\.data\?\.type !== "rpl-assessor-submission-saved"/);
   assert.match(page, /setStatus\(`Assessor \$\{submitLabel\} saved\.`, "ok"\)/);
   assert.match(page, /Assessor submission saved via configured submit webhook/);
+});
+
+test("assessor page loads the student's stored assessor-question file", () => {
+  assert.match(page, /const STUDENT_QUESTIONS_WEBHOOK_URL = .*workflows\/37f4aa51417c4a31827a9c43cc84952a/);
+  assert.match(page, /responsePayload\?\.AssessorQuestions/);
+  assert.doesNotMatch(page, /workflows\/776a38fbbe6449c996fd3a4127212eff/);
 });
 
 test("Send PDF posts the button-free live report to the dedicated webhook", () => {

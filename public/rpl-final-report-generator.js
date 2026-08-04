@@ -36,7 +36,7 @@
       return objectiveParts.join("\n\n");
     }
 
-    return firstValue(item, ["objective", "Objective", "ObjectiveHtml", "objectiveHtml"]);
+    return firstValue(item, ["objective", "Objective", "Objectives", "ObjectiveHtml", "objectiveHtml"]);
   };
 
   const getNumericPrefix = (value) => {
