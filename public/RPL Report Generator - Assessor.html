@@ -473,37 +473,30 @@
         const envelope = typeof payload === "string" ? safeJsonParse(payload) || payload : payload;
 
         const directCandidates = [
-          envelope,
-          envelope?.body,
-          safeJsonParse(envelope?.body),
-          safeJsonParse(envelope?.body?.["Full Transcription JSON"]),
-          safeJsonParse(envelope?.["Full Transcription JSON"]),
-        ].filter(Boolean);
+        envelope,
+        envelope?.body,
+        safeJsonParse(envelope?.body),
+        safeJsonParse(envelope?.body?.["Full Transcription JSON"]),
+        safeJsonParse(envelope?.["Full Transcription JSON"]),
+        safeJsonParse(envelope?.body?.transcript),
+        safeJsonParse(envelope?.transcript),
+      ].filter(Boolean);
 
-        for (const candidate of directCandidates) {
-          if (candidate && typeof candidate === "object" && Array.isArray(candidate.questions)) {
-            transcriptInput = { kind: "json", text: "", json: candidate };
-            applyJsonMetadata(candidate);
-            return candidate.questions.length;
-          }
-        }
+      if (payload && typeof payload === "object") {
+        const candidatePayload = payload.candidate || payload.Candidate || payload.data?.candidate;
+        const questionPayload = payload.questions || payload.Questions || payload.data?.questions;
+        if (candidatePayload && Array.isArray(questionPayload)) directCandidates.push({ candidate: candidatePayload, questions: questionPayload });
+      }
 
-        if (payload && typeof payload === "object" && Array.isArray(payload.questions)) {
-          transcriptInput = { kind: "json", text: "", json: payload };
-          applyJsonMetadata(payload);
-          return payload.questions.length;
-        }
+      const completeJsonCandidate = directCandidates
+        .filter((candidate) => candidate && typeof candidate === "object" && Array.isArray(candidate.questions))
+        .sort((left, right) => right.questions.length - left.questions.length)[0];
 
-        if (payload && typeof payload === "object") {
-          const candidatePayload = payload.candidate || payload.Candidate || payload.data?.candidate;
-          const questionPayload = payload.questions || payload.Questions || payload.data?.questions;
-          if (candidatePayload && Array.isArray(questionPayload)) {
-            const normalized = { candidate: candidatePayload, questions: questionPayload };
-            transcriptInput = { kind: "json", text: "", json: normalized };
-            applyJsonMetadata(normalized);
-            return questionPayload.length;
-          }
-        }
+      if (completeJsonCandidate) {
+        transcriptInput = { kind: "json", text: "", json: completeJsonCandidate };
+        applyJsonMetadata(completeJsonCandidate);
+        return completeJsonCandidate.questions.length;
+      }
 
         const transcriptText = cleanValue(
           payload?.body?.["Full Transcription JSON"] ||
@@ -742,10 +735,14 @@
         if (!responseText.trim()) return [];
         try {
           const responsePayload = JSON.parse(responseText);
+          const parsedBody = typeof responsePayload?.body === "string" ? safeJsonParse(responsePayload.body) : responsePayload?.body;
           return responsePayload?.AssessorQuestions
             ?? responsePayload?.assessorQuestions
             ?? responsePayload?.["Assessor Questions"]
-            ?? [];
+            ?? parsedBody?.AssessorQuestions
+            ?? parsedBody?.assessorQuestions
+            ?? parsedBody?.["Assessor Questions"]
+            ?? responsePayload;
         } catch {
           return responseText;
         }

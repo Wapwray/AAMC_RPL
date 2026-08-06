@@ -79,125 +79,78 @@
     return html;
   };
 
-  const normalizeAssessorQuestionList = (rawPayload, baseQuestionCount = 0) => {
-    let payload = rawPayload;
+  const parseJsonValue = (value) => {
+  if (typeof value !== "string") return value;
+  const text = value.trim();
+  if (!text) return null;
+  try { return JSON.parse(text); } catch { return value; }
+};
 
-    if (typeof payload === "string") {
-      try {
-        payload = JSON.parse(payload);
-      } catch {
-        payload = null;
-      }
-    }
-
-    if (!payload) return [];
-
-    let list = [];
-    if (Array.isArray(payload)) {
-      list = payload;
-    } else if (Array.isArray(payload.questions)) {
-      list = payload.questions;
-    } else if (Array.isArray(payload.value)) {
-      list = payload.value;
-    } else if (Array.isArray(payload.items)) {
-      list = payload.items;
-    } else if (Array.isArray(payload.data?.questions)) {
-      list = payload.data.questions;
-    } else if (Array.isArray(payload.listitems)) {
-      list = payload.listitems;
-    } else if (typeof payload.listitems === "string") {
-      try {
-        const parsedListItems = JSON.parse(payload.listitems);
-        if (Array.isArray(parsedListItems)) list = parsedListItems;
-      } catch {
-        list = [];
-      }
-    }
-
-    const preNormalized = list
-      .map((item) => {
-        const titleValue = firstValue(item, ["Title", "title"]);
-        const titleNumber = getNumericPrefix(titleValue);
-        const explicitQuestionNumber = getNumericPrefix(firstValue(item, [
-          "questionNumber",
-          "QuestionNumber",
-          "question_number",
-          "Question Number",
-          "questionNo",
-          "QuestionNo",
-          "question_no",
-          "qNumber",
-          "QNumber",
-          "qNo",
-          "QNo",
-          "field_0",
-        ]));
-        const section = firstValue(item, ["field_1", "section", "Section", "category", "Category", "topic", "Topic"]) || "Assessor";
-        const questionText = firstValue(item, ["field_2", "questionText", "question_text", "question", "Question", "Question Details", "title", "Title"]);
-        const hints = firstValue(item, ["hints", "hint", "Hints", "Hint", "HintsHtml", "hintsHtml"]);
-        const objective = joinObjectiveFields(item);
-        if (!questionText) return null;
-        return {
-          titleValue,
-          titleNumber,
-          explicitQuestionNumber,
-          section,
-          questionText,
-          hints: hints || "N/A",
-          objective: objective || "N/A",
-        };
-      })
-      .filter(Boolean);
-
-    preNormalized.sort((a, b) => {
-      const aNum = Number.isFinite(a.titleNumber) ? a.titleNumber : Number.MAX_SAFE_INTEGER;
-      const bNum = Number.isFinite(b.titleNumber) ? b.titleNumber : Number.MAX_SAFE_INTEGER;
-      if (aNum !== bNum) return aNum - bNum;
-      return String(a.titleValue || "").localeCompare(String(b.titleValue || ""));
+const extractAssessorQuestionList = (rawPayload) => {
+  const queue = [rawPayload];
+  const visited = new Set();
+  const wrapperKeys = ["AssessorQuestions", "assessorQuestions", "Assessor Questions", "questions", "value", "items", "listitems", "data", "body", "result", "response"];
+  while (queue.length) {
+    const candidate = parseJsonValue(queue.shift());
+    if (!candidate) continue;
+    if (Array.isArray(candidate)) return candidate;
+    if (typeof candidate !== "object" || visited.has(candidate)) continue;
+    visited.add(candidate);
+    wrapperKeys.forEach((key) => {
+      if (candidate[key] !== undefined && candidate[key] !== null) queue.push(candidate[key]);
     });
+  }
+  return [];
+};
 
-    const normalized = preNormalized.map((item, index) => {
-      // Prefer explicit webhook question numbers, then numeric Title, then a simple sequence.
-      const derivedNumber = Number.isFinite(item.explicitQuestionNumber)
-        ? item.explicitQuestionNumber
-        : Number.isFinite(item.titleNumber)
-          ? item.titleNumber
-          : baseQuestionCount + index + 1;
+const normalizeAssessorQuestionList = (rawPayload, baseQuestionCount = 0) => {
+  const list = extractAssessorQuestionList(rawPayload);
+  if (!list.length) return [];
 
-      return {
-        qNumber: String(derivedNumber),
-        section: item.section,
-        questionText: item.questionText,
-        hints: item.hints,
-        objective: item.objective,
-      };
-    });
+  const preNormalized = list
+    .map((item) => {
+      const titleValue = firstValue(item, ["Title", "title"]);
+      const titleNumber = getNumericPrefix(titleValue);
+      const explicitQuestionNumber = getNumericPrefix(firstValue(item, [
+        "questionNumber", "QuestionNumber", "question_number", "Question Number",
+        "questionNo", "QuestionNo", "question_no", "qNumber", "QNumber", "qNo", "QNo", "field_0",
+      ]));
+      const section = firstValue(item, ["field_1", "section", "Section", "category", "Category", "topic", "Topic"]) || "Assessor";
+      const questionText = firstValue(item, ["field_2", "questionText", "question_text", "question", "Question", "Question Details", "title", "Title"]);
+      const hints = firstValue(item, ["hints", "hint", "Hints", "Hint", "HintsHtml", "hintsHtml"]);
+      const objective = joinObjectiveFields(item);
+      if (!questionText) return null;
+      return { titleValue, titleNumber, explicitQuestionNumber, section, questionText, hints: hints || "N/A", objective: objective || "N/A" };
+    })
+    .filter(Boolean);
 
-    return normalized;
-  };
+  preNormalized.sort((a, b) => {
+    const aNum = Number.isFinite(a.titleNumber) ? a.titleNumber : Number.MAX_SAFE_INTEGER;
+    const bNum = Number.isFinite(b.titleNumber) ? b.titleNumber : Number.MAX_SAFE_INTEGER;
+    if (aNum !== bNum) return aNum - bNum;
+    return String(a.titleValue || "").localeCompare(String(b.titleValue || ""));
+  });
 
-  const removeDuplicateAssessorQuestions = (assessorQuestions, reportQuestions) => {
-    const normalizedReportQuestions = new Set((Array.isArray(reportQuestions) ? reportQuestions : [])
-      .map((item) => normalizeComparableText(item?.questionAsked))
-      .filter(Boolean));
+  return preNormalized.map((item, index) => ({
+    qNumber: String(Number.isFinite(item.explicitQuestionNumber) ? item.explicitQuestionNumber : Number.isFinite(item.titleNumber) ? item.titleNumber : baseQuestionCount + index + 1),
+    section: item.section,
+    questionText: item.questionText,
+    hints: item.hints,
+    objective: item.objective,
+  }));
+};
 
-    const seenAssessorQuestions = new Set();
-    return (Array.isArray(assessorQuestions) ? assessorQuestions : []).filter((item) => {
-      const normalizedQuestionText = normalizeComparableText(item?.questionText);
-      if (!normalizedQuestionText) return false;
-
-      if (normalizedReportQuestions.has(normalizedQuestionText)) {
-        return false;
-      }
-
-      if (seenAssessorQuestions.has(normalizedQuestionText)) {
-        return false;
-      }
-
-      seenAssessorQuestions.add(normalizedQuestionText);
-      return true;
-    });
-  };
+  const removeDuplicateAssessorQuestions = (assessorQuestions) => {
+  const seen = new Set();
+  return (Array.isArray(assessorQuestions) ? assessorQuestions : []).filter((item) => {
+    const questionText = normalizeComparableText(item?.questionText);
+    if (!questionText) return false;
+    const key = `${cleanValue(item?.qNumber)}|${questionText}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
 
   const mergeCandidateMetadataIntoModel = (model, candidateMetadata) => {
     const metadata = model?.metadata;
@@ -532,10 +485,10 @@
           });
           assessorQuestions = normalizeAssessorQuestionList(rawAssessorQuestions, Array.isArray(model?.questions) ? model.questions.length : 0);
           const assessorQuestionCountBeforeDedup = assessorQuestions.length;
-          assessorQuestions = removeDuplicateAssessorQuestions(assessorQuestions, model?.questions);
+          assessorQuestions = removeDuplicateAssessorQuestions(assessorQuestions);
           const dedupedCount = assessorQuestionCountBeforeDedup - assessorQuestions.length;
           if (dedupedCount > 0) {
-            log(`Removed ${dedupedCount} duplicate assessor question(s) already present in Question-by-Question Review.`);
+            log(`Removed ${dedupedCount} duplicate item(s) within the assessor-question payload.`);
           }
         } catch (error) {
           log(`Assessor questions fetch failed: ${error?.message || String(error)}`);
@@ -557,6 +510,14 @@
       if (!validation.valid) {
         throw new Error(`Generated report coverage validation failed: expected ${validation.questionCount} question row(s), got ${validation.statusRows} status row(s) and ${validation.articleCount} article(s).`);
       }
+
+      if (assessorQuestions.length) {
+      if (!html.includes('id="assessorQuestionsTitle"')) {
+        throw new Error("Generated report coverage validation failed: assessor questions were loaded but not rendered.");
+      }
+      const missing = assessorQuestions.find((item) => !html.includes(`data-question-number="${escapeHtml(item.qNumber)}"`));
+      if (missing) throw new Error(`Generated report coverage validation failed: Assessor Question ${missing.qNumber} was not rendered.`);
+    }
 
       return { html, model, validation, assessorQuestions };
     };
