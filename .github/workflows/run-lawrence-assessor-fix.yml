@@ -1,0 +1,35 @@
+name: Run corrected Lawrence assessor fix
+
+on:
+  push:
+    branches: [agent/fix-lawrence-assessor-report]
+    paths: [.github/workflows/run-lawrence-assessor-fix.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  run-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/fix-lawrence-assessor-report
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Execute patch and tests
+        shell: bash
+        run: |
+          awk '/      - name: Apply fixes/{capture=1; next} /      - name: Commit verified fix/{capture=0} capture && /^        run: \|/{body=1; next} capture && body {sub(/^          /, ""); print}' .github/workflows/apply-lawrence-assessor-fix.yml > /tmp/apply-fix.sh
+          bash -e /tmp/apply-fix.sh
+      - name: Commit verified fix
+        shell: bash
+        run: |
+          rm -f .github/workflows/run-lawrence-assessor-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Fix assessor questions and final transcript question"
+          git push origin HEAD:agent/fix-lawrence-assessor-report
