@@ -1,0 +1,381 @@
+name: Apply Lawrence assessor report fix
+
+on:
+  push:
+    branches:
+      - agent/fix-lawrence-assessor-report
+    paths:
+      - .github/workflows/apply-lawrence-assessor-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/fix-lawrence-assessor-report
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Apply targeted fixes and regression test
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          generator_path = Path('public/rpl-final-report-generator.js')
+          text = generator_path.read_text()
+
+          old = '''  const normalizeAssessorQuestionList = (rawPayload, baseQuestionCount = 0) => {
+            let payload = rawPayload;
+
+            if (typeof payload === "string") {
+              try {
+                payload = JSON.parse(payload);
+              } catch {
+                payload = null;
+              }
+            }
+
+            if (!payload) return [];
+
+            let list = [];
+            if (Array.isArray(payload)) {
+              list = payload;
+            } else if (Array.isArray(payload.questions)) {
+              list = payload.questions;
+            } else if (Array.isArray(payload.value)) {
+              list = payload.value;
+            } else if (Array.isArray(payload.items)) {
+              list = payload.items;
+            } else if (Array.isArray(payload.data?.questions)) {
+              list = payload.data.questions;
+            } else if (Array.isArray(payload.listitems)) {
+              list = payload.listitems;
+            } else if (typeof payload.listitems === "string") {
+              try {
+                const parsedListItems = JSON.parse(payload.listitems);
+                if (Array.isArray(parsedListItems)) list = parsedListItems;
+              } catch {
+                list = [];
+              }
+            }
+          '''
+          new = '''  const parseJsonValue = (value) => {
+            if (typeof value !== "string") return value;
+            const text = value.trim();
+            if (!text) return null;
+            try {
+              return JSON.parse(text);
+            } catch {
+              return value;
+            }
+          };
+
+          const extractAssessorQuestionList = (rawPayload) => {
+            const queue = [rawPayload];
+            const visited = new Set();
+            const wrapperKeys = [
+              "AssessorQuestions",
+              "assessorQuestions",
+              "Assessor Questions",
+              "questions",
+              "value",
+              "items",
+              "listitems",
+              "data",
+              "body",
+              "result",
+              "response",
+            ];
+
+            while (queue.length) {
+              const candidate = parseJsonValue(queue.shift());
+              if (!candidate) continue;
+              if (Array.isArray(candidate)) return candidate;
+              if (typeof candidate !== "object") continue;
+              if (visited.has(candidate)) continue;
+              visited.add(candidate);
+
+              for (const key of wrapperKeys) {
+                if (candidate[key] !== undefined && candidate[key] !== null) {
+                  queue.push(candidate[key]);
+                }
+              }
+
+              if (candidate.data?.questions !== undefined) queue.push(candidate.data.questions);
+              if (candidate.body?.AssessorQuestions !== undefined) queue.push(candidate.body.AssessorQuestions);
+              if (candidate.body?.assessorQuestions !== undefined) queue.push(candidate.body.assessorQuestions);
+              if (candidate.body?.["Assessor Questions"] !== undefined) queue.push(candidate.body["Assessor Questions"]);
+            }
+
+            return [];
+          };
+
+          const normalizeAssessorQuestionList = (rawPayload, baseQuestionCount = 0) => {
+            const list = extractAssessorQuestionList(rawPayload);
+            if (!list.length) return [];
+          '''
+          if old not in text:
+            raise SystemExit('Assessor question normalization target was not found')
+          text = text.replace(old, new, 1)
+
+          old = '''  const removeDuplicateAssessorQuestions = (assessorQuestions, reportQuestions) => {
+            const normalizedReportQuestions = new Set((Array.isArray(reportQuestions) ? reportQuestions : [])
+              .map((item) => normalizeComparableText(item?.questionAsked))
+              .filter(Boolean));
+
+            const seenAssessorQuestions = new Set();
+            return (Array.isArray(assessorQuestions) ? assessorQuestions : []).filter((item) => {
+              const normalizedQuestionText = normalizeComparableText(item?.questionText);
+              if (!normalizedQuestionText) return false;
+
+              if (normalizedReportQuestions.has(normalizedQuestionText)) {
+                return false;
+              }
+
+              if (seenAssessorQuestions.has(normalizedQuestionText)) {
+                return false;
+              }
+
+              seenAssessorQuestions.add(normalizedQuestionText);
+              return true;
+            });
+          };
+          '''
+          new = '''  const removeDuplicateAssessorQuestions = (assessorQuestions) => {
+            const seenAssessorQuestions = new Set();
+            return (Array.isArray(assessorQuestions) ? assessorQuestions : []).filter((item) => {
+              const normalizedQuestionText = normalizeComparableText(item?.questionText);
+              const normalizedQuestionNumber = cleanValue(item?.qNumber);
+              if (!normalizedQuestionText) return false;
+
+              const dedupeKey = `${normalizedQuestionNumber}|${normalizedQuestionText}`;
+              if (seenAssessorQuestions.has(dedupeKey)) return false;
+
+              seenAssessorQuestions.add(dedupeKey);
+              return true;
+            });
+          };
+          '''
+          if old not in text:
+            raise SystemExit('Assessor question dedupe target was not found')
+          text = text.replace(old, new, 1)
+
+          old = '''          assessorQuestions = normalizeAssessorQuestionList(rawAssessorQuestions, Array.isArray(model?.questions) ? model.questions.length : 0);
+                    const assessorQuestionCountBeforeDedup = assessorQuestions.length;
+                    assessorQuestions = removeDuplicateAssessorQuestions(assessorQuestions, model?.questions);
+                    const dedupedCount = assessorQuestionCountBeforeDedup - assessorQuestions.length;
+                    if (dedupedCount > 0) {
+                      log(`Removed ${dedupedCount} duplicate assessor question(s) already present in Question-by-Question Review.`);
+                    }
+          '''
+          new = '''          assessorQuestions = normalizeAssessorQuestionList(rawAssessorQuestions, Array.isArray(model?.questions) ? model.questions.length : 0);
+                    const assessorQuestionCountBeforeDedup = assessorQuestions.length;
+                    assessorQuestions = removeDuplicateAssessorQuestions(assessorQuestions);
+                    const dedupedCount = assessorQuestionCountBeforeDedup - assessorQuestions.length;
+                    if (dedupedCount > 0) {
+                      log(`Removed ${dedupedCount} duplicate item(s) within the assessor-question payload.`);
+                    }
+          '''
+          if old not in text:
+            raise SystemExit('Assessor question build target was not found')
+          text = text.replace(old, new, 1)
+
+          old = '''      const html = injectAssessorQuestionsIntoHtml(baseHtml, assessorQuestions);
+                const validation = reportModule.validateReportHtmlCoverage(model, baseHtml);
+                if (!validation.valid) {
+                  throw new Error(`Generated report coverage validation failed: expected ${validation.questionCount} question row(s), got ${validation.statusRows} status row(s) and ${validation.articleCount} article(s).`);
+                }
+
+                return { html, model, validation, assessorQuestions };
+          '''
+          new = '''      const html = injectAssessorQuestionsIntoHtml(baseHtml, assessorQuestions);
+                const validation = reportModule.validateReportHtmlCoverage(model, baseHtml);
+                if (!validation.valid) {
+                  throw new Error(`Generated report coverage validation failed: expected ${validation.questionCount} question row(s), got ${validation.statusRows} status row(s) and ${validation.articleCount} article(s).`);
+                }
+
+                if (assessorQuestions.length) {
+                  if (!html.includes('id="assessorQuestionsTitle"')) {
+                    throw new Error("Generated report coverage validation failed: assessor questions were loaded but the Assessor Questions section was not rendered.");
+                  }
+
+                  const missingAssessorQuestion = assessorQuestions.find((item) => !html.includes(`data-question-number="${escapeHtml(item.qNumber)}"`));
+                  if (missingAssessorQuestion) {
+                    throw new Error(`Generated report coverage validation failed: Assessor Question ${missingAssessorQuestion.qNumber} was not rendered.`);
+                  }
+                }
+
+                return { html, model, validation, assessorQuestions };
+          '''
+          if old not in text:
+            raise SystemExit('Assessor question validation target was not found')
+          text = text.replace(old, new, 1)
+          generator_path.write_text(text)
+
+          page_path = Path('public/RPL Report Generator - Assessor.html')
+          page = page_path.read_text()
+
+          old = '''        const directCandidates = [
+                    envelope,
+                    envelope?.body,
+                    safeJsonParse(envelope?.body),
+                    safeJsonParse(envelope?.body?.["Full Transcription JSON"]),
+                    safeJsonParse(envelope?.["Full Transcription JSON"]),
+                  ].filter(Boolean);
+
+                  for (const candidate of directCandidates) {
+                    if (candidate && typeof candidate === "object" && Array.isArray(candidate.questions)) {
+                      transcriptInput = { kind: "json", text: "", json: candidate };
+                      applyJsonMetadata(candidate);
+                      return candidate.questions.length;
+                    }
+                  }
+
+                  if (payload && typeof payload === "object" && Array.isArray(payload.questions)) {
+                    transcriptInput = { kind: "json", text: "", json: payload };
+                    applyJsonMetadata(payload);
+                    return payload.questions.length;
+                  }
+
+                  if (payload && typeof payload === "object") {
+                    const candidatePayload = payload.candidate || payload.Candidate || payload.data?.candidate;
+                    const questionPayload = payload.questions || payload.Questions || payload.data?.questions;
+                    if (candidatePayload && Array.isArray(questionPayload)) {
+                      const normalized = { candidate: candidatePayload, questions: questionPayload };
+                      transcriptInput = { kind: "json", text: "", json: normalized };
+                      applyJsonMetadata(normalized);
+                      return questionPayload.length;
+                    }
+                  }
+          '''
+          new = '''        const directCandidates = [
+                    envelope,
+                    envelope?.body,
+                    safeJsonParse(envelope?.body),
+                    safeJsonParse(envelope?.body?.["Full Transcription JSON"]),
+                    safeJsonParse(envelope?.["Full Transcription JSON"]),
+                    safeJsonParse(envelope?.body?.transcript),
+                    safeJsonParse(envelope?.transcript),
+                  ].filter(Boolean);
+
+                  if (payload && typeof payload === "object") {
+                    const candidatePayload = payload.candidate || payload.Candidate || payload.data?.candidate;
+                    const questionPayload = payload.questions || payload.Questions || payload.data?.questions;
+                    if (candidatePayload && Array.isArray(questionPayload)) {
+                      directCandidates.push({ candidate: candidatePayload, questions: questionPayload });
+                    }
+                  }
+
+                  const completeJsonCandidate = directCandidates
+                    .filter((candidate) => candidate && typeof candidate === "object" && Array.isArray(candidate.questions))
+                    .sort((left, right) => right.questions.length - left.questions.length)[0];
+
+                  if (completeJsonCandidate) {
+                    transcriptInput = { kind: "json", text: "", json: completeJsonCandidate };
+                    applyJsonMetadata(completeJsonCandidate);
+                    return completeJsonCandidate.questions.length;
+                  }
+          '''
+          if old not in page:
+            raise SystemExit('Transcript candidate target was not found')
+          page = page.replace(old, new, 1)
+
+          old = '''        try {
+                    const responsePayload = JSON.parse(responseText);
+                    return responsePayload?.AssessorQuestions
+                      ?? responsePayload?.assessorQuestions
+                      ?? responsePayload?.["Assessor Questions"]
+                      ?? [];
+                  } catch {
+                    return responseText;
+                  }
+          '''
+          new = '''        try {
+                    const responsePayload = JSON.parse(responseText);
+                    const parsedBody = typeof responsePayload?.body === "string"
+                      ? safeJsonParse(responsePayload.body)
+                      : responsePayload?.body;
+                    return responsePayload?.AssessorQuestions
+                      ?? responsePayload?.assessorQuestions
+                      ?? responsePayload?.["Assessor Questions"]
+                      ?? parsedBody?.AssessorQuestions
+                      ?? parsedBody?.assessorQuestions
+                      ?? parsedBody?.["Assessor Questions"]
+                      ?? responsePayload;
+                  } catch {
+                    return responseText;
+                  }
+          '''
+          if old not in page:
+            raise SystemExit('Assessor response target was not found')
+          page = page.replace(old, new, 1)
+          page_path.write_text(page)
+
+          test_path = Path('tests/rplFinalReportGeneratorAssessorQuestions.test.js')
+          test_path.write_text(r'''const test = require("node:test");
+          const assert = require("node:assert/strict");
+
+          global.window = {};
+          delete require.cache[require.resolve("../public/rpl-final-report-generator")];
+          require("../public/rpl-final-report-generator");
+
+          const generatorModule = global.window.RplFinalReportGenerator;
+
+          test("renders every assessor question, including Question 20, even when wording overlaps the interview review", async () => {
+            const questionText = "Explain how you review the effectiveness of the professional relationship and how you make changes to improve it.";
+            const model = {
+              metadata: { candidateName: "Lawrence Mao", contactId: "15583314" },
+              questions: [{ questionNumber: 20, questionAsked: questionText }],
+              warnings: [],
+            };
+            const reportModule = {
+              buildReportModelFromJsonTranscript: () => model,
+              renderInteractiveReportHtml: () => '<main><section class="limitations">Limitations</section></main>',
+              validateReportHtmlCoverage: () => ({ valid: true, questionCount: 20, statusRows: 20, articleCount: 20 }),
+            };
+            const assessorQuestions = Array.from({ length: 20 }, (_, index) => ({
+              Title: String(index + 1).padStart(2, "0"),
+              field_1: "Professional Relationships",
+              field_2: index === 19 ? questionText : `Assessor question ${index + 1}`,
+              Hints: `Hint ${index + 1}`,
+              Objective: `Objective ${index + 1}`,
+            }));
+            const generator = generatorModule.create({
+              reportModule,
+              callTextModel: async () => "{}",
+              fetchAssessorQuestions: async () => ({ body: JSON.stringify({ AssessorQuestions: assessorQuestions }) }),
+            });
+
+            const result = await generator.buildPreliminaryReviewReport({ jsonTranscript: { questions: [] } });
+
+            assert.equal(result.assessorQuestions.length, 20);
+            assert.match(result.html, /id="assessorQuestionsTitle"/);
+            assert.match(result.html, /Assessor Question 20 - Professional Relationships/);
+            assert.match(result.html, /data-question-number="20"/);
+            assert.match(result.html, /Explain how you review the effectiveness of the professional relationship/);
+          });
+          ''')
+
+          workflow_path = Path('.github/workflows/apply-lawrence-assessor-fix.yml')
+          workflow_path.unlink()
+          PY
+
+          node --check public/rpl-final-report-generator.js
+          node --test tests/rplAssessorPage.test.js tests/rplFinalReportGeneratorAssessorQuestions.test.js
+
+      - name: Commit verified fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/rpl-final-report-generator.js 'public/RPL Report Generator - Assessor.html' tests/rplFinalReportGeneratorAssessorQuestions.test.js .github/workflows/apply-lawrence-assessor-fix.yml
+          git commit -m "Fix assessor questions and final transcript question"
+          git push origin HEAD:agent/fix-lawrence-assessor-report
