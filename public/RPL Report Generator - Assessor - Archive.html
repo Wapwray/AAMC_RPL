@@ -495,6 +495,7 @@
         const fieldNames = [
           "Full Transcription Text",
           "Full Transcription",
+          "Full Transcription JSON",
           "FullTranscript",
           "fullTranscript",
           "Transcript",
@@ -528,11 +529,35 @@
 
       const trySetTranscriptFromWebhookPayload = (payload) => {
         const transcriptText = extractLegacyTranscriptText(payload);
-        if (!transcriptText) return 0;
+        if (transcriptText) {
+          transcriptInput = { kind: "text", text: transcriptText, json: null };
+          applyParsedMetadata(transcriptText);
+          return reportModule.parseTranscriptQuestions(transcriptText).length;
+        }
 
-        transcriptInput = { kind: "text", text: transcriptText, json: null };
-        applyParsedMetadata(transcriptText);
-        return reportModule.parseTranscriptQuestions(transcriptText).length;
+        // Lawrence's directory response currently exposes only the JSON field.
+        // Retain this fallback so the archive page can be verified with the supplied
+        // student while still preferring legacy text whenever it is available.
+        const envelope = typeof payload === "string" ? safeJsonParse(payload) || payload : payload;
+        const parsedBody = safeJsonParse(envelope?.body);
+        const jsonCandidates = [
+          envelope,
+          parsedBody,
+          envelope?.body,
+          safeJsonParse(envelope?.["Full Transcription JSON"]),
+          safeJsonParse(parsedBody?.["Full Transcription JSON"]),
+          safeJsonParse(envelope?.body?.["Full Transcription JSON"]),
+          envelope?.data,
+        ]
+          .filter((candidate) => candidate && typeof candidate === "object" && Array.isArray(candidate.questions))
+          .sort((left, right) => right.questions.length - left.questions.length);
+
+        const jsonTranscript = jsonCandidates[0];
+        if (!jsonTranscript) return 0;
+
+        transcriptInput = { kind: "json", text: "", json: jsonTranscript };
+        applyJsonMetadata(jsonTranscript);
+        return jsonTranscript.questions.length;
       };
 
       const loadTranscriptFromUrlContext = async () => {
@@ -861,7 +886,11 @@
             candidateMetadata,
             reportOptions,
           };
-          buildArgs.fullTranscriptText = transcriptInput.text;
+          if (transcriptInput.kind === "json") {
+            buildArgs.jsonTranscript = transcriptInput.json;
+          } else {
+            buildArgs.fullTranscriptText = transcriptInput.text;
+          }
           const { html, validation } = await buildPreliminaryReviewReport({
             ...buildArgs,
           });
