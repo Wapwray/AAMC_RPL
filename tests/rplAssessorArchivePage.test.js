@@ -15,8 +15,15 @@ test("archive page is a distinct text-transcript assessor surface", () => {
   assert.match(archivePage, /"Full Transcription Text"/);
   assert.match(archivePage, /"Full Transcription"/);
   assert.match(archivePage, /typeof source === "string" && source\.trim\(\)/);
-  assert.doesNotMatch(archivePage, /buildArgs\.jsonTranscript/);
+  assert.ok(archivePage.indexOf("const transcriptText = extractLegacyTranscriptText(payload)") < archivePage.indexOf("const jsonCandidates = ["));
+  assert.match(archivePage, /buildArgs\.jsonTranscript = transcriptInput\.json/);
   assert.match(archivePage, /buildArgs\.fullTranscriptText = transcriptInput\.text/);
+});
+
+test("archive page can fall back to the directory JSON field used by the supplied Lawrence record", () => {
+  assert.match(archivePage, /safeJsonParse\(envelope\?\.\["Full Transcription JSON"\]\)/);
+  assert.match(archivePage, /transcriptInput = \{ kind: "json", text: "", json: jsonTranscript \}/);
+  assert.match(archivePage, /return jsonTranscript\.questions\.length/);
 });
 
 test("archive page retains the current assessor identity URL contract", () => {
