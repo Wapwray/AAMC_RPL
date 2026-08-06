@@ -46,11 +46,12 @@ test("archive page appends SharePoint assessor Questions 21 and 22", () => {
   assert.match(archivePage, /return \[\.\.\.retainedStoredQuestions, \.\.\.ARCHIVE_ASSESSOR_QUESTIONS\]/);
 });
 
-test("existing assessor page remains byte-for-byte at origin main", () => {
+test("archive page remains byte-for-byte while the regular assessor page evolves", () => {
   const { execFileSync } = require("node:child_process");
-  const originPage = execFileSync("git", ["show", "origin/main:public/RPL Report Generator - Assessor.html"], {
+  const originPage = execFileSync("git", ["show", "origin/main:public/RPL Report Generator - Assessor - Archive.html"], {
     cwd: path.join(__dirname, ".."),
     encoding: "utf8",
   });
-  assert.equal(currentPage.replace(/\r\n/g, "\n"), originPage.replace(/\r\n/g, "\n"));
+  assert.equal(archivePage.replace(/\r\n/g, "\n"), originPage.replace(/\r\n/g, "\n"));
+  assert.notEqual(currentPage.replace(/\r\n/g, "\n"), archivePage.replace(/\r\n/g, "\n"));
 });
