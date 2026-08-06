@@ -213,7 +213,12 @@ const normalizeAssessorQuestionList = (rawPayload, baseQuestionCount = 0) => {
     const sectionHtml = buildAssessorQuestionsSectionHtml(assessorQuestions);
     if (!sectionHtml) return html;
 
-    // Insert assessor questions before limitations so limitations/confirmation/sign-off stay after assessor questions.
+    // Keep the transcript immediately after the final assessor question when that dedicated section is enabled.
+    if (/<section\s+class="interview-transcript"/i.test(html)) {
+      return html.replace(/<section\s+class="interview-transcript"/i, `${sectionHtml}\n\n      <section class="interview-transcript"`);
+    }
+
+    // Legacy reports without the transcript section still place assessor questions before limitations.
     if (/<section\s+class="limitations"/i.test(html)) {
       return html.replace(/<section\s+class="limitations"/i, `${sectionHtml}\n\n      <section class="limitations"`);
     }
@@ -503,6 +508,9 @@ const normalizeAssessorQuestionList = (rawPayload, baseQuestionCount = 0) => {
         assessorMode: normalizedOptions.assessorMode === true,
         notifyParentOnSubmit: normalizedOptions.notifyParentOnSubmit === true,
         assessorPrefill: normalizedOptions.assessorPrefill || null,
+        assessorTranscriptEnabled: normalizedOptions.assessorTranscriptEnabled === true,
+        assessorTranscriptSubmitUrl: cleanValue(normalizedOptions.assessorTranscriptSubmitUrl),
+        assessorTranscriptPrefill: normalizedOptions.assessorTranscriptPrefill || null,
         studentPhoto: cleanValue(normalizedOptions.studentPhoto),
       });
       const html = injectAssessorQuestionsIntoHtml(baseHtml, assessorQuestions);

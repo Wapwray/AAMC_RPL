@@ -203,6 +203,8 @@
       const URL_TRANSCRIPT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/41fdc1293b8547b1ac672c8aa1ccf7f8/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=32qfqtKjiupj1eLtp31QEPjPGqGSCj9AOdZ-c3Bdy7Y";
       const ASSESSOR_SUBMIT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/22/workflows/c16eb7b6410046b9b9c42f9ea0906f6e/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=UK5U-3LpQQjjTe3ObOXLGyNNbfDT7lm3dNtGD188FpY";
       const GET_COMMENTS_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/fae53cfbfdf34e41ad287e99b5e5ae27/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=zKGiLS6UJMScAyuFibK9yFNdn1e8jMlwmZ7nQ97c5OU";
+      const GET_ASSESSOR_TRANSCRIPT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/13/workflows/f5e369c86da34e7688cd466647e6b7e1/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=trOxwa26tWzpoL5k1v-djip_vF1OOvl0dJfAdNHSIFI";
+      const SUBMIT_ASSESSOR_TRANSCRIPT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/19/workflows/399c0d41caab4c9daae2993c83fbb9d3/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=VGdZKlNuFrqreBzpFOK202e9e24_tog96Kuw3ZclkiE";
 
       const reportModule = window.RplPreliminaryReview;
       const fullNameEl = document.getElementById("fullName");
@@ -223,6 +225,7 @@
       let lastReportHtml = "";
       let loadedTranscriptMetadata = {};
       let loadedAssessorComments = null;
+      let loadedAssessorTranscript = null;
       let loadedStudentPhoto = "";
       let studentPhotoLoadPromise = null;
 
@@ -272,6 +275,22 @@
       const extractAssessorCommentsPayload = (payload) => {
         const envelope = typeof payload === "string" ? safeJsonParse(payload) || payload : payload;
         const rawValue = envelope?.["Assessor Comments JSON"] || envelope?.body?.["Assessor Comments JSON"];
+        if (!rawValue) return null;
+        if (typeof rawValue === "object") return rawValue;
+        if (typeof rawValue === "string") {
+          const parsed = safeJsonParse(rawValue);
+          return parsed && typeof parsed === "object" ? parsed : null;
+        }
+        return null;
+      };
+
+      const extractAssessorTranscriptPayload = (payload) => {
+        const envelope = typeof payload === "string" ? safeJsonParse(payload) || payload : payload;
+        const rawValue = envelope?.["Assessor Transcript JSON"]
+          || envelope?.body?.["Assessor Transcript JSON"]
+          || envelope?.["Assessor Comments JSON"]
+          || envelope?.body?.["Assessor Comments JSON"]
+          || envelope;
         if (!rawValue) return null;
         if (typeof rawValue === "object") return rawValue;
         if (typeof rawValue === "string") {
@@ -371,6 +390,9 @@
         assessorMode: true,
         notifyParentOnSubmit: true,
         assessorPrefill: loadedAssessorComments,
+        assessorTranscriptEnabled: true,
+        assessorTranscriptSubmitUrl: SUBMIT_ASSESSOR_TRANSCRIPT_WEBHOOK_URL,
+        assessorTranscriptPrefill: loadedAssessorTranscript,
         studentPhoto: loadedStudentPhoto,
       });
 
@@ -620,6 +642,39 @@
 
         loadedAssessorComments = parsedComments;
         log("Loaded Assessor Comments JSON for prefill.");
+      };
+
+      const loadAssessorTranscriptFromWebhook = async () => {
+        const ctx = getStudentContext();
+        if (!ctx.fullName || !ctx.contactId) {
+          throw new Error("Student name and Contact ID are required to get the assessor transcript.");
+        }
+        const payload = {
+          FullName: ctx.fullName,
+          ContactID: String(ctx.contactId),
+          GivenName: ctx.givenName || cleanValue(ctx.fullName).split(/\s+/)[0] || "",
+        };
+        log(`Fetching assessor transcript for ${ctx.fullName} (${ctx.contactId})`);
+        const response = await fetch(GET_ASSESSOR_TRANSCRIPT_WEBHOOK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const responseText = await response.text();
+        if (!response.ok) {
+          throw new Error(`Get assessor transcript webhook failed (${response.status}) ${response.statusText}`.trim());
+        }
+        let payloadData = responseText;
+        try {
+          payloadData = responseText ? JSON.parse(responseText) : "";
+        } catch {
+          payloadData = responseText;
+        }
+        loadedAssessorTranscript = extractAssessorTranscriptPayload(payloadData);
+        if (!loadedAssessorTranscript) {
+          throw new Error("Get assessor transcript webhook returned no transcript payload.");
+        }
+        log("Loaded Assessor Transcript JSON for prefill.");
       };
 
       const loadStudentPhotoFromWebhook = async () => {
@@ -923,6 +978,14 @@
           setStatus("Loading assessor comments...");
           await loadAssessorCommentsFromWebhook();
           setStatus("Assessor comments loaded.", "ok");
+        } catch (error) {
+          log(error?.stack || error?.message || String(error));
+        }
+
+        try {
+          setStatus("Loading assessor transcript...");
+          await loadAssessorTranscriptFromWebhook();
+          setStatus("Assessor transcript loaded.", "ok");
         } catch (error) {
           log(error?.stack || error?.message || String(error));
         }
