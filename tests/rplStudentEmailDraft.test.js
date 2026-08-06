@@ -17,17 +17,17 @@ test("draft response exposes the flow-generated recipient, subject, body, and st
   });
 
   assert.deepEqual(draft, {
-    defaultRecipient: "rwray@aamctraining.edu.au",
+    defaultRecipient: "info@aamctraining.edu.au",
     studentRecipient: "student@example.com",
     subject: "RPL consultation",
     bodyHtml: "<p>Hello</p>",
   });
 });
 
-test("recipient defaults to Richard and permits a validated Other address", () => {
+test("recipient defaults to the AAMC information address and permits a validated Other address", () => {
   assert.equal(
     resolveRecipient({ mode: "default", defaultRecipient: DEFAULT_RECIPIENT }),
-    "rwray@aamctraining.edu.au"
+    "info@aamctraining.edu.au"
   );
   assert.equal(
     resolveRecipient({ mode: "other", otherRecipient: "other@example.com" }),
@@ -35,10 +35,30 @@ test("recipient defaults to Richard and permits a validated Other address", () =
   );
 });
 
-test("student recipient remains visible but cannot be selected", () => {
-  assert.throws(
-    () => resolveRecipient({ mode: "student", defaultRecipient: DEFAULT_RECIPIENT }),
-    /not selectable yet/
+test("student recipient can be selected when the page enables it", () => {
+  assert.equal(
+    resolveRecipient({
+      mode: "student",
+      defaultRecipient: DEFAULT_RECIPIENT,
+      studentRecipient: "student@example.com",
+    }),
+    "student@example.com"
+  );
+});
+
+test("send payload can target the enabled student address", () => {
+  assert.equal(
+    buildSendPayload({
+      recipientMode: "student",
+      defaultRecipient: DEFAULT_RECIPIENT,
+      studentRecipient: "student@example.com",
+      subject: "RPL information",
+      bodyHtml: "<p>Hello</p>",
+      fullName: "Ms Student Example",
+      contactId: "123456",
+      courseName: "FNS50322",
+    }).Recipient,
+    "student@example.com"
   );
 });
 

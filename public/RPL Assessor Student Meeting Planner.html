@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="en-AU">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RPL Assessor Student Meeting Planner</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: Arial, Helvetica, sans-serif;
+        color: #0f172a;
+        background: #eef3f8;
+      }
+
+      * { box-sizing: border-box; }
+
+      body { margin: 0; padding: 24px 12px; }
+
+      .page {
+        width: min(900px, 100%);
+        margin: 0 auto;
+        padding: 24px;
+        border: 1px solid #d8e3ee;
+        border-radius: 16px;
+        background: #ffffff;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+      }
+
+      h1 { margin: 0 0 8px; font-size: 26px; }
+      h2 { margin: 0 0 8px; font-size: 19px; }
+      p { line-height: 1.5; }
+      .subtitle { margin: 0 0 22px; color: #475569; }
+
+      section {
+        margin-top: 18px;
+        padding: 16px;
+        border: 1px solid #d8e3ee;
+        border-radius: 12px;
+        background: #f8fbff;
+      }
+
+      .hidden { display: none; }
+      .field { display: grid; gap: 6px; margin-top: 12px; }
+      .field:first-child { margin-top: 0; }
+      label { font-size: 14px; font-weight: 600; }
+
+      input, select, textarea {
+        width: 100%;
+        border: 1px solid #c8d6e3;
+        border-radius: 10px;
+        background: #ffffff;
+        padding: 10px 12px;
+        font: inherit;
+        color: #0f172a;
+      }
+
+      input:focus, select:focus, textarea:focus {
+        outline: 3px solid rgba(37, 99, 235, 0.18);
+        border-color: #2563eb;
+      }
+
+      textarea { min-height: 260px; resize: vertical; line-height: 1.5; }
+      .meetingGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+      .meetingGrid .wide { grid-column: 1 / -1; }
+
+      button {
+        border: 0;
+        border-radius: 10px;
+        padding: 10px 18px;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      button:disabled { cursor: not-allowed; opacity: 0.55; }
+      .primary { background: #2563eb; color: #ffffff; }
+      .secondary { border: 1px solid #c8d6e3; background: #ffffff; color: #0f172a; }
+      .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+      .status { min-height: 22px; margin-top: 12px; font-size: 14px; }
+      .status.success { color: #166534; }
+      .status.error { color: #b91c1c; }
+
+      .details {
+        display: grid;
+        grid-template-columns: minmax(100px, 150px) 1fr;
+        gap: 8px 14px;
+        margin-top: 12px;
+        padding: 14px;
+        border: 1px solid #d7e2ed;
+        border-radius: 10px;
+        background: #eef5fc;
+      }
+
+      .details dt { font-weight: 700; }
+      .details dd { margin: 0; overflow-wrap: anywhere; }
+
+      .dummyNotice {
+        margin: 0 0 14px;
+        padding: 12px;
+        border: 1px solid #f59e0b;
+        border-radius: 10px;
+        background: #fffbeb;
+        color: #92400e;
+        font-weight: 700;
+      }
+
+      .drafts { display: grid; grid-template-columns: 1fr; gap: 18px; }
+      .draftCard { margin: 0; background: #ffffff; }
+      .reportLink { overflow-wrap: anywhere; }
+
+      @media (max-width: 650px) {
+        .page { padding: 18px 14px; }
+        .meetingGrid { grid-template-columns: 1fr; }
+        .meetingGrid .wide { grid-column: auto; }
+        .details { grid-template-columns: 1fr; }
+        .details dd { margin-bottom: 5px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <h1>RPL Assessor Student Meeting Planner</h1>
+      <p class="subtitle">Identify the student, choose an assessor and prepare meeting-confirmation email drafts.</p>
+
+      <form id="studentLookupForm">
+        <div class="field">
+          <label for="contactIdInput">Student Contact ID (Axcelerate)</label>
+          <input id="contactIdInput" name="contactId" type="text" required autocomplete="off" />
+        </div>
+        <div class="actions">
+          <button id="studentLookupBtn" class="primary" type="submit">Submit</button>
+        </div>
+      </form>
+      <div id="statusMessage" class="status" aria-live="polite"></div>
+
+      <section id="studentPanel" class="hidden" aria-labelledby="studentPanelTitle">
+        <h2 id="studentPanelTitle">Student Details</h2>
+        <p>Is this the correct student?</p>
+        <dl id="studentDetails" class="details"></dl>
+        <div class="actions">
+          <button id="confirmStudentBtn" class="primary" type="button">Yes</button>
+          <button id="rejectStudentBtn" class="secondary" type="button">No</button>
+        </div>
+      </section>
+
+      <section id="assessorPanel" class="hidden" aria-labelledby="assessorPanelTitle">
+        <h2 id="assessorPanelTitle">Select Assessor</h2>
+        <div class="field">
+          <label for="assessorSelect">Assessor</label>
+          <select id="assessorSelect">
+            <option value="">Loading assessors…</option>
+          </select>
+        </div>
+        <dl id="assessorDetails" class="details hidden"></dl>
+        <div class="actions">
+          <button id="confirmAssessorBtn" class="primary" type="button" disabled>Confirm Assessor</button>
+        </div>
+      </section>
+
+      <section id="meetingPanel" class="hidden" aria-labelledby="meetingPanelTitle">
+        <h2 id="meetingPanelTitle">Meeting Details</h2>
+        <div class="meetingGrid">
+          <div class="field">
+            <label for="meetingDate">Date</label>
+            <input id="meetingDate" type="date" />
+          </div>
+          <div class="field">
+            <label for="meetingTime">Time</label>
+            <input id="meetingTime" type="time" />
+          </div>
+          <div class="field wide">
+            <label for="teamsLink">MS Teams link</label>
+            <input id="teamsLink" type="url" placeholder="https://teams.microsoft.com/l/meetup-join/..." />
+          </div>
+        </div>
+        <div id="meetingStatus" class="status" aria-live="polite"></div>
+      </section>
+
+      <section id="draftsPanel" class="hidden" aria-labelledby="draftsPanelTitle">
+        <h2 id="draftsPanelTitle">Meeting Email Drafts</h2>
+        <p class="dummyNotice">DUMMY DRAFTS ONLY — email sending is not enabled on this page.</p>
+        <p>
+          Student report:
+          <a id="studentReportLink" class="reportLink" href="#" target="_blank" rel="noopener noreferrer"></a>
+        </p>
+
+        <div class="drafts">
+          <section class="draftCard" aria-labelledby="assessorDraftTitle">
+            <h2 id="assessorDraftTitle">Draft Assessor Email</h2>
+            <div class="field">
+              <label for="assessorEmailTo">To</label>
+              <input id="assessorEmailTo" type="email" readonly />
+            </div>
+            <div class="field">
+              <label for="assessorEmailSubject">Subject</label>
+              <input id="assessorEmailSubject" type="text" />
+            </div>
+            <div class="field">
+              <label for="assessorEmailBody">Message</label>
+              <textarea id="assessorEmailBody"></textarea>
+            </div>
+          </section>
+
+          <section class="draftCard" aria-labelledby="studentDraftTitle">
+            <h2 id="studentDraftTitle">Draft Student Email</h2>
+            <div class="field">
+              <label for="studentEmailTo">To</label>
+              <input id="studentEmailTo" type="email" readonly />
+            </div>
+            <div class="field">
+              <label for="studentEmailSubject">Subject</label>
+              <input id="studentEmailSubject" type="text" />
+            </div>
+            <div class="field">
+              <label for="studentEmailBody">Message</label>
+              <textarea id="studentEmailBody"></textarea>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const STUDENT_LOOKUP_WEBHOOK_URL =
+        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/6550b2c761904160b0bae9baf9d59d7b/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=tDGXeZGMjeoZqZ3n6UsWXmAph7KPxQhCO29menDswtw";
+      const ASSESSORS_WEBHOOK_URL =
+        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/bcc8d653415344048d5659c08b47bf2c/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=xky-PnLtXZuZ9xc-smRCubKOixhyMaxljXPbT6SXXWQ";
+      const ASSESSOR_REPORT_BASE_URL =
+        "https://aamc-rpl-live-ecgua6ceb4fkgfh0.australiaeast-01.azurewebsites.net/RPL%20Report%20Generator%20-%20Assessor.html";
+
+      let studentRecord = null;
+      let assessors = [];
+      let selectedAssessor = null;
+
+      const byId = (id) => document.getElementById(id);
+      const lookupForm = byId("studentLookupForm");
+      const contactIdInput = byId("contactIdInput");
+      const lookupButton = byId("studentLookupBtn");
+      const statusMessage = byId("statusMessage");
+      const studentPanel = byId("studentPanel");
+      const studentDetails = byId("studentDetails");
+      const assessorPanel = byId("assessorPanel");
+      const assessorSelect = byId("assessorSelect");
+      const assessorDetails = byId("assessorDetails");
+      const confirmAssessorButton = byId("confirmAssessorBtn");
+      const meetingPanel = byId("meetingPanel");
+      const meetingDate = byId("meetingDate");
+      const meetingTime = byId("meetingTime");
+      const teamsLink = byId("teamsLink");
+      const meetingStatus = byId("meetingStatus");
+      const draftsPanel = byId("draftsPanel");
+
+      const pickFirstValue = (source, keys) => {
+        for (const key of keys) {
+          const value = source?.[key];
+          if (value !== undefined && value !== null && String(value).trim()) return String(value).trim();
+        }
+        return "";
+      };
+
+      const normaliseStudentRecord = (source) => {
+        const record = {
+          FullName: pickFirstValue(source, ["FullName", "fullName"]),
+          GivenName: pickFirstValue(source, ["student_given_name", "given_name", "GivenName"]),
+          Surname: pickFirstValue(source, ["student_surname", "surname", "Surname"]),
+          Title: pickFirstValue(source, ["title", "student_title", "Title"]),
+          ContactID: pickFirstValue(source, ["contact_id", "ContactID"]),
+          Email: pickFirstValue(source, ["email", "Email"]),
+          Mobile: pickFirstValue(source, ["mobile", "Mobile"]),
+        };
+        const assembledName = [record.Title, record.GivenName, record.Surname].filter(Boolean).join(" ").trim();
+        record.FullName = assembledName || record.FullName;
+        if (!record.GivenName && record.FullName) record.GivenName = record.FullName.split(/\s+/)[0];
+        return record;
+      };
+
+      const setStatus = (element, text, type = "") => {
+        element.textContent = text;
+        element.className = "status" + (type ? ` ${type}` : "");
+      };
+
+      const renderDetails = (element, fields) => {
+        element.replaceChildren();
+        fields.forEach(([label, value]) => {
+          const term = document.createElement("dt");
+          const description = document.createElement("dd");
+          term.textContent = label;
+          description.textContent = value || "-";
+          element.append(term, description);
+        });
+      };
+
+      const getAssessorName = (assessor) =>
+        `${assessor?.["First Name"] || ""} ${assessor?.["Last Name"] || ""}`.trim();
+
+      const resetAfterStudent = () => {
+        selectedAssessor = null;
+        assessorSelect.value = "";
+        assessorDetails.classList.add("hidden");
+        confirmAssessorButton.disabled = true;
+        assessorPanel.classList.add("hidden");
+        meetingPanel.classList.add("hidden");
+        draftsPanel.classList.add("hidden");
+      };
+
+      const buildReportUrl = () => {
+        const parameters = new URLSearchParams({
+          fullName: studentRecord.FullName,
+          givenName: studentRecord.GivenName,
+          contactId: studentRecord.ContactID || contactIdInput.value.trim(),
+          assessorName: getAssessorName(selectedAssessor),
+          assessorEmail: pickFirstValue(selectedAssessor, ["Email", "email"]),
+        });
+        return `${ASSESSOR_REPORT_BASE_URL}?${parameters.toString()}`;
+      };
+
+      const formatMeetingDate = (value) => {
+        if (!value) return "";
+        const [year, month, day] = value.split("-").map(Number);
+        return new Intl.DateTimeFormat("en-AU", {
+          weekday: "long", day: "numeric", month: "long", year: "numeric"
+        }).format(new Date(year, month - 1, day));
+      };
+
+      const formatMeetingTime = (value) => {
+        if (!value) return "";
+        const [hour, minute] = value.split(":").map(Number);
+        const date = new Date(2000, 0, 1, hour, minute);
+        return new Intl.DateTimeFormat("en-AU", { hour: "numeric", minute: "2-digit" }).format(date);
+      };
+
+      const updateDrafts = () => {
+        if (!studentRecord || !selectedAssessor) return;
+        const dateText = formatMeetingDate(meetingDate.value);
+        const timeText = formatMeetingTime(meetingTime.value);
+        const link = teamsLink.value.trim();
+        if (!dateText || !timeText || !link) {
+          draftsPanel.classList.add("hidden");
+          setStatus(meetingStatus, "Enter the date, time and MS Teams link to prepare both drafts.");
+          return;
+        }
+        try {
+          const parsedLink = new URL(link);
+          if (parsedLink.protocol !== "https:") throw new Error("Teams links must use HTTPS.");
+        } catch {
+          draftsPanel.classList.add("hidden");
+          setStatus(meetingStatus, "Enter a valid HTTPS MS Teams link.", "error");
+          return;
+        }
+
+        const assessorName = getAssessorName(selectedAssessor);
+        const assessorGivenName = pickFirstValue(selectedAssessor, ["First Name"]) || assessorName;
+        const reportUrl = buildReportUrl();
+        byId("studentReportLink").href = reportUrl;
+        byId("studentReportLink").textContent = reportUrl;
+        byId("assessorEmailTo").value = pickFirstValue(selectedAssessor, ["Email", "email"]);
+        byId("assessorEmailSubject").value = `RPL student meeting - ${studentRecord.FullName} - ${dateText}`;
+        byId("assessorEmailBody").value = [
+          `Hello ${assessorGivenName},`,
+          "",
+          `A meeting has been arranged for you to meet RPL student ${studentRecord.FullName}.`,
+          "",
+          `Student: ${studentRecord.FullName}`,
+          `Contact ID: ${studentRecord.ContactID || contactIdInput.value.trim()}`,
+          `Student email: ${studentRecord.Email || "Not available"}`,
+          `Student mobile: ${studentRecord.Mobile || "Not available"}`,
+          `Date: ${dateText}`,
+          `Time: ${timeText}`,
+          `MS Teams link: ${link}`,
+          `Student report: ${reportUrl}`,
+          "",
+          "This meeting is to meet the student and discuss their RPL process.",
+          "",
+          "Regards,",
+          "AAMC Training"
+        ].join("\n");
+
+        byId("studentEmailTo").value = studentRecord.Email;
+        byId("studentEmailSubject").value = `Your RPL meeting confirmation - ${dateText}`;
+        byId("studentEmailBody").value = [
+          `Hello ${studentRecord.GivenName || studentRecord.FullName},`,
+          "",
+          `Your meeting with ${assessorName} has been confirmed.`,
+          "",
+          `Date: ${dateText}`,
+          `Time: ${timeText}`,
+          `MS Teams link: ${link}`,
+          "",
+          "This meeting is an opportunity to meet your assessor and discuss your RPL process.",
+          "",
+          "Regards,",
+          "AAMC Training"
+        ].join("\n");
+        setStatus(meetingStatus, "Both dummy email drafts are ready for review.", "success");
+        draftsPanel.classList.remove("hidden");
+      };
+
+      const loadAssessors = async () => {
+        try {
+          const response = await fetch(ASSESSORS_WEBHOOK_URL, {
+            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({})
+          });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const data = await response.json();
+          assessors = Array.isArray(data) ? data : [];
+          assessorSelect.innerHTML = '<option value="">-- Select an assessor --</option>';
+          assessors.forEach((assessor) => {
+            const option = document.createElement("option");
+            option.value = String(assessor["ID"]);
+            option.textContent = getAssessorName(assessor);
+            assessorSelect.appendChild(option);
+          });
+        } catch (error) {
+          console.error("Assessor load error:", error);
+          assessorSelect.innerHTML = '<option value="">Failed to load assessors</option>';
+        }
+      };
+
+      lookupForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const contactId = contactIdInput.value.trim();
+        if (!contactId) {
+          setStatus(statusMessage, "Please enter a Contact ID.", "error");
+          return;
+        }
+        lookupButton.disabled = true;
+        studentPanel.classList.add("hidden");
+        resetAfterStudent();
+        setStatus(statusMessage, "Submitting Contact ID...");
+        try {
+          const response = await fetch(STUDENT_LOOKUP_WEBHOOK_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ContactID: contactId }),
+          });
+          const responseText = await response.text();
+          let parsed = {};
+          try {
+            parsed = responseText ? JSON.parse(responseText) : {};
+          } catch {
+            parsed = { message: responseText };
+          }
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          let source = parsed?.body && typeof parsed.body === "object" ? parsed.body : parsed;
+          if (typeof parsed?.body === "string") {
+            try { source = JSON.parse(parsed.body); } catch { source = parsed; }
+          }
+          studentRecord = normaliseStudentRecord(source);
+          renderDetails(studentDetails, [
+            ["Name", studentRecord.FullName],
+            ["Contact ID", studentRecord.ContactID || contactId],
+            ["Email", studentRecord.Email],
+            ["Mobile", studentRecord.Mobile],
+          ]);
+          studentPanel.classList.remove("hidden");
+          setStatus(statusMessage, "Student data received.", "success");
+        } catch (error) {
+          console.error("Student lookup error:", error);
+          studentRecord = null;
+          setStatus(statusMessage, "Unable to retrieve the student details.", "error");
+        } finally {
+          lookupButton.disabled = false;
+        }
+      });
+
+      byId("confirmStudentBtn").addEventListener("click", () => {
+        if (!studentRecord) return;
+        assessorPanel.classList.remove("hidden");
+        assessorPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+
+      byId("rejectStudentBtn").addEventListener("click", () => {
+        studentRecord = null;
+        studentPanel.classList.add("hidden");
+        resetAfterStudent();
+        contactIdInput.focus();
+        setStatus(statusMessage, "Enter another Contact ID.");
+      });
+
+      assessorSelect.addEventListener("change", () => {
+        selectedAssessor = assessors.find((item) => String(item["ID"]) === assessorSelect.value) || null;
+        confirmAssessorButton.disabled = !selectedAssessor;
+        meetingPanel.classList.add("hidden");
+        draftsPanel.classList.add("hidden");
+        if (!selectedAssessor) {
+          assessorDetails.classList.add("hidden");
+          return;
+        }
+        renderDetails(assessorDetails, [
+          ["Name", getAssessorName(selectedAssessor)],
+          ["Email", pickFirstValue(selectedAssessor, ["Email", "email"])],
+          ["Phone", pickFirstValue(selectedAssessor, ["Phone", "phone"])],
+        ]);
+        assessorDetails.classList.remove("hidden");
+      });
+
+      confirmAssessorButton.addEventListener("click", () => {
+        if (!selectedAssessor) return;
+        meetingPanel.classList.remove("hidden");
+        meetingPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        updateDrafts();
+      });
+
+      [meetingDate, meetingTime, teamsLink].forEach((element) => {
+        element.addEventListener("input", updateDrafts);
+        element.addEventListener("change", updateDrafts);
+      });
+
+      loadAssessors();
+    </script>
+  </body>
+</html>

@@ -7,7 +7,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const DEFAULT_RECIPIENT = "rwray@aamctraining.edu.au";
+  const DEFAULT_RECIPIENT = "info@aamctraining.edu.au";
   const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   const pickValue = (source, names) => {
@@ -23,9 +23,7 @@
   const normaliseDraftResponse = (source) => {
     const body = source?.body && typeof source.body === "object" ? source.body : source;
     return {
-      defaultRecipient:
-        pickValue(body, ["student_email_default_to", "studentEmailDefaultTo"]) ||
-        DEFAULT_RECIPIENT,
+      defaultRecipient: DEFAULT_RECIPIENT,
       studentRecipient: pickValue(body, [
         "student_email_address",
         "studentEmailAddress",
@@ -39,13 +37,15 @@
   const resolveRecipient = ({
     mode,
     defaultRecipient = DEFAULT_RECIPIENT,
+    studentRecipient = "",
     otherRecipient = "",
   }) => {
-    if (mode === "student") {
-      throw new Error("The student email address is not selectable yet.");
-    }
-
-    const candidate = mode === "other" ? otherRecipient : defaultRecipient;
+    const candidate =
+      mode === "student"
+        ? studentRecipient
+        : mode === "other"
+          ? otherRecipient
+          : defaultRecipient;
     const recipient = String(candidate || "").trim();
     if (!EMAIL_PATTERN.test(recipient)) {
       throw new Error("Enter a valid recipient email address.");
@@ -56,6 +56,7 @@
   const buildSendPayload = ({
     recipientMode,
     defaultRecipient,
+    studentRecipient,
     otherRecipient,
     subject,
     bodyHtml,
@@ -66,6 +67,7 @@
     const recipient = resolveRecipient({
       mode: recipientMode,
       defaultRecipient,
+      studentRecipient,
       otherRecipient,
     });
     const cleanSubject = String(subject || "").trim();

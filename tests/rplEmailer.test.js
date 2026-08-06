@@ -8,8 +8,8 @@ const page = fs.readFileSync(
   "utf8"
 );
 
-test("RPL Emailer V0.4 exposes a fully editable student email draft", () => {
-  assert.match(page, /RPL Emailer V0\.4/);
+test("RPL Emailer exposes a fully editable student email draft", () => {
+  assert.match(page, /RPL Emailer V0\.7/);
   assert.match(page, /<script src="rpl-student-email-draft\.js"><\/script>/);
   assert.match(page, /id="draftStudentEmailTitle">Draft Student Email/);
   assert.match(page, /id="draftEmailSubject" type="text"/);
@@ -17,11 +17,12 @@ test("RPL Emailer V0.4 exposes a fully editable student email draft", () => {
   assert.match(page, /id="sendStudentEmailBtn" class="primary" type="button">Send/);
 });
 
-test("recipient choices default to Richard, show the disabled student address, and support Other", () => {
+test("recipient choices default to info, provide an enabling switch for the student, and support Other", () => {
   assert.match(
     page,
-    /id="draftDefaultRecipientOption" value="default" selected>[\s\S]*?rwray@aamctraining\.edu\.au/
+    /id="draftDefaultRecipientOption" value="default" selected>[\s\S]*?info@aamctraining\.edu\.au/
   );
+  assert.match(page, /id="enableStudentEmailRecipient"[\s\S]*?role="switch"/);
   assert.match(
     page,
     /id="draftStudentRecipientOption" value="student" disabled/
@@ -29,6 +30,8 @@ test("recipient choices default to Richard, show the disabled student address, a
   assert.match(page, /<option value="other">Other<\/option>/);
   assert.match(page, /id="draftEmailOtherRecipient"[\s\S]*?type="email"/);
   assert.match(page, /draftEmailOtherRecipientRowEl\.style\.display = useOther \? "grid" : "none"/);
+  assert.match(page, /draftStudentRecipientOptionEl\.disabled = !enabled/);
+  assert.match(page, /draftEmailRecipientEl\.value = "default"/);
 });
 
 test("draft generation sends the interview URL and consumes the flow draft outputs", () => {
@@ -36,10 +39,7 @@ test("draft generation sends the interview URL and consumes the flow draft outpu
   assert.match(page, /normaliseDraftResponse\(responsePayload\)/);
   assert.match(page, /draftEmailSubjectEl\.value = draft\.subject/);
   assert.match(page, /draftEmailBodyEl\.innerHTML = sanitiseEditableEmailHtml\(draft\.bodyHtml\)/);
-  assert.match(
-    page,
-    /\$\{draft\.studentRecipient\} \(Student Email Address - not currently selectable\)/
-  );
+  assert.match(page, /\$\{draft\.studentRecipient\} \(Student Email Address\)/);
 });
 
 test("Send posts only the edited draft to the dedicated online student email flow", () => {
@@ -49,6 +49,7 @@ test("Send posts only the edited draft to the dedicated online student email flo
   );
   assert.match(page, /buildSendPayload\(\{/);
   assert.match(page, /recipientMode: draftEmailRecipientEl\.value/);
+  assert.match(page, /studentRecipient: draftStudentRecipient/);
   assert.match(page, /subject: draftEmailSubjectEl\.value/);
   assert.match(page, /bodyHtml: sanitiseEditableEmailHtml\(draftEmailBodyEl\.innerHTML\)/);
   assert.match(
