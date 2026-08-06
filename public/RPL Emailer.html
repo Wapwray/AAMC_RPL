@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>RPL Emailer V0.4</title>
+    <title>RPL Emailer V0.7</title>
     <style>
       html,
       body {
@@ -310,6 +310,73 @@
         font-size: 18px;
       }
 
+      .draftEmailHeader {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .draftEmailHeaderText {
+        min-width: 0;
+      }
+
+      .draftEmailHeaderText p {
+        margin: 0 0 14px;
+        color: #475569;
+        font-size: 14px;
+      }
+
+      .studentEmailToggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        white-space: nowrap;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 600;
+        color: #334155;
+      }
+
+      .studentEmailToggle input {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .studentEmailToggleTrack {
+        width: 42px;
+        height: 24px;
+        padding: 2px;
+        border-radius: 999px;
+        background: #94a3b8;
+        transition: background 0.2s ease;
+      }
+
+      .studentEmailToggleTrack::after {
+        content: "";
+        display: block;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #ffffff;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.35);
+        transition: transform 0.2s ease;
+      }
+
+      .studentEmailToggle input:checked + .studentEmailToggleTrack {
+        background: #2563eb;
+      }
+
+      .studentEmailToggle input:checked + .studentEmailToggleTrack::after {
+        transform: translateX(18px);
+      }
+
+      .studentEmailToggle input:focus-visible + .studentEmailToggleTrack {
+        outline: 3px solid rgba(37, 99, 235, 0.25);
+        outline-offset: 2px;
+      }
+
       .draftStudentEmailPanel > p {
         margin: 0 0 14px;
         color: #475569;
@@ -424,7 +491,7 @@
   </head>
   <body>
     <main class="card">
-      <h1>RPL Emailer V0.6</h1>
+      <h1>RPL Emailer V0.7</h1>
       <p class="subtitle">Enter a student Contact ID from Axcelerate and submit to fetch the student details.</p>
 
       <form id="emailerForm" class="formRow">
@@ -508,17 +575,31 @@
         class="draftStudentEmailPanel"
         aria-labelledby="draftStudentEmailTitle"
       >
-        <h2 id="draftStudentEmailTitle">Draft Student Email</h2>
-        <p>Review and edit every field before sending the student email.</p>
+        <div class="draftEmailHeader">
+          <div class="draftEmailHeaderText">
+            <h2 id="draftStudentEmailTitle">Draft Student Email</h2>
+            <p>Review and edit every field before sending the student email.</p>
+          </div>
+          <label class="studentEmailToggle" for="enableStudentEmailRecipient">
+            <span id="studentEmailToggleLabel">Enable student email</span>
+            <input
+              id="enableStudentEmailRecipient"
+              type="checkbox"
+              role="switch"
+              aria-labelledby="studentEmailToggleLabel"
+            />
+            <span class="studentEmailToggleTrack" aria-hidden="true"></span>
+          </label>
+        </div>
 
         <div class="draftEmailField">
           <label for="draftEmailRecipient">To</label>
           <select id="draftEmailRecipient">
             <option id="draftDefaultRecipientOption" value="default" selected>
-              rwray@aamctraining.edu.au
+              info@aamctraining.edu.au
             </option>
             <option id="draftStudentRecipientOption" value="student" disabled>
-              Student Email Address - not currently selectable
+              Student Email Address - enable using the switch above
             </option>
             <option value="other">Other</option>
           </select>
@@ -593,7 +674,8 @@
       let selectedCourseName = "";
       let selectedStudentRecord = null;
       let assessorConfirmed = false;
-      let draftDefaultRecipient = "rwray@aamctraining.edu.au";
+      let draftDefaultRecipient = "info@aamctraining.edu.au";
+      let draftStudentRecipient = "";
 
       const assessorSelectEl = document.getElementById("assessorSelect");
       const assessorDetailEl = document.getElementById("assessorDetail");
@@ -611,6 +693,7 @@
       const draftEmailRecipientEl = document.getElementById("draftEmailRecipient");
       const draftDefaultRecipientOptionEl = document.getElementById("draftDefaultRecipientOption");
       const draftStudentRecipientOptionEl = document.getElementById("draftStudentRecipientOption");
+      const enableStudentEmailRecipientEl = document.getElementById("enableStudentEmailRecipient");
       const draftEmailOtherRecipientRowEl = document.getElementById("draftEmailOtherRecipientRow");
       const draftEmailOtherRecipientEl = document.getElementById("draftEmailOtherRecipient");
       const draftEmailSubjectEl = document.getElementById("draftEmailSubject");
@@ -875,9 +958,12 @@
         draftDefaultRecipient = getStudentEmailDraftModule().DEFAULT_RECIPIENT;
         draftStudentEmailPanelEl.style.display = "none";
         draftEmailRecipientEl.value = "default";
+        draftStudentRecipient = "";
+        enableStudentEmailRecipientEl.checked = false;
+        draftStudentRecipientOptionEl.disabled = true;
         draftDefaultRecipientOptionEl.textContent = draftDefaultRecipient;
         draftStudentRecipientOptionEl.textContent =
-          "Student Email Address - not currently selectable";
+          "Student Email Address - enable using the switch above";
         draftEmailOtherRecipientRowEl.style.display = "none";
         draftEmailOtherRecipientEl.value = "";
         draftEmailSubjectEl.value = "";
@@ -893,10 +979,14 @@
         }
 
         draftDefaultRecipient = draft.defaultRecipient;
+        draftStudentRecipient = draft.studentRecipient;
         draftDefaultRecipientOptionEl.textContent = draft.defaultRecipient;
         draftStudentRecipientOptionEl.textContent = draft.studentRecipient
-          ? `${draft.studentRecipient} (Student Email Address - not currently selectable)`
-          : "Student Email Address - not currently selectable";
+          ? `${draft.studentRecipient} (Student Email Address)`
+          : "Student Email Address - unavailable";
+        enableStudentEmailRecipientEl.checked = false;
+        enableStudentEmailRecipientEl.disabled = !draft.studentRecipient;
+        draftStudentRecipientOptionEl.disabled = true;
         draftEmailRecipientEl.value = "default";
         draftEmailOtherRecipientRowEl.style.display = "none";
         draftEmailOtherRecipientEl.value = "";
@@ -1083,6 +1173,21 @@
         }
       });
 
+      enableStudentEmailRecipientEl.addEventListener("change", () => {
+        const enabled = enableStudentEmailRecipientEl.checked && Boolean(draftStudentRecipient);
+        draftStudentRecipientOptionEl.disabled = !enabled;
+        if (!enabled && draftEmailRecipientEl.value === "student") {
+          draftEmailRecipientEl.value = "default";
+          draftEmailOtherRecipientRowEl.style.display = "none";
+        }
+        setDraftEmailStatus(
+          enabled
+            ? "The student's email address is enabled for selection."
+            : "The student's email address is not enabled.",
+          enabled ? "success" : ""
+        );
+      });
+
       sendEmailsBtnEl.addEventListener("click", async () => {
         if (!selectedRplQuestions) {
           setStatus("Please select a qualification row first.", "error");
@@ -1164,6 +1269,7 @@
           payload = getStudentEmailDraftModule().buildSendPayload({
             recipientMode: draftEmailRecipientEl.value,
             defaultRecipient: draftDefaultRecipient,
+            studentRecipient: draftStudentRecipient,
             otherRecipient: draftEmailOtherRecipientEl.value,
             subject: draftEmailSubjectEl.value,
             bodyHtml: sanitiseEditableEmailHtml(draftEmailBodyEl.innerHTML),
