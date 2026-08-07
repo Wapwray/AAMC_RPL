@@ -9,12 +9,18 @@ const page = fs.readFileSync(
 );
 
 test("RPL Emailer exposes a fully editable student email draft", () => {
-  assert.match(page, /RPL Emailer V0\.7/);
+  assert.match(page, /RPL Emailer V0\.8/);
   assert.match(page, /<script src="rpl-student-email-draft\.js"><\/script>/);
   assert.match(page, /id="draftStudentEmailTitle">Draft Student Email/);
   assert.match(page, /id="draftEmailSubject" type="text"/);
   assert.match(page, /id="draftEmailBody"[\s\S]*?contenteditable="true"/);
   assert.match(page, /id="sendStudentEmailBtn" class="primary" type="button">Send/);
+});
+
+test("RPL Emailer prepares email drafts without exposing an interview-link panel", () => {
+  assert.match(page, /id="sendEmailsBtn" class="primary" type="button" disabled>Prepare Emails/);
+  assert.doesNotMatch(page, /AI Interview Link/);
+  assert.doesNotMatch(page, /aiInterviewLinkPanel/);
 });
 
 test("recipient choices default to info, provide an enabling switch for the student, and support Other", () => {
