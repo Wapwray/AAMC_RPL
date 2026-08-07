@@ -525,8 +525,8 @@
       <section id="assessorPanel" class="assessorPanel">
         <p>Online or In-Person</p>
         <div class="radioGroup spacedBottom">
-          <label><input type="radio" name="assessorAssignment" value="none" /> Online</label>
-          <label><input type="radio" name="assessorAssignment" value="assigned" checked /> In-Person</label>
+          <label><input type="radio" name="assessorAssignment" value="none" checked /> Online</label>
+          <label><input type="radio" name="assessorAssignment" value="assigned" /> In-Person</label>
         </div>
         <select id="assessorSelect">
           <option value="">Loading assessors…</option>
@@ -687,7 +687,7 @@
       const AI_INTERVIEW_BASE_URL =
         "https://aamc-rpl-live-ecgua6ceb4fkgfh0.australiaeast-01.azurewebsites.net/AAMC%20RPL%202026%20Q3.html";
 
-      const getAssessorAssignmentMode = () => document.querySelector("input[name='assessorAssignment']:checked")?.value || "assigned";
+      const getAssessorAssignmentMode = () => document.querySelector("input[name='assessorAssignment']:checked")?.value || "none";
 
       const getManagedStaffSelection = () => {
         const selected = document.querySelector("input[name='managedStaff']:checked")?.value;
@@ -978,8 +978,8 @@
         qualificationDetailEl.innerHTML = "";
         managedStaffYesEl.checked = false;
         managedStaffNoEl.checked = true;
-        assessorAssignmentAssignedEl.checked = true;
-        assessorAssignmentNoneEl.checked = false;
+        assessorAssignmentAssignedEl.checked = false;
+        assessorAssignmentNoneEl.checked = true;
         assessorSelectEl.disabled = false;
         assessorSelectEl.value = "";
         assessorDetailEl.style.display = "none";
