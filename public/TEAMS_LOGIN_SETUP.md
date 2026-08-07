@@ -67,6 +67,25 @@ Useful for quick testing.
 3. Your upcoming Teams meetings load in the dropdown.
 4. Select the meeting → transcript polling starts automatically once the meeting's transcription is on.
 
+## Meeting Planner permissions
+
+`RPL Assessor Student Meeting Planner.html` uses the same Entra application, but its live URL must also be registered as an SPA redirect URI:
+
+```
+https://aamc-rpl-live-ecgua6ceb4fkgfh0.australiaeast-01.azurewebsites.net/RPL%20Assessor%20Student%20Meeting%20Planner.html
+```
+
+Add these delegated Microsoft Graph permissions and grant tenant consent where required:
+
+- `User.Read`
+- `User.ReadBasic.All`
+- `Calendars.ReadWrite`
+- `OnlineMeetings.ReadWrite`
+
+The planner creates the organiser's calendar event first, applies the lobby and co-organiser settings, and only then adds the assessor and student attendees. The separate assessor-only report email is sent through the existing Power Automate email flow.
+
+To require the student to sign in and prevent anonymous access, the Microsoft Teams administrator must disable anonymous meeting joins for the organising users. The meeting itself is configured so only the organiser and co-organiser bypass the lobby.
+
 ## Notes
 
 - Teams meetings cannot be fully embedded in an iframe (Microsoft blocks it). The page shows a "Join in Teams" button; join from the native Teams client and keep this page open alongside it.
