@@ -23,6 +23,13 @@ test("RPL Emailer prepares email drafts without exposing an interview-link panel
   assert.doesNotMatch(page, /aiInterviewLinkPanel/);
 });
 
+test("RPL Emailer defaults the assessor meeting mode to Online", () => {
+  assert.match(page, /name="assessorAssignment" value="none" checked[^>]*> Online/);
+  assert.match(page, /name="assessorAssignment" value="assigned"[^>]*> In-Person/);
+  assert.doesNotMatch(page, /name="assessorAssignment" value="assigned" checked/);
+  assert.match(page, /getAssessorAssignmentMode[\s\S]*?\|\| "none"/);
+});
+
 test("recipient choices default to info, provide an enabling switch for the student, and support Other", () => {
   assert.match(
     page,
