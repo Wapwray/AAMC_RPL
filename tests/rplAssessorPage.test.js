@@ -39,17 +39,16 @@ test("assessor page automatically loads comments, generates the report, and hand
   assert.match(page, /Assessor submission saved via configured submit webhook/);
 });
 
-test("assessor page loads and submits the isolated interview transcript file", () => {
+test("assessor page uploads the interview transcript document through the isolated flow", () => {
   const initialiseBody = page.match(/const initialiseAssessorPage = async \(\) => \{([\s\S]*?)\n      \};/);
   assert.ok(initialiseBody);
-  assert.match(page, /const GET_ASSESSOR_TRANSCRIPT_WEBHOOK_URL = .*workflows\/f5e369c86da34e7688cd466647e6b7e1/);
-  assert.match(page, /const SUBMIT_ASSESSOR_TRANSCRIPT_WEBHOOK_URL = .*workflows\/399c0d41caab4c9daae2993c83fbb9d3/);
-  assert.match(page, /const loadAssessorTranscriptFromWebhook = async \(\) =>/);
-  assert.match(page, /extractAssessorTranscriptPayload/);
+  assert.match(page, /const UPLOAD_ASSESSOR_TRANSCRIPT_WEBHOOK_URL = .*workflows\/2b76d8819f764937905e232ea561f796/);
   assert.match(page, /assessorTranscriptEnabled: true/);
-  assert.match(page, /assessorTranscriptSubmitUrl: SUBMIT_ASSESSOR_TRANSCRIPT_WEBHOOK_URL/);
-  assert.match(page, /assessorTranscriptPrefill: loadedAssessorTranscript/);
-  assert.match(initialiseBody[1], /await loadAssessorTranscriptFromWebhook\(\)/);
+  assert.match(page, /assessorTranscriptUploadUrl: UPLOAD_ASSESSOR_TRANSCRIPT_WEBHOOK_URL/);
+  assert.doesNotMatch(page, /GET_ASSESSOR_TRANSCRIPT_WEBHOOK_URL/);
+  assert.doesNotMatch(page, /loadAssessorTranscriptFromWebhook/);
+  assert.doesNotMatch(page, /assessorTranscriptPrefill/);
+  assert.doesNotMatch(initialiseBody[1], /assessor transcript/i);
 });
 
 test("assessor page loads the student's stored assessor-question file", () => {

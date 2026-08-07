@@ -456,18 +456,12 @@ test("renders assessor-mode sign-off fields and keeps assessor identity read-onl
   assert.equal(review.validateReportHtmlCoverage(model, html).valid, true);
 });
 
-test("renders the assessor interview transcript before limitations and gates sign-off on its saved state", () => {
+test("renders the assessor transcript file uploader before limitations and gates sign-off on upload", () => {
   const model = review.buildReportModel({ fullTranscript: baseTranscript });
   const html = review.renderInteractiveReportHtml(model, {
     assessorMode: true,
     assessorTranscriptEnabled: true,
-    assessorTranscriptSubmitUrl: "https://example.test/submit-transcript",
-    assessorTranscriptPrefill: {
-      InterviewDate: "2026-08-06",
-      InterviewTime: "14:30",
-      InterviewTranscript: "Long-form assessor interview transcript.",
-      SubmittedAt: "2026-08-06T04:30:00.000Z",
-    },
+    assessorTranscriptUploadUrl: "https://example.test/upload-transcript",
   });
 
   const transcriptIndex = html.indexOf('<section class="interview-transcript"');
@@ -475,19 +469,19 @@ test("renders the assessor interview transcript before limitations and gates sig
   assert.ok(transcriptIndex >= 0);
   assert.ok(limitationsIndex > transcriptIndex);
   assert.match(html, /<h2 id="interviewTranscriptTitle">Interview Transcript<\/h2>/);
-  assert.match(html, /id="interview-transcript-day"/);
-  assert.match(html, /id="interview-transcript-month"/);
-  assert.match(html, /id="interview-transcript-year"/);
-  assert.match(html, /id="interview-transcript-time"/);
-  assert.match(html, /id="interview-transcript-text"/);
-  assert.match(html, /id="interviewTranscriptSubmitBtn"/);
-  assert.match(html, /var ASSESSOR_TRANSCRIPT_SUBMIT_URL = "https:\/\/example\.test\/submit-transcript"/);
-  assert.match(html, /InterviewDate: transcriptData\.InterviewDate/);
-  assert.match(html, /InterviewTime: transcriptData\.InterviewTime/);
-  assert.match(html, /InterviewTranscript: transcriptData\.InterviewTranscript/);
-  assert.match(html, /var transcriptReady = !ASSESSOR_TRANSCRIPT_ENABLED \|\| \(assessorTranscriptSubmitted && !transcriptDirty\)/);
+  assert.match(html, /id="interview-transcript-file"[^>]*type="file"[^>]*accept="\.doc,\.docx,\.pdf/);
+  assert.match(html, /id="interviewTranscriptUploadBtn">Upload<\/button>/);
+  assert.doesNotMatch(html, /id="interview-transcript-(?:day|month|year|time|text)"/);
+  assert.match(html, /var ASSESSOR_TRANSCRIPT_UPLOAD_URL = "https:\/\/example\.test\/upload-transcript"/);
+  assert.match(html, /reader\.readAsDataURL\(file\)/);
+  assert.match(html, /FileName: String\(file\.name/);
+  assert.match(html, /ContentType: String\(file\.type/);
+  assert.match(html, /FileContent: fileContent/);
+  assert.match(html, /var transcriptReady = !ASSESSOR_TRANSCRIPT_ENABLED \|\| \(assessorTranscriptUploaded && !transcriptDirty\)/);
   assert.match(html, /var signoffReady = allQuestionsSubmitted && transcriptReady/);
-  assert.match(html, /Edited after save - submit to update/);
+  assert.match(html, /Only Word \(\.doc or \.docx\) and PDF \(\.pdf\) documents are accepted/);
+  assert.match(html, /clone\.querySelectorAll\("\.interview-transcript"\)/);
+  assert.match(html, /\.interview-transcript \{ display: none; \}/);
 });
 
 test("retains the legacy interactive sign-off outside assessor mode", () => {
