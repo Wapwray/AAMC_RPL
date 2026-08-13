@@ -52,17 +52,39 @@ test("planner builds the production assessor-report identity URL and named link"
   assert.match(page, /RPL%20Report%20Generator%20-%20Assessor\.html/);
   assert.match(page, /new URLSearchParams\(\{[\s\S]*?fullName:[\s\S]*?givenName:[\s\S]*?contactId:[\s\S]*?assessorName:[\s\S]*?assessorEmail:/);
   assert.match(page, /`RPL Report - \$\{studentRecord\.FullName\} - \$\{getContactId\(\)\} - \$\{getQualification\(\)\}`/);
-  assert.match(page, /<a href="\$\{escapeHtml\(reportUrl\)\}">\$\{escapeHtml\(reportLinkText\)\}<\/a>/);
+  assert.match(page, /buildLink\(reportUrl, reportLinkText\)/);
 });
 
-test("student invitation excludes the report while a separate assessor email uses Power Automate", () => {
-  assert.match(page, /const buildSharedMeetingHtml = \(\) =>/);
-  const sharedBody = page.match(/const buildSharedMeetingHtml = \(\) => \{([\s\S]*?)\n      \};/);
+test("shared Teams invitation names both student and assessor without exposing the report", () => {
+  assert.match(page, /const buildSharedMeetingHtml = \(activeTeamsUrl = ""\) =>/);
+  const sharedBody = page.match(/const buildSharedMeetingHtml = \(activeTeamsUrl = ""\) => \{([\s\S]*?)\n      \};/);
   assert.ok(sharedBody);
+  assert.match(sharedBody[1], /between RPL student/);
+  assert.match(sharedBody[1], /and assessor/);
+  assert.match(sharedBody[1], /getAssessorName\(selectedAssessor\)/);
+  assert.match(sharedBody[1], /discuss the student's RPL assessment/);
   assert.doesNotMatch(sharedBody[1], /reportUrl|reportLinkText|Student report/);
-  assert.match(page, /workflows\/6969857c9682423d82cddd88da255ec3\/triggers\/manual/);
-  assert.match(page, /const sendAssessorReportEmail = async \(teamsUrl\)/);
-  assert.match(page, /Recipient: getAssessorEmail\(\)/);
-  assert.match(page, /BodyHtml: buildAssessorEmailHtml\(teamsUrl\)/);
-  assert.match(page, /await sendAssessorReportEmail\(joinUrl\)/);
+  assert.match(page, /buildSharedMeetingHtml\(joinUrl\)/);
+  assert.match(page, /Join the Microsoft Teams meeting/);
 });
+
+test("student and assessor direct emails use dedicated Power Automate flows and explicit send buttons", () => {
+  assert.match(page, /workflows\/149ed963712540c0a334b307a6565f3c\/triggers\/manual/);
+  assert.match(page, /workflows\/ee77cab593444a3383db2d5c1de0b1a3\/triggers\/manual/);
+  assert.match(page, /id="sendStudentEmailBtn"[\s\S]*?disabled>Send Student Email/);
+  assert.match(page, /id="sendAssessorEmailBtn"[\s\S]*?disabled>Send Assessor Email/);
+  assert.match(page, /sendMeetingEmail\("student"\)/);
+  assert.match(page, /sendMeetingEmail\("assessor"\)/);
+  assert.match(page, /Recipient: recipient/);
+  assert.match(page, /BodyHtml: bodyHtml/);
+  assert.doesNotMatch(page, /await sendAssessorReportEmail\(joinUrl\)/);
+});
+
+test("direct email drafts contain hyperlinks and the assessor draft includes the report", () => {
+  assert.match(page, /id="assessorEmailBody"[\s\S]*?contenteditable="true"/);
+  assert.match(page, /id="studentEmailBody"[\s\S]*?contenteditable="true"/);
+  assert.match(page, /buildLink\(activeTeamsUrl, "Join the Microsoft Teams meeting"\)/);
+  assert.match(page, /buildLink\(reportUrl, reportLinkText\)/);
+  assert.match(page, /target="_blank" rel="noopener noreferrer"/);
+});
+
