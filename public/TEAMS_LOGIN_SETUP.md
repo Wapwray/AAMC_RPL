@@ -82,7 +82,9 @@ Add these delegated Microsoft Graph permissions and grant tenant consent where r
 - `Calendars.ReadWrite`
 - `OnlineMeetings.ReadWrite`
 
-The planner creates the organiser's calendar event first, applies the lobby and co-organiser settings, and only then adds the assessor and student attendees. The separate assessor-only report email is sent through the existing Power Automate email flow.
+The planner creates the organiser's calendar event first, applies the lobby and co-organiser settings, and only then adds the assessor and student attendees. The shared Teams invitation names both participants and explains the purpose of the RPL meeting.
+
+After the meeting is created, the planner displays separate editable student and assessor email drafts. Neither email is sent automatically. The `RPL - Send Student Meeting Email` and `RPL - Send Assessor Meeting Email` flows run only when their corresponding Send button is pressed. The assessor email includes a hyperlink to the student's assessor report.
 
 To require the student to sign in and prevent anonymous access, the Microsoft Teams administrator must disable anonymous meeting joins for the organising users. The meeting itself is configured so only the organiser and co-organiser bypass the lobby.
 
@@ -91,3 +93,4 @@ To require the student to sign in and prevent anonymous access, the Microsoft Te
 - Teams meetings cannot be fully embedded in an iframe (Microsoft blocks it). The page shows a "Join in Teams" button; join from the native Teams client and keep this page open alongside it.
 - Meeting transcription must be enabled inside the Teams meeting (organizer action) for Graph to expose transcripts.
 - The Power Automate questions webhook is called directly from the browser. If CORS blocks it, enable CORS on the Power Automate HTTP trigger's CORS settings in the environment.
+
