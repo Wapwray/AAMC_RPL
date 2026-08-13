@@ -19,9 +19,14 @@
       .field { display: grid; gap: 6px; margin-top: 12px; }
       .field:first-child { margin-top: 0; }
       label { font-size: 14px; font-weight: 600; }
-      input, select, textarea { width: 100%; border: 1px solid #c8d6e3; border-radius: 10px; background: #fff; padding: 10px 12px; font: inherit; color: #0f172a; }
-      input:focus, select:focus, textarea:focus { outline: 3px solid rgba(37, 99, 235, .18); border-color: #2563eb; }
+      input, select, textarea, .emailEditor { width: 100%; border: 1px solid #c8d6e3; border-radius: 10px; background: #fff; padding: 10px 12px; font: inherit; color: #0f172a; }
+      input:focus, select:focus, textarea:focus, .emailEditor:focus { outline: 3px solid rgba(37, 99, 235, .18); border-color: #2563eb; }
       textarea { min-height: 245px; resize: vertical; line-height: 1.5; }
+      .emailEditor { min-height: 245px; overflow: auto; line-height: 1.5; }
+      .emailEditor[contenteditable="false"] { background: #f8fafc; }
+      .emailEditor p { margin: 0 0 14px; }
+      .emailEditor p:last-child { margin-bottom: 0; }
+      .emailEditor a { color: #075985; text-decoration: underline; overflow-wrap: anywhere; }
       button { border: 0; border-radius: 10px; padding: 10px 18px; font: inherit; font-weight: 700; cursor: pointer; }
       button:disabled { cursor: not-allowed; opacity: .55; }
       .primary { background: #2563eb; color: #fff; }
@@ -146,19 +151,29 @@
 
       <section id="draftsPanel" class="hidden" aria-labelledby="draftsPanelTitle">
         <h2 id="draftsPanelTitle">Messages</h2>
-        <p>The Teams invitation is sent to the selected attendees. A separate assessor-only email is sent through Power Automate and includes the student report link.</p>
+        <p>The shared Teams invitation is sent to the selected attendees when the meeting is created. The direct student and assessor emails are not sent automatically; review each draft and use its Send button.</p>
         <p>Student report: <a id="studentReportLink" class="reportLink" href="#" target="_blank" rel="noopener noreferrer"></a></p>
         <div class="drafts">
+          <section class="draftCard" aria-labelledby="teamsDraftTitle">
+            <h2 id="teamsDraftTitle">Shared Teams Invitation Message</h2>
+            <div class="field"><label for="teamsInviteRecipients">Attendees</label><input id="teamsInviteRecipients" type="text" readonly /></div>
+            <div class="field"><label for="teamsInvitationBody">Invitation message</label><div id="teamsInvitationBody" class="emailEditor" contenteditable="false"></div></div>
+          </section>
           <section class="draftCard" aria-labelledby="assessorDraftTitle">
             <h2 id="assessorDraftTitle">Assessor Email (Power Automate)</h2>
             <div class="field"><label for="assessorEmailTo">To</label><input id="assessorEmailTo" type="email" readonly /></div>
             <div class="field"><label for="assessorEmailSubject">Subject</label><input id="assessorEmailSubject" type="text" /></div>
-            <div class="field"><label for="assessorEmailBody">Message</label><textarea id="assessorEmailBody"></textarea></div>
+            <div class="field"><label for="assessorEmailBody">Message</label><div id="assessorEmailBody" class="emailEditor" contenteditable="true" role="textbox" aria-multiline="true"></div></div>
+            <div class="actions"><button id="sendAssessorEmailBtn" class="primary" type="button" disabled>Send Assessor Email</button></div>
+            <div id="assessorEmailStatus" class="status" aria-live="polite"></div>
           </section>
           <section class="draftCard" aria-labelledby="studentDraftTitle">
-            <h2 id="studentDraftTitle">Teams Invitation Message</h2>
-            <div class="field"><label for="studentEmailTo">Student attendee</label><input id="studentEmailTo" type="email" readonly /></div>
-            <div class="field"><label for="studentEmailBody">Shared meeting message</label><textarea id="studentEmailBody"></textarea></div>
+            <h2 id="studentDraftTitle">Student Email (Power Automate)</h2>
+            <div class="field"><label for="studentEmailTo">To</label><input id="studentEmailTo" type="email" readonly /></div>
+            <div class="field"><label for="studentEmailSubject">Subject</label><input id="studentEmailSubject" type="text" /></div>
+            <div class="field"><label for="studentEmailBody">Message</label><div id="studentEmailBody" class="emailEditor" contenteditable="true" role="textbox" aria-multiline="true"></div></div>
+            <div class="actions"><button id="sendStudentEmailBtn" class="primary" type="button" disabled>Send Student Email</button></div>
+            <div id="studentEmailStatus" class="status" aria-live="polite"></div>
           </section>
         </div>
       </section>
@@ -171,8 +186,10 @@
         "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/bcc8d653415344048d5659c08b47bf2c/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=xky-PnLtXZuZ9xc-smRCubKOixhyMaxljXPbT6SXXWQ";
       const QUALIFICATIONS_WEBHOOK_URL =
         "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/09/workflows/4664fd1c8ec24e5394a965c006249eb6/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=g1Jci80MCPSEZhlU03EgQZFph1NzPQeSNYZwpVuFEBg";
-      const SEND_ASSESSOR_EMAIL_WEBHOOK_URL =
-        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/15/workflows/6969857c9682423d82cddd88da255ec3/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=sBxG8jI0sTLP39Pll8S-AFbNOx5yc5HhmVzrp3_jto8";
+      const SEND_STUDENT_MEETING_EMAIL_WEBHOOK_URL =
+        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/09/workflows/149ed963712540c0a334b307a6565f3c/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=uowDsGR6i_o5xhqpicPR8mwDBkg7NUSplck55H9eemU";
+      const SEND_ASSESSOR_MEETING_EMAIL_WEBHOOK_URL =
+        "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/22/workflows/ee77cab593444a3383db2d5c1de0b1a3/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=s11tCFMxE_fcUTtv3987W-LxoKe1LJI3NQQZt2nUr-o";
       const ASSESSOR_REPORT_BASE_URL =
         "https://aamc-rpl-live-ecgua6ceb4fkgfh0.australiaeast-01.azurewebsites.net/RPL%20Report%20Generator%20-%20Assessor.html";
       const GRAPH_ROOT = "https://graph.microsoft.com/v1.0";
@@ -186,6 +203,9 @@
       let msalApp = null;
       let microsoftAccount = null;
       let meetingCreated = false;
+      let teamsJoinUrl = "";
+      let assessorEmailSent = false;
+      let studentEmailSent = false;
 
       const byId = (id) => document.getElementById(id);
       const lookupForm = byId("studentLookupForm");
@@ -209,6 +229,8 @@
       const createMeetingButton = byId("createMeetingBtn");
       const meetingStatus = byId("meetingStatus");
       const draftsPanel = byId("draftsPanel");
+      const sendAssessorEmailButton = byId("sendAssessorEmailBtn");
+      const sendStudentEmailButton = byId("sendStudentEmailBtn");
 
       const pickFirstValue = (source, keys) => {
         for (const key of keys) {
@@ -221,8 +243,6 @@
       const escapeHtml = (value) => String(value ?? "")
         .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-
-      const textToHtml = (value) => escapeHtml(value).replace(/\r?\n/g, "<br>");
 
       const normaliseStudentRecord = (source) => {
         const record = {
@@ -264,6 +284,10 @@
       const getContactId = () => studentRecord?.ContactID || contactIdInput.value.trim();
 
       const resetAfterStudent = () => {
+        meetingCreated = false;
+        teamsJoinUrl = "";
+        assessorEmailSent = false;
+        studentEmailSent = false;
         selectedAssessor = null;
         assessorSelect.value = "";
         assessorDetails.classList.add("hidden");
@@ -271,6 +295,9 @@
         assessorPanel.classList.add("hidden");
         meetingPanel.classList.add("hidden");
         draftsPanel.classList.add("hidden");
+        byId("meetingResult").classList.add("hidden");
+        setStatus(byId("assessorEmailStatus"), "");
+        setStatus(byId("studentEmailStatus"), "");
       };
 
       const buildReportUrl = () => {
@@ -317,6 +344,34 @@
 
       const refreshCreateButton = () => { createMeetingButton.disabled = !hasRequiredMeetingDetails(); };
 
+      const buildLink = (url, label) => url
+        ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`
+        : escapeHtml(label);
+
+      const sanitiseDraftHtml = (html) => {
+        const template = document.createElement("template");
+        template.innerHTML = String(html || "");
+        template.content.querySelectorAll("script, style, iframe, object, embed, form").forEach((element) => element.remove());
+        template.content.querySelectorAll("*").forEach((element) => {
+          [...element.attributes].forEach((attribute) => {
+            if (/^on/i.test(attribute.name)) element.removeAttribute(attribute.name);
+          });
+          if (element.hasAttribute("href") && !/^https:\/\//i.test(element.getAttribute("href") || "")) {
+            element.removeAttribute("href");
+          }
+          if (element.tagName === "A" && element.hasAttribute("href")) {
+            element.setAttribute("target", "_blank");
+            element.setAttribute("rel", "noopener noreferrer");
+          }
+        });
+        return template.innerHTML.trim();
+      };
+
+      const updateEmailButtons = () => {
+        sendAssessorEmailButton.disabled = !meetingCreated || !teamsJoinUrl || !getAssessorEmail() || assessorEmailSent;
+        sendStudentEmailButton.disabled = !meetingCreated || !teamsJoinUrl || !studentRecord?.Email || studentEmailSent;
+      };
+
       const updateDrafts = (teamsUrl = "") => {
         if (!studentRecord || !selectedAssessor) return;
         const qualification = getQualification();
@@ -329,65 +384,105 @@
         }
         const assessorName = getAssessorName(selectedAssessor);
         const assessorGivenName = pickFirstValue(selectedAssessor, ["First Name"]) || assessorName;
-        const meetingLinkText = teamsUrl || "The Teams joining link will be included in the calendar invitation.";
+        const activeTeamsUrl = teamsUrl || teamsJoinUrl;
         const reportUrl = buildReportUrl();
         const reportLinkText = getReportLinkText();
         byId("studentReportLink").href = reportUrl;
         byId("studentReportLink").textContent = reportLinkText;
+        byId("teamsInviteRecipients").value = `${studentRecord.FullName} and ${assessorName}`;
+        byId("teamsInvitationBody").innerHTML = buildSharedMeetingHtml(activeTeamsUrl);
         byId("assessorEmailTo").value = getAssessorEmail();
         byId("assessorEmailSubject").value = `RPL student meeting - ${studentRecord.FullName} - ${dateText}`;
-        byId("assessorEmailBody").value = [
-          `Hello ${assessorGivenName},`, "",
-          `A meeting has been arranged for you to meet RPL student ${studentRecord.FullName}.`, "",
-          `Student: ${studentRecord.FullName}`,
-          `Contact ID: ${getContactId()}`,
-          `Qualification: ${qualification}`,
-          `Student email: ${studentRecord.Email || "Not available"}`,
-          `Student mobile: ${studentRecord.Mobile || "Not available"}`,
-          `Date: ${dateText}`,
-          `Time: ${timeText}`,
-          `MS Teams: ${meetingLinkText}`,
-          `Student report: ${reportLinkText}`, "",
-          "This meeting is to meet the student and discuss their RPL process.", "", "Regards,", "AAMC Training"
-        ].join("\n");
+        byId("assessorEmailBody").innerHTML = [
+          `<p>Hello ${escapeHtml(assessorGivenName)},</p>`,
+          `<p>A meeting has been arranged between RPL student <strong>${escapeHtml(studentRecord.FullName)}</strong> and you, assessor <strong>${escapeHtml(assessorName)}</strong>, to discuss the student's RPL assessment.</p>`,
+          `<p><strong>Student:</strong> ${escapeHtml(studentRecord.FullName)}<br>`,
+          `<strong>Contact ID:</strong> ${escapeHtml(getContactId())}<br>`,
+          `<strong>Qualification:</strong> ${escapeHtml(qualification)}<br>`,
+          `<strong>Student email:</strong> ${escapeHtml(studentRecord.Email || "Not available")}<br>`,
+          `<strong>Student mobile:</strong> ${escapeHtml(studentRecord.Mobile || "Not available")}<br>`,
+          `<strong>Date:</strong> ${escapeHtml(dateText)}<br>`,
+          `<strong>Time:</strong> ${escapeHtml(timeText)}</p>`,
+          `<p><strong>Microsoft Teams:</strong> ${activeTeamsUrl ? buildLink(activeTeamsUrl, "Join the Microsoft Teams meeting") : "The Teams joining link will be added after meeting creation."}<br>`,
+          `<strong>Student report:</strong> ${buildLink(reportUrl, reportLinkText)}</p>`,
+          "<p>This meeting is an opportunity for the student and assessor to discuss the RPL assessment and next steps.</p>",
+          "<p>Regards,<br>AAMC Training</p>"
+        ].join("");
         byId("studentEmailTo").value = studentRecord.Email;
-        byId("studentEmailBody").value = [
-          `Hello ${studentRecord.GivenName || studentRecord.FullName},`, "",
-          `Your meeting with ${assessorName} has been confirmed.`, "",
-          `Qualification: ${qualification}`,
-          `Date: ${dateText}`,
-          `Time: ${timeText}`,
-          `MS Teams: ${meetingLinkText}`, "",
-          "This meeting is an opportunity to meet your assessor and discuss your RPL process.", "", "Regards,", "AAMC Training"
-        ].join("\n");
+        byId("studentEmailSubject").value = `RPL meeting with ${assessorName} - ${dateText}`;
+        byId("studentEmailBody").innerHTML = [
+          `<p>Hello ${escapeHtml(studentRecord.GivenName || studentRecord.FullName)},</p>`,
+          `<p>A meeting has been arranged between you, RPL student <strong>${escapeHtml(studentRecord.FullName)}</strong>, and your assessor, <strong>${escapeHtml(assessorName)}</strong>, to discuss your RPL assessment.</p>`,
+          `<p><strong>Qualification:</strong> ${escapeHtml(qualification)}<br>`,
+          `<strong>Date:</strong> ${escapeHtml(dateText)}<br>`,
+          `<strong>Time:</strong> ${escapeHtml(timeText)}</p>`,
+          `<p><strong>Microsoft Teams:</strong> ${activeTeamsUrl ? buildLink(activeTeamsUrl, "Join the Microsoft Teams meeting") : "The Teams joining link will be added after meeting creation."}</p>`,
+          "<p>This meeting is an opportunity for you and your assessor to discuss your RPL assessment and next steps.</p>",
+          "<p>You must sign in using the invited Microsoft identity and will wait in the lobby until the organiser or assessor joins.</p>",
+          "<p>Regards,<br>AAMC Training</p>"
+        ].join("");
         draftsPanel.classList.remove("hidden");
+        updateEmailButtons();
         refreshCreateButton();
       };
 
-      const buildSharedMeetingHtml = () => {
+      const buildSharedMeetingHtml = (activeTeamsUrl = "") => {
         const dateText = formatMeetingDate(meetingDate.value);
         const timeText = formatMeetingTime(meetingTime.value);
+        const assessorName = getAssessorName(selectedAssessor);
         return [
-          `<p>A meeting has been arranged for RPL student <strong>${escapeHtml(studentRecord.FullName)}</strong>.</p>`,
+          `<p>A meeting has been arranged between RPL student <strong>${escapeHtml(studentRecord.FullName)}</strong> and assessor <strong>${escapeHtml(assessorName)}</strong> to discuss the student's RPL assessment.</p>`,
           `<p><strong>Qualification:</strong> ${escapeHtml(getQualification())}<br>`,
           `<strong>Date:</strong> ${escapeHtml(dateText)}<br>`,
           `<strong>Time:</strong> ${escapeHtml(timeText)}</p>`,
-          "<p>This meeting is an opportunity for the student to meet their assessor and discuss the RPL process.</p>",
+          activeTeamsUrl ? `<p><strong>Microsoft Teams:</strong> ${buildLink(activeTeamsUrl, "Join the Microsoft Teams meeting")}</p>` : "",
+          "<p>This meeting is an opportunity for the student and assessor to discuss the RPL assessment and next steps.</p>",
           "<p>The student must sign in using the invited Microsoft identity and will wait in the lobby until the organiser or assessor joins.</p>",
           "<p>Regards,<br>AAMC Training</p>"
         ].join("");
       };
 
-      const buildAssessorEmailHtml = (teamsUrl) => {
-        const reportUrl = buildReportUrl();
-        const reportLinkText = getReportLinkText();
-        const body = byId("assessorEmailBody").value
-          .replace("The Teams joining link will be included in the calendar invitation.", teamsUrl)
-          .replace(`Student report: ${reportLinkText}`, "__REPORT_LINK__");
-        return textToHtml(body).replace(
-          "__REPORT_LINK__",
-          `Student report: <a href="${escapeHtml(reportUrl)}">${escapeHtml(reportLinkText)}</a>`
-        );
+      const sendMeetingEmail = async (recipientType) => {
+        const isAssessor = recipientType === "assessor";
+        const button = isAssessor ? sendAssessorEmailButton : sendStudentEmailButton;
+        const status = byId(isAssessor ? "assessorEmailStatus" : "studentEmailStatus");
+        const recipient = byId(isAssessor ? "assessorEmailTo" : "studentEmailTo").value.trim();
+        const subject = byId(isAssessor ? "assessorEmailSubject" : "studentEmailSubject").value.trim();
+        const bodyHtml = sanitiseDraftHtml(byId(isAssessor ? "assessorEmailBody" : "studentEmailBody").innerHTML);
+        const webhookUrl = isAssessor ? SEND_ASSESSOR_MEETING_EMAIL_WEBHOOK_URL : SEND_STUDENT_MEETING_EMAIL_WEBHOOK_URL;
+        if (!meetingCreated || !teamsJoinUrl) {
+          setStatus(status, "Create the Teams meeting before sending this email.", "error");
+          return;
+        }
+        if (!recipient || !subject || !bodyHtml) {
+          setStatus(status, "Recipient, subject and message are required.", "error");
+          return;
+        }
+        button.disabled = true;
+        setStatus(status, "Sending email...");
+        try {
+          const response = await fetch(webhookUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              Recipient: recipient,
+              Subject: subject,
+              BodyHtml: bodyHtml,
+              FullName: studentRecord.FullName,
+              ContactID: getContactId(),
+              CourseName: getQualification(),
+            }),
+          });
+          if (!response.ok) throw new Error(`Power Automate returned HTTP ${response.status}.`);
+          if (isAssessor) assessorEmailSent = true;
+          else studentEmailSent = true;
+          button.textContent = "Sent";
+          setStatus(status, `${isAssessor ? "Assessor" : "Student"} email sent successfully.`, "success");
+        } catch (error) {
+          console.error(`${isAssessor ? "Assessor" : "Student"} meeting email error:`, error);
+          setStatus(status, `Unable to send the email. ${error.message}`, "error");
+          button.disabled = false;
+        }
       };
 
       const initialiseMicrosoftLogin = async () => {
@@ -469,21 +564,6 @@
         return participant;
       };
 
-      const sendAssessorReportEmail = async (teamsUrl) => {
-        const payload = {
-          Recipient: getAssessorEmail(),
-          Subject: byId("assessorEmailSubject").value.trim(),
-          BodyHtml: buildAssessorEmailHtml(teamsUrl),
-          FullName: studentRecord.FullName,
-          ContactID: getContactId(),
-          CourseName: getQualification(),
-        };
-        const response = await fetch(SEND_ASSESSOR_EMAIL_WEBHOOK_URL, {
-          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
-        });
-        if (!response.ok) throw new Error(`Power Automate returned HTTP ${response.status}.`);
-      };
-
       const createTeamsMeeting = async () => {
         if (!hasRequiredMeetingDetails()) {
           setStatus(meetingStatus, "Complete the meeting details, select at least one attendee and sign in with Microsoft.", "error");
@@ -540,25 +620,18 @@
           if (inviteStudent.checked) attendees.push({ emailAddress: { address: studentRecord.Email, name: studentRecord.FullName }, type: "required" });
           await graphRequest(`/me/events/${encodeURIComponent(createdEvent.id)}?sendUpdates=all`, token, {
             method: "PATCH",
-            body: JSON.stringify({ attendees }),
+            body: JSON.stringify({
+              attendees,
+              body: { contentType: "HTML", content: buildSharedMeetingHtml(joinUrl) },
+            }),
           });
           invitationsSent = true;
-          updateDrafts(joinUrl);
-
-          let assessorEmailMessage = "";
-          if (inviteAssessor.checked) {
-            try {
-              await sendAssessorReportEmail(joinUrl);
-              assessorEmailMessage = " The assessor-only report email was sent through Power Automate.";
-            } catch (error) {
-              console.error("Assessor Power Automate email error:", error);
-              assessorEmailMessage = " The Teams invitations were sent, but the separate assessor report email failed. Please send it manually from the displayed draft.";
-            }
-          }
           meetingCreated = true;
+          teamsJoinUrl = joinUrl;
+          updateDrafts(joinUrl);
           byId("teamsJoinLink").href = joinUrl;
           byId("meetingResult").classList.remove("hidden");
-          setStatus(meetingStatus, `Meeting created and Teams invitations sent.${assessorEmailMessage}`, assessorEmailMessage.includes("failed") ? "warning" : "success");
+          setStatus(meetingStatus, "Meeting created and Teams invitations sent. Review and send the direct emails below.", "success");
         } catch (error) {
           console.error("Teams meeting creation error:", error);
           if (createdEvent?.id && !invitationsSent) {
@@ -702,6 +775,8 @@
         element.addEventListener("change", () => updateDrafts());
       });
       createMeetingButton.addEventListener("click", createTeamsMeeting);
+      sendAssessorEmailButton.addEventListener("click", () => sendMeetingEmail("assessor"));
+      sendStudentEmailButton.addEventListener("click", () => sendMeetingEmail("student"));
 
       loadAssessors();
       loadQualifications();
@@ -709,3 +784,4 @@
     </script>
   </body>
 </html>
+
