@@ -29,14 +29,15 @@ test("assessor page automatically loads comments, generates the report, and hand
   const initialiseBody = page.match(/const initialiseAssessorPage = async \(\) => \{([\s\S]*?)\n      \};/);
 
   assert.ok(initialiseBody);
-  assert.match(page, /<title>RPL Review 1\.4<\/title>/);
-  assert.match(page, /<h1>RPL Review 1\.4<\/h1>/);
+  assert.match(page, /<title>RPL Review 1\.5<\/title>/);
+  assert.match(page, /<h1>RPL Review 1\.5<\/h1>/);
   assert.match(initialiseBody[1], /await loadTranscriptFromUrlContext\(\)/);
   assert.match(initialiseBody[1], /fetchAssessorQuestions\(\{ candidateMetadata: getCandidateMetadata\(\) \}\)/);
   assert.match(initialiseBody[1], /await loadAssessorCommentsFromWebhook\(\)/);
   assert.match(initialiseBody[1], /await generateReport\(\{ sendWebhook: false \}\)/);
   assert.doesNotMatch(page.match(/const generateReport = async[\s\S]*?\n      \};/)[0], /await studentPhotoLoadPromise/);
-  assert.match(page, /fetchWithStartupTiming\("Student photo webhook"[\s\S]*?, 5000\)/);
+  assert.match(page, /fetchWithStartupTiming\("Student photo webhook"[\s\S]*?, 0\)/);
+  assert.match(page, /Number\(timeoutMs\) > 0 \? new AbortController\(\) : null/);
   assert.match(page, /type: "rpl-student-photo-loaded"/);
   assert.match(page, /previewFrame\.addEventListener\("load", updatePreviewStudentPhoto\)/);
   assert.match(page, /event\.data\?\.type !== "rpl-assessor-submission-saved"/);
