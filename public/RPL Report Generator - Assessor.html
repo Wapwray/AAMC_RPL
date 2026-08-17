@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>RPL Review 1.4</title>
+    <title>RPL Review 1.5</title>
     <style>
       :root {
         color-scheme: light;
@@ -151,7 +151,7 @@
   <body>
     <main>
       <header>
-      <h1>RPL Review 1.4</h1>
+      <h1>RPL Review 1.5</h1>
         <div id="status" class="status">Ready.</div>
       </header>
 
@@ -247,7 +247,7 @@
 
       const fetchWithStartupTiming = async (label, url, options, timeoutMs = 15000) => {
         const startedAt = Date.now();
-        const controller = typeof AbortController === "function" ? new AbortController() : null;
+        const controller = typeof AbortController === "function" && Number(timeoutMs) > 0 ? new AbortController() : null;
         const timeout = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
         try {
           const response = await fetch(url, {
@@ -664,7 +664,7 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
-        }, 5000);
+        }, 0);
 
         const responseText = await response.text();
         if (!response.ok) {
