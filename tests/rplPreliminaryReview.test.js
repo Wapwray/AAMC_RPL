@@ -456,7 +456,7 @@ test("renders assessor-mode sign-off fields and keeps assessor identity read-onl
   assert.equal(review.validateReportHtmlCoverage(model, html).valid, true);
 });
 
-test("renders the assessor transcript file uploader before limitations and gates sign-off on upload", () => {
+test("renders the assessor transcript uploader with an auditable Not Applicable bypass", () => {
   const model = review.buildReportModel({ fullTranscript: baseTranscript });
   const html = review.renderInteractiveReportHtml(model, {
     assessorMode: true,
@@ -471,17 +471,28 @@ test("renders the assessor transcript file uploader before limitations and gates
   assert.match(html, /<h2 id="interviewTranscriptTitle">Interview Transcript<\/h2>/);
   assert.match(html, /id="interview-transcript-file"[^>]*type="file"[^>]*accept="\.doc,\.docx,\.pdf/);
   assert.match(html, /id="interviewTranscriptUploadBtn">Upload<\/button>/);
+  assert.match(html, /id="interviewTranscriptNotApplicableBtn" aria-pressed="false">Not Applicable<\/button>/);
+  assert.match(html, /If a transcript is not required, choose Not Applicable\./);
   assert.doesNotMatch(html, /id="interview-transcript-(?:day|month|year|time|text)"/);
   assert.match(html, /var ASSESSOR_TRANSCRIPT_UPLOAD_URL = "https:\/\/example\.test\/upload-transcript"/);
   assert.match(html, /reader\.readAsDataURL\(file\)/);
   assert.match(html, /FileName: String\(file\.name/);
   assert.match(html, /ContentType: String\(file\.type/);
   assert.match(html, /FileContent: fileContent/);
-  assert.match(html, /var transcriptReady = !ASSESSOR_TRANSCRIPT_ENABLED \|\| \(assessorTranscriptUploaded && !transcriptDirty\)/);
+  assert.match(html, /var transcriptReady = !ASSESSOR_TRANSCRIPT_ENABLED \|\| assessorTranscriptNotApplicable \|\| \(assessorTranscriptUploaded && !transcriptDirty\)/);
   assert.match(html, /var signoffReady = allQuestionsSubmitted && transcriptReady/);
+  assert.match(html, /signoff\.assessorTranscriptNotApplicable = assessorTranscriptNotApplicable/);
+  assert.match(html, /signoff\.assessorTranscriptUploaded = assessorTranscriptUploaded/);
+  assert.match(html, /assessorTranscriptNotApplicable = signoff\.assessorTranscriptNotApplicable === true/);
+  assert.match(html, /Interview transcript marked Not Applicable\./);
+  assert.match(html, /addEventListener\("click", toggleAssessorTranscriptNotApplicable\)/);
+  assert.match(html, /event\.data\?\.type === "rpl-student-photo-loaded"/);
   assert.match(html, /Only Word \(\.doc or \.docx\) and PDF \(\.pdf\) documents are accepted/);
   assert.match(html, /clone\.querySelectorAll\("\.interview-transcript"\)/);
   assert.match(html, /\.interview-transcript \{ display: none; \}/);
+  const inlineScript = html.match(/<script>([\s\S]*?)<\/script>/)?.[1] || "";
+  assert.ok(inlineScript);
+  assert.doesNotThrow(() => new Function(inlineScript));
 });
 
 test("retains the legacy interactive sign-off outside assessor mode", () => {
