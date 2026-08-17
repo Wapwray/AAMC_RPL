@@ -1054,7 +1054,7 @@ Rules:
   };
 
   const renderMetadataRows = (metadata, studentPhoto = "") => {
-    const studentIdentity = `<div class="student-identity"><span class="student-name">${escapeHtml(valueOrMissing(metadata.candidateName))}</span>${studentPhoto ? `<img class="student-photo student-photo-inline" src="${escapeAttribute(studentPhoto)}" alt="Student photo for ${escapeAttribute(metadata.candidateName || "student")}">` : ""}</div>`;
+    const studentIdentity = `<div class="student-identity"><span class="student-name">${escapeHtml(valueOrMissing(metadata.candidateName))}</span><span id="studentPhotoSlot" class="student-photo-slot">${studentPhoto ? `<img class="student-photo student-photo-inline" src="${escapeAttribute(studentPhoto)}" alt="Student photo for ${escapeAttribute(metadata.candidateName || "student")}">` : ""}</span></div>`;
     const rows = [
       ["Student", studentIdentity, true],
       ["Contact ID", metadata.contactId],
@@ -1241,6 +1241,7 @@ Rules:
       .student-photo-cell { background: #f8fafc; }
       .student-photo { display: block; max-width: 140px; max-height: 160px; width: auto; height: auto; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; object-fit: contain; }
       .student-photo-inline { flex: 0 0 auto; margin-left: 12px; }
+      .student-photo-slot:empty { display: none; }
       .status-table { font-size: 9pt; line-height: 1.25; }
       .status-table th { background: #e8eef6; }
       .warning-box, .coverage-warning, .summary, .question-card, .limitations, .confirmation, .signoff { background: #fff; border: 1px solid #d8dee9; border-radius: 8px; padding: 18px; margin-top: 18px; }
@@ -1673,6 +1674,7 @@ Rules:
       .student-photo-cell { background: #f8fafc; }
       .student-photo { display: block; max-width: 140px; max-height: 160px; width: auto; height: auto; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; object-fit: contain; }
       .student-photo-inline { flex: 0 0 auto; margin-left: 12px; }
+      .student-photo-slot:empty { display: none; }
       .status-table { font-size: 9pt; line-height: 1.25; }
       .status-table th { background: #e8eef6; }
       .warning-box, .coverage-warning, .summary, .question-card, .interview-transcript, .limitations, .confirmation, .signoff { background: #fff; border: 1px solid #d8dee9; border-radius: 8px; padding: 18px; margin-top: 18px; }
@@ -1705,6 +1707,10 @@ Rules:
       .interview-transcript-upload-btn { background: #0b6ea9; color: #fff; border: none; border-radius: 999px; padding: 9px 18px; font-size: 14px; font-weight: 700; cursor: pointer; }
       .interview-transcript-upload-btn:hover { background: #095c8b; }
       .interview-transcript-upload-btn:disabled { opacity: .55; cursor: not-allowed; }
+      .interview-transcript-na-btn { background: #e2e8f0; color: #0f172a; border: 1px solid #94a3b8; border-radius: 999px; padding: 9px 18px; font-size: 14px; font-weight: 700; cursor: pointer; }
+      .interview-transcript-na-btn:hover { background: #cbd5e1; }
+      .interview-transcript-na-btn[aria-pressed="true"] { background: #475569; border-color: #475569; color: #fff; }
+      .interview-transcript-na-btn:disabled { opacity: .55; cursor: not-allowed; }
       .signoff-actions { margin-top: 12px; display: flex; justify-content: flex-end; gap: 12px; align-items: center; flex-wrap: wrap; }
       .global-submit-btn { background: #0b6ea9; color: #fff; border: none; border-radius: 999px; padding: 12px 24px; font-size: 15px; font-weight: 700; cursor: pointer; }
       .global-submit-btn:hover { background: #095c8b; }
@@ -1819,11 +1825,12 @@ Rules:
 
       ${assessorTranscriptEnabled ? `<section class="interview-transcript" aria-labelledby="interviewTranscriptTitle">
         <h2 id="interviewTranscriptTitle">Interview Transcript</h2>
-        <p class="muted">Choose a Microsoft Word or PDF interview transcript, then upload it to the student's directory before completing assessor sign-off.</p>
+        <p class="muted">Choose a Microsoft Word or PDF interview transcript, then upload it to the student's directory before completing assessor sign-off. If a transcript is not required, choose Not Applicable.</p>
         <label class="interview-transcript-file-label" for="interview-transcript-file">Transcript document</label>
         <input id="interview-transcript-file" class="interview-transcript-file" type="file" accept=".doc,.docx,.pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf">
         <div class="interview-transcript-actions">
           <button type="button" class="interview-transcript-upload-btn" id="interviewTranscriptUploadBtn">Upload</button>
+          <button type="button" class="interview-transcript-na-btn" id="interviewTranscriptNotApplicableBtn" aria-pressed="false">Not Applicable</button>
           <span class="submit-status" id="interviewTranscriptUploadStatus" aria-live="polite"></span>
         </div>
       </section>` : ""}
@@ -1889,6 +1896,7 @@ Do you want to proceed?</p>
         var questionLastSavedState = Object.create(null);
         var assessorTranscriptUploaded = !ASSESSOR_TRANSCRIPT_ENABLED;
         var assessorTranscriptLastUploadedSignature = "";
+        var assessorTranscriptNotApplicable = false;
         var assessorFinalised = false;
         var assessorFinalisedAt = "";
 
@@ -2019,6 +2027,8 @@ Do you want to proceed?</p>
           if (ASSESSOR_MODE) {
             signoff.assessorComments = (document.getElementById("assessor-comments") || {}).value || "";
             signoff.assessorDateTime = dateTimeEl ? dateTimeEl.value : "";
+            signoff.assessorTranscriptNotApplicable = assessorTranscriptNotApplicable;
+            signoff.assessorTranscriptUploaded = assessorTranscriptUploaded;
             signoff.assessorFinalised = assessorFinalised;
             signoff.assessorFinalisedAt = assessorFinalisedAt || "";
           }
@@ -2168,7 +2178,7 @@ Do you want to proceed?</p>
         }
 
         function isAssessorTranscriptDirty() {
-          if (!ASSESSOR_TRANSCRIPT_ENABLED || !assessorTranscriptUploaded || !assessorTranscriptLastUploadedSignature) return false;
+          if (!ASSESSOR_TRANSCRIPT_ENABLED || assessorTranscriptNotApplicable || !assessorTranscriptUploaded || !assessorTranscriptLastUploadedSignature) return false;
           return getAssessorTranscriptFileSignature(getAssessorTranscriptFile()) !== assessorTranscriptLastUploadedSignature;
         }
 
@@ -2244,15 +2254,21 @@ Do you want to proceed?</p>
 
           var allQuestionsSubmitted = areAllQuestionsSubmitted();
           var transcriptDirty = isAssessorTranscriptDirty();
-          var transcriptReady = !ASSESSOR_TRANSCRIPT_ENABLED || (assessorTranscriptUploaded && !transcriptDirty);
+          var transcriptReady = !ASSESSOR_TRANSCRIPT_ENABLED || assessorTranscriptNotApplicable || (assessorTranscriptUploaded && !transcriptDirty);
           var signoffReady = allQuestionsSubmitted && transcriptReady;
           var transcriptControls = Array.from(document.querySelectorAll("#interview-transcript-file"));
           var transcriptUploadBtn = document.getElementById("interviewTranscriptUploadBtn");
-          setDisabledForElements(transcriptControls, assessorFinalised);
-          if (transcriptUploadBtn) transcriptUploadBtn.disabled = assessorFinalised || !isAssessorTranscriptComplete();
+          var transcriptNotApplicableBtn = document.getElementById("interviewTranscriptNotApplicableBtn");
+          setDisabledForElements(transcriptControls, assessorFinalised || assessorTranscriptNotApplicable);
+          if (transcriptUploadBtn) transcriptUploadBtn.disabled = assessorFinalised || assessorTranscriptNotApplicable || !isAssessorTranscriptComplete();
+          if (transcriptNotApplicableBtn) {
+            transcriptNotApplicableBtn.disabled = assessorFinalised;
+            transcriptNotApplicableBtn.setAttribute("aria-pressed", assessorTranscriptNotApplicable ? "true" : "false");
+          }
           if (ASSESSOR_TRANSCRIPT_ENABLED && !assessorFinalised) {
             var transcriptValidation = getAssessorTranscriptFileValidation(getAssessorTranscriptFile());
-            if (transcriptDirty) setAssessorTranscriptStatus("A different document is selected - upload it to update the saved transcript.", "");
+            if (assessorTranscriptNotApplicable) setAssessorTranscriptStatus("Interview transcript marked Not Applicable.", "success");
+            else if (transcriptDirty) setAssessorTranscriptStatus("A different document is selected - upload it to update the saved transcript.", "");
             else if (!assessorTranscriptUploaded && !transcriptValidation.valid) setAssessorTranscriptStatus(transcriptValidation.message, "locked");
             else if (!assessorTranscriptUploaded) setAssessorTranscriptStatus("Ready to upload", "");
           }
@@ -2305,6 +2321,8 @@ Do you want to proceed?</p>
           } else {
             setInterviewOutcome(signoff.interviewOutcome || "NOT SATISFACTORY");
             setFieldValue("assessor-comments", signoff.assessorComments || "");
+            assessorTranscriptNotApplicable = signoff.assessorTranscriptNotApplicable === true;
+            assessorTranscriptUploaded = signoff.assessorTranscriptUploaded === true;
           }
           setFieldValue("assessor-signature", signoff.assessorSignature || "");
           assessorFinalised = Boolean(signoff.assessorFinalised || signoff.assessorFinalisedAt);
@@ -2332,7 +2350,7 @@ Do you want to proceed?</p>
         }
 
         function uploadAssessorTranscript() {
-          if (!ASSESSOR_TRANSCRIPT_ENABLED) return;
+          if (!ASSESSOR_TRANSCRIPT_ENABLED || assessorTranscriptNotApplicable) return;
           if (!ASSESSOR_TRANSCRIPT_UPLOAD_URL) {
             setAssessorTranscriptStatus("No transcript upload URL configured", "error");
             return;
@@ -2364,6 +2382,7 @@ Do you want to proceed?</p>
           }).then(function(response) {
             if (!response.ok) throw new Error("Upload failed (" + response.status + ")");
             assessorTranscriptUploaded = true;
+            assessorTranscriptNotApplicable = false;
             assessorTranscriptLastUploadedSignature = getAssessorTranscriptFileSignature(file);
             setAssessorTranscriptStatus("Uploaded: " + String(file.name || "Interview Transcript"), "success");
             updateAssessorWorkflowState();
@@ -2372,6 +2391,18 @@ Do you want to proceed?</p>
             setAssessorTranscriptStatus(error && error.message ? error.message : "Unable to upload transcript", "error");
             updateAssessorWorkflowState();
           });
+        }
+
+        function toggleAssessorTranscriptNotApplicable() {
+          if (!ASSESSOR_TRANSCRIPT_ENABLED || assessorFinalised) return;
+          assessorTranscriptNotApplicable = !assessorTranscriptNotApplicable;
+          if (assessorTranscriptNotApplicable) {
+            var input = document.getElementById("interview-transcript-file");
+            if (input) input.value = "";
+            assessorTranscriptUploaded = false;
+            assessorTranscriptLastUploadedSignature = "";
+          }
+          updateAssessorWorkflowState();
         }
 
         function serializeCurrentReportHtml(removeButtons) {
@@ -2592,6 +2623,8 @@ Do you want to proceed?</p>
         if (assessorTranscriptFileEl) assessorTranscriptFileEl.addEventListener("change", updateAssessorWorkflowState);
         var assessorTranscriptUploadBtn = document.getElementById("interviewTranscriptUploadBtn");
         if (assessorTranscriptUploadBtn) assessorTranscriptUploadBtn.addEventListener("click", uploadAssessorTranscript);
+        var assessorTranscriptNotApplicableBtn = document.getElementById("interviewTranscriptNotApplicableBtn");
+        if (assessorTranscriptNotApplicableBtn) assessorTranscriptNotApplicableBtn.addEventListener("click", toggleAssessorTranscriptNotApplicable);
 
         var globalBtn = document.getElementById("globalSubmitBtn");
         if (globalBtn) {
@@ -2648,7 +2681,23 @@ Do you want to proceed?</p>
         });
 
         window.addEventListener("message", function(event) {
-          if (event.source !== window.parent || event.data?.type !== "rpl-assessor-send-pdf-result") return;
+          if (event.source !== window.parent) return;
+          if (event.data?.type === "rpl-student-photo-loaded") {
+            var photo = String(event.data.studentPhoto || "").trim();
+            if (!/^data:image\\//i.test(photo) && !/^https:\\/\\//i.test(photo)) return;
+            var slot = document.getElementById("studentPhotoSlot");
+            if (!slot) return;
+            var image = slot.querySelector("img");
+            if (!image) {
+              image = document.createElement("img");
+              image.className = "student-photo student-photo-inline";
+              image.alt = "Student photo for " + String(candidateName || "student");
+              slot.appendChild(image);
+            }
+            image.src = photo;
+            return;
+          }
+          if (event.data?.type !== "rpl-assessor-send-pdf-result") return;
           var statusEl = document.getElementById("globalSubmitStatus");
           var btn = document.getElementById("sendPdfBtn");
           if (btn) btn.disabled = false;
