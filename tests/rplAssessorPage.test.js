@@ -29,8 +29,8 @@ test("assessor page automatically loads comments, generates the report, and hand
   const initialiseBody = page.match(/const initialiseAssessorPage = async \(\) => \{([\s\S]*?)\n      \};/);
 
   assert.ok(initialiseBody);
-  assert.match(page, /<title>RPL Review 1\.5<\/title>/);
-  assert.match(page, /<h1>RPL Review 1\.5<\/h1>/);
+  assert.match(page, /<title>RPL Review 1\.6<\/title>/);
+  assert.match(page, /<h1>RPL Review 1\.6<\/h1>/);
   assert.match(initialiseBody[1], /await loadTranscriptFromUrlContext\(\)/);
   assert.match(initialiseBody[1], /fetchAssessorQuestions\(\{ candidateMetadata: getCandidateMetadata\(\) \}\)/);
   assert.match(initialiseBody[1], /await loadAssessorCommentsFromWebhook\(\)/);
@@ -51,6 +51,8 @@ test("assessor page uploads the interview transcript document through the isolat
   assert.match(page, /const UPLOAD_ASSESSOR_TRANSCRIPT_WEBHOOK_URL = .*workflows\/2b76d8819f764937905e232ea561f796/);
   assert.match(page, /assessorTranscriptEnabled: true/);
   assert.match(page, /assessorTranscriptUploadUrl: UPLOAD_ASSESSOR_TRANSCRIPT_WEBHOOK_URL/);
+  assert.match(generator, /assessorTranscriptUploadUrl: cleanValue\(normalizedOptions\.assessorTranscriptUploadUrl\)/);
+  assert.doesNotMatch(generator, /assessorTranscriptSubmitUrl/);
   assert.doesNotMatch(page, /GET_ASSESSOR_TRANSCRIPT_WEBHOOK_URL/);
   assert.doesNotMatch(page, /loadAssessorTranscriptFromWebhook/);
   assert.doesNotMatch(page, /assessorTranscriptPrefill/);

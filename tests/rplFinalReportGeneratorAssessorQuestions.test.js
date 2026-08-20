@@ -22,3 +22,28 @@ test("keeps all assessor questions including overlapping Question 20", async () 
   assert.ok(result.html.indexOf('id="assessorQuestionsTitle"') < result.html.indexOf('class="interview-transcript"'));
   assert.ok(result.html.indexOf('class="interview-transcript"') < result.html.indexOf('class="limitations"'));
 });
+
+test("forwards the assessor transcript upload URL to the interactive report", async () => {
+  const model = { metadata: {}, warnings: [], questions: [] };
+  let renderedOptions = null;
+  const reportModule = {
+    buildReportModelFromJsonTranscript: () => model,
+    renderInteractiveReportHtml: (_reportModel, options) => {
+      renderedOptions = options;
+      return "<main></main>";
+    },
+    validateReportHtmlCoverage: () => ({ valid: true, questionCount: 0, statusRows: 0, articleCount: 0 }),
+  };
+  const generator = moduleUnderTest.create({ reportModule, callTextModel: async () => "{}" });
+
+  await generator.buildPreliminaryReviewReport({
+    jsonTranscript: { questions: [] },
+    reportOptions: {
+      assessorMode: true,
+      assessorTranscriptEnabled: true,
+      assessorTranscriptUploadUrl: "https://example.test/upload-transcript",
+    },
+  });
+
+  assert.equal(renderedOptions.assessorTranscriptUploadUrl, "https://example.test/upload-transcript");
+});

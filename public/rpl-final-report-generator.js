@@ -509,7 +509,7 @@ const normalizeAssessorQuestionList = (rawPayload, baseQuestionCount = 0) => {
         notifyParentOnSubmit: normalizedOptions.notifyParentOnSubmit === true,
         assessorPrefill: normalizedOptions.assessorPrefill || null,
         assessorTranscriptEnabled: normalizedOptions.assessorTranscriptEnabled === true,
-        assessorTranscriptSubmitUrl: cleanValue(normalizedOptions.assessorTranscriptSubmitUrl),
+        assessorTranscriptUploadUrl: cleanValue(normalizedOptions.assessorTranscriptUploadUrl),
         assessorTranscriptPrefill: normalizedOptions.assessorTranscriptPrefill || null,
         studentPhoto: cleanValue(normalizedOptions.studentPhoto),
       });
