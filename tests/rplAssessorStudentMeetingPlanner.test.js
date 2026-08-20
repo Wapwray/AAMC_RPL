@@ -8,6 +8,11 @@ const page = fs.readFileSync(
   "utf8"
 );
 
+test("meeting planner displays version 1.1", () => {
+  assert.match(page, /<title>RPL Assessor Student Meeting Planner V1\.1<\/title>/);
+  assert.match(page, /<h1>RPL Assessor Student Meeting Planner V1\.1<\/h1>/);
+});
+
 test("meeting planner reuses the Emailer student, assessor and qualification data sources", () => {
   assert.match(page, /workflows\/6550b2c761904160b0bae9baf9d59d7b\/triggers\/manual/);
   assert.match(page, /body: JSON\.stringify\(\{ ContactID: contactId \}\)/);
@@ -41,11 +46,24 @@ test("planner creates an online calendar event and then sends invitations", () =
 
 test("assessor is a co-organiser while the student is an authenticated lobby attendee", () => {
   assert.match(page, /"coorganizer", assessorUser/);
+  assert.match(page, /\$select=id,displayName,userPrincipalName,mail,userType/);
+  assert.match(page, /assessorUser\.userType !== "Member"/);
+  assert.match(page, /internal Microsoft 365 member to become co-organiser and download the transcript/i);
   assert.match(page, /"attendee", studentUser/);
   assert.match(page, /allowedLobbyAdmitters: "organizerAndCoOrganizers"/);
   assert.match(page, /lobbyBypassSettings: \{ scope: "organizer", isDialInBypassEnabled: false \}/);
   assert.match(page, /student must sign in using the invited Microsoft identity/i);
   assert.match(page, /anonymous meeting access must also be disabled/i);
+});
+
+test("meeting is automatically recorded and transcribed in Australian English", () => {
+  assert.match(page, /allowRecording: true/);
+  assert.match(page, /allowTranscription: true/);
+  assert.match(page, /recordAutomatically: true/);
+  assert.match(page, /meetingSpokenLanguageTag: "en-AU"/);
+  assert.match(page, /automatically recorded and transcribed/i);
+  assert.match(page, /Microsoft Teams will notify all participants when recording begins/i);
+  assert.match(page, /co-organiser, you can download the transcript from the meeting recap/i);
 });
 
 test("planner builds the production assessor-report identity URL and named link", () => {

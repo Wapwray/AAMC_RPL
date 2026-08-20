@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>RPL Assessor Student Meeting Planner</title>
+    <title>RPL Assessor Student Meeting Planner V1.1</title>
     <script src="https://alcdn.msauth.net/browser/2.38.0/js/msal-browser.min.js" crossorigin="anonymous"></script>
     <style>
       :root { color-scheme: light; font-family: Arial, Helvetica, sans-serif; color: #0f172a; background: #eef3f8; }
@@ -60,7 +60,7 @@
   </head>
   <body>
     <main class="page">
-      <h1>RPL Assessor Student Meeting Planner</h1>
+      <h1>RPL Assessor Student Meeting Planner V1.1</h1>
       <p class="subtitle">Identify the student, choose an assessor, then create and send a Microsoft Teams meeting invitation.</p>
 
       <form id="studentLookupForm">
@@ -137,7 +137,7 @@
           </div>
         </div>
         <p class="notice">
-          The assessor is made a co-organiser. The student is an attendee and waits in the lobby until the organiser or assessor joins. The student must sign in with their invited Microsoft identity; anonymous meeting access must also be disabled in the organiser's Teams policy.
+          This meeting will be automatically recorded and transcribed, and Microsoft Teams will notify participants when recording begins. The assessor is made a co-organiser and can download the transcript after the meeting. The student is an attendee and waits in the lobby until the organiser or assessor joins. The student must sign in with their invited Microsoft identity; anonymous meeting access must also be disabled in the organiser's Teams policy.
         </p>
         <div class="actions">
           <button id="createMeetingBtn" class="primary" type="button" disabled>Create meeting and send invitations</button>
@@ -406,6 +406,7 @@
           `<p><strong>Microsoft Teams:</strong> ${activeTeamsUrl ? buildLink(activeTeamsUrl, "Join the Microsoft Teams meeting") : "The Teams joining link will be added after meeting creation."}<br>`,
           `<strong>Student report:</strong> ${buildLink(reportUrl, reportLinkText)}</p>`,
           "<p>This meeting is an opportunity for the student and assessor to discuss the RPL assessment and next steps.</p>",
+          "<p>The meeting will be automatically recorded and transcribed. Microsoft Teams will notify all participants when recording begins. As co-organiser, you can download the transcript from the meeting recap after the meeting.</p>",
           "<p>Regards,<br>AAMC Training</p>"
         ].join("");
         byId("studentEmailTo").value = studentRecord.Email;
@@ -418,6 +419,7 @@
           `<strong>Time:</strong> ${escapeHtml(timeText)}</p>`,
           `<p><strong>Microsoft Teams:</strong> ${activeTeamsUrl ? buildLink(activeTeamsUrl, "Join the Microsoft Teams meeting") : "The Teams joining link will be added after meeting creation."}</p>`,
           "<p>This meeting is an opportunity for you and your assessor to discuss your RPL assessment and next steps.</p>",
+          "<p>The meeting will be automatically recorded and transcribed. Microsoft Teams will notify all participants when recording begins.</p>",
           "<p>You must sign in using the invited Microsoft identity and will wait in the lobby until the organiser or assessor joins.</p>",
           "<p>Regards,<br>AAMC Training</p>"
         ].join("");
@@ -437,6 +439,7 @@
           `<strong>Time:</strong> ${escapeHtml(timeText)}</p>`,
           activeTeamsUrl ? `<p><strong>Microsoft Teams:</strong> ${buildLink(activeTeamsUrl, "Join the Microsoft Teams meeting")}</p>` : "",
           "<p>This meeting is an opportunity for the student and assessor to discuss the RPL assessment and next steps.</p>",
+          "<p>The meeting will be automatically recorded and transcribed. Microsoft Teams will notify all participants when recording begins.</p>",
           "<p>The student must sign in using the invited Microsoft identity and will wait in the lobby until the organiser or assessor joins.</p>",
           "<p>Regards,<br>AAMC Training</p>"
         ].join("");
@@ -551,7 +554,7 @@
 
       const findDirectoryUser = async (email, token) => {
         try {
-          return await graphRequest(`/users/${encodeURIComponent(email)}?$select=id,displayName,userPrincipalName,mail`, token);
+          return await graphRequest(`/users/${encodeURIComponent(email)}?$select=id,displayName,userPrincipalName,mail,userType`, token);
         } catch (error) {
           console.warn(`Microsoft account lookup failed for ${email}:`, error);
           return null;
@@ -597,8 +600,8 @@
           const onlineMeeting = await findOnlineMeeting(joinUrl, token);
           const assessorEmail = getAssessorEmail();
           const assessorUser = inviteAssessor.checked ? await findDirectoryUser(assessorEmail, token) : null;
-          if (inviteAssessor.checked && !assessorUser) {
-            throw new Error("The assessor could not be found in Microsoft 365, so they cannot be assigned as co-organiser.");
+          if (inviteAssessor.checked && (!assessorUser || assessorUser.userType !== "Member")) {
+            throw new Error("The assessor must be an internal Microsoft 365 member to become co-organiser and download the transcript.");
           }
           const studentUser = inviteStudent.checked ? await findDirectoryUser(studentRecord.Email, token) : null;
           const participants = [];
@@ -610,6 +613,10 @@
             body: JSON.stringify({
               allowedLobbyAdmitters: "organizerAndCoOrganizers",
               allowedPresenters: "organizer",
+              allowRecording: true,
+              allowTranscription: true,
+              recordAutomatically: true,
+              meetingSpokenLanguageTag: "en-AU",
               lobbyBypassSettings: { scope: "organizer", isDialInBypassEnabled: false },
               participants: { attendees: participants },
             }),
