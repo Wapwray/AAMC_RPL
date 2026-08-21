@@ -8,9 +8,9 @@ const page = fs.readFileSync(
   "utf8"
 );
 
-test("meeting planner displays version 1.1", () => {
-  assert.match(page, /<title>RPL Assessor Student Meeting Planner V1\.1<\/title>/);
-  assert.match(page, /<h1>RPL Assessor Student Meeting Planner V1\.1<\/h1>/);
+test("meeting planner displays version 1.2", () => {
+  assert.match(page, /<title>RPL Assessor Student Meeting Planner V1\.2<\/title>/);
+  assert.match(page, /<h1>RPL Assessor Student Meeting Planner V1\.2<\/h1>/);
 });
 
 test("meeting planner reuses the Emailer student, assessor and qualification data sources", () => {
@@ -45,8 +45,14 @@ test("planner creates an online calendar event and then sends invitations", () =
 });
 
 test("assessor is a co-organiser while the student is an authenticated lobby attendee", () => {
+  assert.match(page, /"User\.Read\.All"/);
+  assert.doesNotMatch(page, /"User\.ReadBasic\.All"/);
   assert.match(page, /"coorganizer", assessorUser/);
   assert.match(page, /\$select=id,displayName,userPrincipalName,mail,userType/);
+  assert.match(page, /proxyAddresses\/any\(address:address eq 'smtp:\$\{escapedEmail\}'/);
+  assert.match(page, /ConsistencyLevel: "eventual"/);
+  assert.match(page, /tenant administrator must grant this app delegated User\.Read\.All permission/i);
+  assert.match(page, /assessor could not be found in Microsoft 365/i);
   assert.match(page, /assessorUser\.userType !== "Member"/);
   assert.match(page, /internal Microsoft 365 member to become co-organiser and download the transcript/i);
   assert.match(page, /"attendee", studentUser/);
