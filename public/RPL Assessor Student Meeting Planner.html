@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>RPL Assessor Student Meeting Planner V1.2</title>
+    <title>RPL Assessor Student Meeting Planner V1.1</title>
     <script src="https://alcdn.msauth.net/browser/2.38.0/js/msal-browser.min.js" crossorigin="anonymous"></script>
     <style>
       :root { color-scheme: light; font-family: Arial, Helvetica, sans-serif; color: #0f172a; background: #eef3f8; }
@@ -60,7 +60,7 @@
   </head>
   <body>
     <main class="page">
-      <h1>RPL Assessor Student Meeting Planner V1.2</h1>
+      <h1>RPL Assessor Student Meeting Planner V1.1</h1>
       <p class="subtitle">Identify the student, choose an assessor, then create and send a Microsoft Teams meeting invitation.</p>
 
       <form id="studentLookupForm">
@@ -193,7 +193,7 @@
       const ASSESSOR_REPORT_BASE_URL =
         "https://aamc-rpl-live-ecgua6ceb4fkgfh0.australiaeast-01.azurewebsites.net/RPL%20Report%20Generator%20-%20Assessor.html";
       const GRAPH_ROOT = "https://graph.microsoft.com/v1.0";
-      const GRAPH_SCOPES = ["User.Read", "User.Read.All", "Calendars.ReadWrite", "OnlineMeetings.ReadWrite"];
+      const GRAPH_SCOPES = ["User.Read", "User.ReadBasic.All", "Calendars.ReadWrite", "OnlineMeetings.ReadWrite"];
       const GRAPH_TIME_ZONE = "E. Australia Standard Time";
 
       let studentRecord = null;
@@ -536,9 +536,7 @@
         });
         if (!response.ok) {
           const errorText = await response.text();
-          const error = new Error(`Microsoft Graph returned HTTP ${response.status}: ${errorText.slice(0, 400)}`);
-          error.status = response.status;
-          throw error;
+          throw new Error(`Microsoft Graph returned HTTP ${response.status}: ${errorText.slice(0, 400)}`);
         }
         if (response.status === 204) return null;
         return response.json();
@@ -558,21 +556,9 @@
         try {
           return await graphRequest(`/users/${encodeURIComponent(email)}?$select=id,displayName,userPrincipalName,mail,userType`, token);
         } catch (error) {
-          if (error.status === 403) {
-            throw new Error("Microsoft 365 directory access was denied. A tenant administrator must grant this app delegated User.Read.All permission, then you must sign out and sign in again.");
-          }
-          if (error.status !== 404) throw error;
+          console.warn(`Microsoft account lookup failed for ${email}:`, error);
+          return null;
         }
-        const escapedEmail = email.replace(/'/g, "''");
-        const filter = encodeURIComponent(
-          `mail eq '${escapedEmail}' or userPrincipalName eq '${escapedEmail}' or proxyAddresses/any(address:address eq 'smtp:${escapedEmail}' or address eq 'SMTP:${escapedEmail}')`
-        );
-        const result = await graphRequest(
-          `/users?$filter=${filter}&$count=true&$select=id,displayName,userPrincipalName,mail,userType`,
-          token,
-          { headers: { ConsistencyLevel: "eventual" } }
-        );
-        return result.value?.[0] || null;
       };
 
       const createParticipant = (email, displayName, role, directoryUser) => {
@@ -614,10 +600,7 @@
           const onlineMeeting = await findOnlineMeeting(joinUrl, token);
           const assessorEmail = getAssessorEmail();
           const assessorUser = inviteAssessor.checked ? await findDirectoryUser(assessorEmail, token) : null;
-          if (inviteAssessor.checked && !assessorUser) {
-            throw new Error("The assessor could not be found in Microsoft 365. Check that their assessor email matches their Microsoft 365 email or user principal name.");
-          }
-          if (inviteAssessor.checked && assessorUser.userType !== "Member") {
+          if (inviteAssessor.checked && (!assessorUser || assessorUser.userType !== "Member")) {
             throw new Error("The assessor must be an internal Microsoft 365 member to become co-organiser and download the transcript.");
           }
           const studentUser = inviteStudent.checked ? await findDirectoryUser(studentRecord.Email, token) : null;

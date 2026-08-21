@@ -54,7 +54,7 @@ Edit [`public/teams-auth-config.json`](teams-auth-config.json):
 
 Append query params:
 
-```text
+```
 ?teamsClientId=<guid>&teamsTenantId=63871d3c-d05d-49fa-86b6-420054699fb4
 ```
 
@@ -71,18 +71,16 @@ Useful for quick testing.
 
 `RPL Assessor Student Meeting Planner.html` uses the same Entra application, but its live URL must also be registered as an SPA redirect URI:
 
-```text
+```
 https://aamc-rpl-live-ecgua6ceb4fkgfh0.australiaeast-01.azurewebsites.net/RPL%20Assessor%20Student%20Meeting%20Planner.html
 ```
 
 Add these delegated Microsoft Graph permissions and grant tenant consent where required:
 
 - `User.Read`
-- `User.Read.All` (requires tenant administrator consent so the planner can verify the assessor's `userType`)
+- `User.ReadBasic.All`
 - `Calendars.ReadWrite`
 - `OnlineMeetings.ReadWrite`
-
-After adding `User.Read.All` and granting administrator consent, existing planner users must sign out and sign in again so MSAL obtains a token containing the new scope.
 
 The planner creates the organiser's calendar event first, applies the lobby and co-organiser settings, and only then adds the assessor and student attendees. The shared Teams invitation names both participants and explains the purpose of the RPL meeting.
 
@@ -95,6 +93,4 @@ To require the student to sign in and prevent anonymous access, the Microsoft Te
 - Teams meetings cannot be fully embedded in an iframe (Microsoft blocks it). The page shows a "Join in Teams" button; join from the native Teams client and keep this page open alongside it.
 - Meeting transcription must be enabled inside the Teams meeting (organizer action) for Graph to expose transcripts.
 - The Power Automate questions webhook is called directly from the browser. If CORS blocks it, enable CORS on the Power Automate HTTP trigger's CORS settings in the environment.
-
-<!-- End of Teams login setup. -->
 
