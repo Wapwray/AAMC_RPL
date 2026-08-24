@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>RPL Review 1.6</title>
+    <title>RPL Review 1.7</title>
     <style>
       :root {
         color-scheme: light;
@@ -151,7 +151,7 @@
   <body>
     <main>
       <header>
-      <h1>RPL Review 1.6</h1>
+      <h1>RPL Review 1.7</h1>
         <div id="status" class="status">Ready.</div>
       </header>
 
@@ -202,6 +202,7 @@
       const STUDENT_QUESTIONS_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/24/workflows/37f4aa51417c4a31827a9c43cc84952a/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=2kqcJMZD1Re9Y4ZdatNl_rvzS4TSkCuk3afQ1nl3P-U";
       const URL_TRANSCRIPT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/41fdc1293b8547b1ac672c8aa1ccf7f8/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=32qfqtKjiupj1eLtp31QEPjPGqGSCj9AOdZ-c3Bdy7Y";
       const ASSESSOR_SUBMIT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/22/workflows/c16eb7b6410046b9b9c42f9ea0906f6e/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=UK5U-3LpQQjjTe3ObOXLGyNNbfDT7lm3dNtGD188FpY";
+      const ASSESSOR_TRANSCRIPT_TRACKING_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/19/workflows/399c0d41caab4c9daae2993c83fbb9d3/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=VGdZKlNuFrqreBzpFOK202e9e24_tog96Kuw3ZclkiE";
       const GET_COMMENTS_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/fae53cfbfdf34e41ad287e99b5e5ae27/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=zKGiLS6UJMScAyuFibK9yFNdn1e8jMlwmZ7nQ97c5OU";
       const UPLOAD_ASSESSOR_TRANSCRIPT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/12/workflows/2b76d8819f764937905e232ea561f796/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=cN3ofr5QDcjCKGldo8Dg7fpGGlsnlAui3eQ8VfagXjY";
 
@@ -413,6 +414,61 @@
           };
         } catch {
           return { assessorName: "", assessorEmail: "" };
+        }
+      };
+
+      const splitInterviewDateTime = (value) => {
+        const text = cleanValue(value);
+        if (!text) return { interviewDate: "", interviewTime: "" };
+
+        const isoMatch = text.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}(?::\d{2})?)/);
+        if (isoMatch) {
+          return { interviewDate: isoMatch[1], interviewTime: isoMatch[2] };
+        }
+
+        const timeMatch = text.match(/(?:,?\s+)(\d{1,2}:\d{2}(?::\d{2})?\s*(?:am|pm)?)$/i);
+        if (!timeMatch) return { interviewDate: text, interviewTime: "" };
+        return {
+          interviewDate: cleanValue(text.slice(0, timeMatch.index).replace(/,$/, "")),
+          interviewTime: cleanValue(timeMatch[1]),
+        };
+      };
+
+      const getTrackingGivenName = (identity) => {
+        const explicitGivenName = cleanValue(getStudentContext().givenName);
+        if (explicitGivenName) return explicitGivenName;
+        const nameParts = cleanValue(identity?.fullName).split(/\s+/).filter(Boolean);
+        const titles = new Set(["mr", "mrs", "ms", "miss", "dr", "mx"]);
+        return nameParts.find((part) => !titles.has(part.replace(/\./g, "").toLowerCase())) || "";
+      };
+
+      const sendAssessorTranscriptTracking = async (html) => {
+        const identity = getWebhookIdentityFromTranscript();
+        const assessor = getUrlAssessorContext();
+        const interview = splitInterviewDateTime(interviewDateEl.value);
+        const payload = {
+          FullName: identity.fullName,
+          ContactID: identity.contactId,
+          GivenName: getTrackingGivenName(identity),
+          AssessorName: assessor.assessorName,
+          AssessorMail: assessor.assessorEmail,
+          InterviewDate: interview.interviewDate,
+          InterviewTime: interview.interviewTime,
+          InterviewTranscript: html,
+          SubmittedAt: new Date().toISOString(),
+        };
+
+        log(`Assessor transcript tracking payload identity: ${payload.FullName} (${payload.ContactID}); assessor: ${payload.AssessorName || "not supplied"}.`);
+        const response = await fetch(ASSESSOR_TRANSCRIPT_TRACKING_WEBHOOK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const responseText = await response.text().catch(() => "");
+        log(`Assessor transcript tracking webhook: ${response.status} ${response.statusText}`);
+        if (responseText) log(`Assessor transcript tracking response body: ${responseText}`);
+        if (!response.ok) {
+          throw new Error(`Assessor transcript tracking webhook failed (${response.status}) ${response.statusText}`.trim());
         }
       };
 
@@ -945,8 +1001,17 @@
         const submitType = cleanValue(event.data?.submitType || "submission");
         const questionNumber = cleanValue(event.data?.questionNumber || "");
         const submitLabel = questionNumber ? `${submitType} ${questionNumber}` : submitType;
-        setStatus(`Assessor ${submitLabel} saved.`, "ok");
+        setStatus(`Assessor ${submitLabel} saved. Recording transcript tracking...`, "ok");
         log(`Assessor submission saved via configured submit webhook (${submitLabel}).`);
+        sendAssessorTranscriptTracking(currentReportHtml)
+          .then(() => {
+            setStatus(`Assessor ${submitLabel} saved and transcript tracking recorded.`, "ok");
+            log(`Assessor transcript tracking recorded (${submitLabel}).`);
+          })
+          .catch((error) => {
+            setStatus(`Assessor ${submitLabel} saved, but transcript tracking was not recorded.`, "error");
+            log(error?.stack || error?.message || String(error));
+          });
       });
 
       const initialiseAssessorPage = async () => {

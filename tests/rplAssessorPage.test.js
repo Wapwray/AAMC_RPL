@@ -7,6 +7,8 @@ const pagePath = path.join(__dirname, "..", "public", "RPL Report Generator - As
 const page = fs.readFileSync(pagePath, "utf8");
 const generatorPath = path.join(__dirname, "..", "public", "rpl-final-report-generator.js");
 const generator = fs.readFileSync(generatorPath, "utf8");
+const trackingSchemaPath = path.join(__dirname, "..", "docs", "rpl-assessor-transcript-tracking-schema.json");
+const trackingSchema = JSON.parse(fs.readFileSync(trackingSchemaPath, "utf8"));
 
 test("assessor page uses a full-width student information section above the draft report", () => {
   const studentInformationIndex = page.indexOf('id="studentInformationTitle"');
@@ -29,8 +31,8 @@ test("assessor page automatically loads comments, generates the report, and hand
   const initialiseBody = page.match(/const initialiseAssessorPage = async \(\) => \{([\s\S]*?)\n      \};/);
 
   assert.ok(initialiseBody);
-  assert.match(page, /<title>RPL Review 1\.6<\/title>/);
-  assert.match(page, /<h1>RPL Review 1\.6<\/h1>/);
+  assert.match(page, /<title>RPL Review 1\.7<\/title>/);
+  assert.match(page, /<h1>RPL Review 1\.7<\/h1>/);
   assert.match(initialiseBody[1], /await loadTranscriptFromUrlContext\(\)/);
   assert.match(initialiseBody[1], /fetchAssessorQuestions\(\{ candidateMetadata: getCandidateMetadata\(\) \}\)/);
   assert.match(initialiseBody[1], /await loadAssessorCommentsFromWebhook\(\)/);
@@ -41,8 +43,37 @@ test("assessor page automatically loads comments, generates the report, and hand
   assert.match(page, /type: "rpl-student-photo-loaded"/);
   assert.match(page, /previewFrame\.addEventListener\("load", updatePreviewStudentPhoto\)/);
   assert.match(page, /event\.data\?\.type !== "rpl-assessor-submission-saved"/);
-  assert.match(page, /setStatus\(`Assessor \$\{submitLabel\} saved\.`, "ok"\)/);
+  assert.match(page, /setStatus\(`Assessor \$\{submitLabel\} saved\. Recording transcript tracking\.\.\.`, "ok"\)/);
   assert.match(page, /Assessor submission saved via configured submit webhook/);
+});
+
+test("successful question submissions and finalisation are recorded through the assessor transcript tracking flow", () => {
+  assert.match(page, /const ASSESSOR_TRANSCRIPT_TRACKING_WEBHOOK_URL = .*workflows\/399c0d41caab4c9daae2993c83fbb9d3/);
+  assert.match(page, /event\.data\?\.type !== "rpl-assessor-submission-saved"/);
+  assert.match(page, /sendAssessorTranscriptTracking\(currentReportHtml\)/);
+  assert.match(page, /FullName: identity\.fullName/);
+  assert.match(page, /ContactID: identity\.contactId/);
+  assert.match(page, /GivenName: getTrackingGivenName\(identity\)/);
+  assert.match(page, /AssessorName: assessor\.assessorName,\s+AssessorMail: assessor\.assessorEmail/);
+  assert.match(page, /InterviewDate: interview\.interviewDate/);
+  assert.match(page, /InterviewTime: interview\.interviewTime/);
+  assert.match(page, /InterviewTranscript: html/);
+  assert.match(page, /SubmittedAt: new Date\(\)\.toISOString\(\)/);
+  assert.match(page, /Assessor \$\{submitLabel\} saved and transcript tracking recorded\./);
+  assert.match(page, /Assessor \$\{submitLabel\} saved, but transcript tracking was not recorded\./);
+  assert.deepEqual(Object.keys(trackingSchema.properties), [
+    "FullName",
+    "ContactID",
+    "GivenName",
+    "AssessorName",
+    "AssessorMail",
+    "InterviewDate",
+    "InterviewTime",
+    "InterviewTranscript",
+    "SubmittedAt",
+  ]);
+  assert.deepEqual(trackingSchema.required, Object.keys(trackingSchema.properties));
+  assert.equal(trackingSchema.additionalProperties, false);
 });
 
 test("assessor page uploads the interview transcript document through the isolated flow", () => {

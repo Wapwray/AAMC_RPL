@@ -1,0 +1,44 @@
+{
+  "type": "object",
+  "properties": {
+    "FullName": {
+      "type": "string"
+    },
+    "ContactID": {
+      "type": "string"
+    },
+    "GivenName": {
+      "type": "string"
+    },
+    "AssessorName": {
+      "type": "string"
+    },
+    "AssessorMail": {
+      "type": "string"
+    },
+    "InterviewDate": {
+      "type": "string"
+    },
+    "InterviewTime": {
+      "type": "string"
+    },
+    "InterviewTranscript": {
+      "type": "string"
+    },
+    "SubmittedAt": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "FullName",
+    "ContactID",
+    "GivenName",
+    "AssessorName",
+    "AssessorMail",
+    "InterviewDate",
+    "InterviewTime",
+    "InterviewTranscript",
+    "SubmittedAt"
+  ],
+  "additionalProperties": false
+}
