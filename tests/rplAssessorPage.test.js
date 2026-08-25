@@ -31,8 +31,8 @@ test("assessor page automatically loads comments, generates the report, and hand
   const initialiseBody = page.match(/const initialiseAssessorPage = async \(\) => \{([\s\S]*?)\n      \};/);
 
   assert.ok(initialiseBody);
-  assert.match(page, /<title>RPL Review 1\.7<\/title>/);
-  assert.match(page, /<h1>RPL Review 1\.7<\/h1>/);
+  assert.match(page, /<title>RPL Review 1\.8<\/title>/);
+  assert.match(page, /<h1>RPL Review 1\.8<\/h1>/);
   assert.match(initialiseBody[1], /await loadTranscriptFromUrlContext\(\)/);
   assert.match(initialiseBody[1], /fetchAssessorQuestions\(\{ candidateMetadata: getCandidateMetadata\(\) \}\)/);
   assert.match(initialiseBody[1], /await loadAssessorCommentsFromWebhook\(\)/);

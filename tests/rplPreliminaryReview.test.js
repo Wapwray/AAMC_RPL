@@ -427,6 +427,10 @@ test("renders assessor-mode sign-off fields and keeps assessor identity read-onl
   assert.match(html, /assessorSignatureEl\.disabled = assessorFinalised \|\| !commentsComplete/);
   assert.match(html, /finaliseBtn\.disabled = assessorFinalised \|\| !signatureComplete/);
   assert.match(html, /sendPdfBtn\.disabled = assessorFinalised \? false : !signatureComplete/);
+  assert.match(html, /function buildAutomaticAssessorComment\(qNum, evaluation\)/);
+  assert.match(html, /has achieved" : "has not achieved/);
+  assert.match(html, /autofillAssessorComment\(qNum, input\.value\)/);
+  assert.match(html, /var submittedData = collectQuestionData\(qNum\);[\s\S]*?fetch\(SUBMIT_URL/);
   assert.match(html, /signoff\.assessorFinalised = assessorFinalised/);
   assert.match(html, /signoff\.assessorFinalisedAt = assessorFinalisedAt \|\| ""/);
   assert.match(html, /var NOTIFY_PARENT_ON_SUBMIT = true/);
@@ -454,6 +458,24 @@ test("renders assessor-mode sign-off fields and keeps assessor identity read-onl
   assert.match(html, /\.signoff\s*\{[^}]*page-break-before:\s*avoid;[^}]*\}/);
   assert.match(html, /\.question-card\s*\{[^}]*break-inside:\s*avoid;[^}]*page-break-inside:\s*avoid;[^}]*\}/);
   assert.equal(review.validateReportHtmlCoverage(model, html).valid, true);
+});
+
+test("renders numbered conversation lines and adds full-sentence objective evidence references", () => {
+  const model = review.buildReportModel({ fullTranscript: baseTranscript });
+  const question = model.questions.find((item) => Number(item.questionNumber) === 24);
+  assert.ok(question);
+  question.aiInterviewSummary = `The student provided partial evidence.\n\nObjective evidence:\n- Complaint response: Likely sufficient — "I listen carefully"`;
+
+  const html = review.renderInteractiveReportHtml(model, { assessorMode: true });
+  const questionStart = html.indexOf('data-question-number="24"');
+  const questionEnd = html.indexOf('<!-- END QUESTION_REVIEW q="24" -->', questionStart);
+  const questionHtml = html.slice(questionStart, questionEnd);
+
+  assert.match(questionHtml, /class="conversation-transcript"/);
+  assert.match(questionHtml, /class="conversation-line-number" aria-label="Line 1">1<\/th>/);
+  assert.match(questionHtml, /class="conversation-line-number" aria-label="Line 2">2<\/th>/);
+  assert.match(questionHtml, /&quot;I listen carefully and try to fix it\. &lt;script&gt;alert\(&quot;x&quot;\)&lt;\/script&gt; &amp; keep notes\.&quot; \(Line 2\)/);
+  assert.doesNotMatch(questionHtml, /I listen carefully\.\.\./);
 });
 
 test("renders the assessor transcript uploader with an auditable Not Applicable bypass", () => {

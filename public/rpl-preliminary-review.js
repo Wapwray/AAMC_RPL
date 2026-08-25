@@ -701,12 +701,25 @@ Rules:
     return sentence;
   };
 
+  const getCompleteSentenceExcerpt = (value, preferredLength = 360) => {
+    const text = normalizeWhitespace(value);
+    if (!text || text.length <= preferredLength) return text;
+    const sentences = text.match(/[^.!?]+(?:[.!?]+(?=\s|$)|$)/g) || [text];
+    let excerpt = "";
+    for (const sentence of sentences) {
+      const next = normalizeWhitespace(sentence);
+      if (!next) continue;
+      if (excerpt && `${excerpt} ${next}`.length > preferredLength) break;
+      excerpt = excerpt ? `${excerpt} ${next}` : next;
+    }
+    return excerpt || normalizeWhitespace(sentences[0]);
+  };
+
   const summariseCandidateEvidence = (block) => {
     const attempts = Array.isArray(block?.attempts) ? block.attempts : [];
     const text = normalizeWhitespace(attempts.map((attempt) => attempt.responseText).filter(Boolean).join(" "));
     if (!text) return "";
-    const preview = text.length > 180 ? `${text.slice(0, 177)}...` : text;
-    return preview;
+    return getCompleteSentenceExcerpt(text);
   };
 
   const isRealFollowUpRequest = (value) => {
@@ -1079,15 +1092,15 @@ Rules:
                 <td id="status-assessor-eval-${escapeAttribute(question.questionNumber)}"><span class="status-badge status-missing">Not Reviewed</span></td>
               </tr>`).join("");
 
-  const buildConversationTranscriptText = (question) => {
-    const turns = [];
+  const buildConversationLines = (question) => {
+    const lines = [];
     const questionAsked = cleanMetadataValue(question.questionAsked);
     const attempts = Array.isArray(question.attempts) ? question.attempts : [];
     const messages = Array.isArray(question.assessorBotMessages) ? question.assessorBotMessages : [];
     const usedMessageIndexes = new Set();
 
     if (questionAsked) {
-      turns.push(`AI Interviewer: ${questionAsked}`);
+      lines.push({ kind: "ai", text: questionAsked, displayText: `AI Interviewer: ${questionAsked}` });
     }
 
     messages.forEach((message, messageIndex) => {
@@ -1099,7 +1112,7 @@ Rules:
         usedMessageIndexes.add(messageIndex);
         return;
       }
-      turns.push(`AI Interviewer: ${text}`);
+      lines.push({ kind: "ai", text, displayText: `AI Interviewer: ${text}` });
       usedMessageIndexes.add(messageIndex);
     });
 
@@ -1110,12 +1123,12 @@ Rules:
       const submittedAt = cleanMetadataValue(attempt.submittedAt);
 
       if (responseText) {
-        turns.push(`${speaker} (Attempt ${attemptNumber}): ${responseText}`);
+        lines.push({ kind: "student", text: responseText, displayText: `${speaker} (Attempt ${attemptNumber}): ${responseText}` });
       } else {
-        turns.push(`${speaker} (Attempt ${attemptNumber}):`);
+        lines.push({ kind: "student", text: "", displayText: `${speaker} (Attempt ${attemptNumber}):` });
       }
       if (submittedAt) {
-        turns.push(`Submitted: ${submittedAt}`);
+        lines.push({ kind: "metadata", text: submittedAt, displayText: `Submitted: ${submittedAt}` });
       }
 
       messages.forEach((message, messageIndex) => {
@@ -1123,7 +1136,7 @@ Rules:
         if (Number(message.followsAttemptNumber) !== attemptNumber) return;
         const text = cleanMetadataValue(message.messageText);
         if (!text) return;
-        turns.push(`AI Interviewer: ${text}`);
+        lines.push({ kind: "ai", text, displayText: `AI Interviewer: ${text}` });
         usedMessageIndexes.add(messageIndex);
       });
     });
@@ -1132,20 +1145,93 @@ Rules:
       if (usedMessageIndexes.has(messageIndex)) return;
       const text = cleanMetadataValue(message.messageText);
       if (!text) return;
-      turns.push(`AI Interviewer: ${text}`);
+      lines.push({ kind: "ai", text, displayText: `AI Interviewer: ${text}` });
       usedMessageIndexes.add(messageIndex);
     });
 
-    return turns.join("\n\n");
+    return lines.map((line, index) => ({ ...line, lineNumber: index + 1 }));
+  };
+
+  const normalizeEvidenceMatchText = (value) => normalizeWhitespace(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const findEvidenceLine = (evidence, conversationLines) => {
+    const target = normalizeEvidenceMatchText(evidence);
+    if (!target) return null;
+    const studentLines = conversationLines.filter((line) => line.kind === "student" && line.text);
+    const exact = studentLines.find((line) => {
+      const candidate = normalizeEvidenceMatchText(line.text);
+      return candidate.includes(target) || target.includes(candidate);
+    });
+    if (exact) return exact;
+
+    const targetWords = [...new Set(target.split(" ").filter((word) => word.length > 2))];
+    if (!targetWords.length) return null;
+    let best = null;
+    let bestScore = 0;
+    studentLines.forEach((line) => {
+      const candidateWords = new Set(normalizeEvidenceMatchText(line.text).split(" ").filter(Boolean));
+      const matches = targetWords.filter((word) => candidateWords.has(word)).length;
+      const score = matches / targetWords.length;
+      if (score > bestScore) {
+        best = line;
+        bestScore = score;
+      }
+    });
+    return bestScore >= 0.5 ? best : null;
+  };
+
+  const expandEvidenceToCompleteSentence = (evidence, sourceText) => {
+    const target = normalizeEvidenceMatchText(evidence);
+    if (!target || !sourceText) return evidence;
+    const sentences = String(sourceText).match(/[^.!?]+(?:[.!?]+(?=\s|$)|$)/g) || [sourceText];
+    const matchingIndex = sentences.findIndex((sentence) => normalizeEvidenceMatchText(sentence).includes(target));
+    if (matchingIndex < 0) return evidence;
+    return sentences
+      .slice(matchingIndex, matchingIndex + 2)
+      .map(normalizeWhitespace)
+      .filter(Boolean)
+      .join(" ");
+  };
+
+  const addObjectiveEvidenceLineReferences = (summary, question) => {
+    const summaryLines = String(summary || "").split(/\r?\n/);
+    const conversationLines = buildConversationLines(question);
+    let inObjectiveEvidence = false;
+    return summaryLines.map((line) => {
+      if (/objective evidence\s*:/i.test(line)) {
+        inObjectiveEvidence = true;
+        return line;
+      }
+      if (!inObjectiveEvidence || !/^\s*-/.test(line) || /\bline\s+\d+\b/i.test(line)) return line;
+      const quoteMatch = line.match(/[\u201c"]([^\u201d"]+)[\u201d"]/);
+      if (!quoteMatch) return line;
+      const evidenceLine = findEvidenceLine(quoteMatch[1], conversationLines);
+      if (!evidenceLine) return line;
+      const expandedEvidence = expandEvidenceToCompleteSentence(quoteMatch[1], evidenceLine.text);
+      const expandedLine = line.replace(quoteMatch[0], `"${expandedEvidence}"`);
+      return `${expandedLine} (Line ${evidenceLine.lineNumber})`;
+    }).join("\n");
   };
 
   const renderConversation = (question) => {
-    const transcriptText = buildConversationTranscriptText(question);
-    if (!transcriptText) {
+    const lines = buildConversationLines(question);
+    if (!lines.length) {
       return "<p>No Student/AI Interview conversation located in transcript.</p>";
     }
-    return renderResponseBox(transcriptText);
+    return `<table class="conversation-transcript" aria-label="Student and AI Interview conversation">
+                <tbody>
+                  ${lines.map((line) => `<tr><th scope="row" class="conversation-line-number" aria-label="Line ${line.lineNumber}">${line.lineNumber}</th><td>${escapeHtml(line.displayText)}</td></tr>`).join("\n                  ")}
+                </tbody>
+              </table>`;
   };
+
+  const renderAiInterviewSummary = (question) => renderResponseBox(
+    valueOrMissing(addObjectiveEvidenceLineReferences(question.aiInterviewSummary, question)),
+  );
 
   const renderExecutiveSummary = (reportModel) => {
     const items = Array.isArray(reportModel?.executiveSummaryItems) && reportModel.executiveSummaryItems.length
@@ -1199,7 +1285,7 @@ Rules:
             </section>
             <section>
               <h4>AI Interview Summary</h4>
-              ${renderResponseBox(valueOrMissing(question.aiInterviewSummary))}
+              ${renderAiInterviewSummary(question)}
             </section>
             ${renderAssessorStaticSection(question)}
           </article>
@@ -1261,6 +1347,9 @@ Rules:
       .verbatim, .response-box { white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word; max-width: 100%; margin: 0; padding: 8px; border: 1px solid #999; border-radius: 4px; background: #fff; font-family: Calibri, Arial, Helvetica, sans-serif; font-size: 11pt; line-height: 1.35; box-sizing: border-box; }
       .formatted-summary { white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word; max-width: 100%; margin: 0; padding: 0; background: transparent; font-family: inherit; font-size: inherit; line-height: 1.35; box-sizing: border-box; }
       .response-box { min-height: 80px; }
+      .conversation-transcript { width: 100%; border-collapse: collapse; table-layout: fixed; background: #fff; }
+      .conversation-transcript th, .conversation-transcript td { border: 1px solid #cbd5e1; padding: 7px 9px; text-align: left; vertical-align: top; white-space: pre-wrap; overflow-wrap: anywhere; }
+      .conversation-transcript .conversation-line-number { width: 42px; text-align: right; color: #64748b; background: #f8fafc; font-variant-numeric: tabular-nums; }
       .assessor-evaluation-box { min-height: 42px; }
       .assessor-evaluation { border: 1px solid #cbd5e1; border-radius: 6px; padding: 12px; background: #fff; }
       .field-value { min-height: 30px; border: 1px solid #999; border-radius: 4px; padding: 7px 9px; box-sizing: border-box; background: #fff; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word; }
@@ -1632,7 +1721,7 @@ Rules:
             </section>
             <section>
               <h4>AI Interview Summary</h4>
-              ${renderResponseBox(valueOrMissing(question.aiInterviewSummary))}
+              ${renderAiInterviewSummary(question)}
             </section>
             <section class="assessor-evaluation">
               <h4>Assessor Evaluation - Status</h4>
@@ -1693,6 +1782,9 @@ Rules:
       .verbatim, .response-box { white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word; max-width: 100%; margin: 0; padding: 8px; border: 1px solid #999; border-radius: 4px; background: #fff; font-family: Calibri, Arial, Helvetica, sans-serif; font-size: 11pt; line-height: 1.35; box-sizing: border-box; }
       .formatted-summary { white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word; max-width: 100%; margin: 0; padding: 0; background: transparent; font-family: inherit; font-size: inherit; line-height: 1.35; box-sizing: border-box; }
       .response-box { min-height: 80px; }
+      .conversation-transcript { width: 100%; border-collapse: collapse; table-layout: fixed; background: #fff; }
+      .conversation-transcript th, .conversation-transcript td { border: 1px solid #cbd5e1; padding: 7px 9px; text-align: left; vertical-align: top; white-space: pre-wrap; overflow-wrap: anywhere; }
+      .conversation-transcript .conversation-line-number { width: 42px; text-align: right; color: #64748b; background: #f8fafc; font-variant-numeric: tabular-nums; }
       .assessor-evaluation { border: 1px solid #cbd5e1; border-radius: 6px; padding: 12px; background: #f8fafc; margin-top: 12px; }
       .assessor-input:focus, .assessor-signoff-input:focus { outline: 2px solid #0b6ea9; border-color: #0b6ea9; }
       .question-submit-btn:hover { background: #095c8b !important; }
@@ -1899,6 +1991,10 @@ Do you want to proceed?</p>
         var assessorTranscriptNotApplicable = false;
         var assessorFinalised = false;
         var assessorFinalisedAt = "";
+        var questionObjectives = ${JSON.stringify(Object.fromEntries(questions.map((question) => [
+          String(question.questionNumber),
+          normalizeWhitespace(String(question.assessmentObjective || "").replace(/<[^>]*>/g, " ")),
+        ])))};
 
         function deriveGivenName() {
           if (givenName && String(givenName).trim()) return String(givenName).trim();
@@ -2088,6 +2184,29 @@ Do you want to proceed?</p>
           if (!normalized) return;
           var input = document.querySelector('input[name="assessor-eval-' + qNum + '"][value="' + normalized + '"]');
           if (input) input.checked = true;
+        }
+
+        function buildAutomaticAssessorComment(qNum, evaluation) {
+          var normalized = normalizeEvaluationValue(evaluation);
+          if (!normalized) return "";
+          var studentName = String(candidateName || "The student").trim() || "The student";
+          var objective = String(questionObjectives[String(qNum)] || "the question objective").trim().replace(/[.\s]+$/, "");
+          var achievementText = normalized === "SATISFACTORY" ? "has achieved" : "has not achieved";
+          return studentName + " " + achievementText + " this question's objective of " + objective + ".";
+        }
+
+        function autofillAssessorComment(qNum, evaluation) {
+          var notesEl = document.getElementById("assessor-notes-" + qNum);
+          if (!notesEl) return;
+          var previousAutoText = String(notesEl.getAttribute("data-auto-assessor-comment") || "");
+          var currentText = String(notesEl.value || "");
+          var additionalComments = currentText;
+          if (previousAutoText && currentText.indexOf(previousAutoText) === 0) {
+            additionalComments = currentText.slice(previousAutoText.length).replace(/^\s+/, "");
+          }
+          var autoText = buildAutomaticAssessorComment(qNum, evaluation);
+          notesEl.setAttribute("data-auto-assessor-comment", autoText);
+          notesEl.value = additionalComments ? autoText + "\\n\\n" + additionalComments : autoText;
         }
 
         function setInterviewOutcome(value) {
@@ -2489,6 +2608,7 @@ Do you want to proceed?</p>
             setAssessorPopupOpen(true, "Please select Satisfactory or Not Satisfactory and enter Assessor Comments before submitting.");
             return;
           }
+          var submittedData = collectQuestionData(qNum);
           setQuestionStatus(qNum, "Submitting...", "");
           var data = buildSubmitPayload("question", qNum);
           fetch(SUBMIT_URL, {
@@ -2499,7 +2619,6 @@ Do you want to proceed?</p>
             if (resp.ok) {
               var key = String(qNum);
               questionSubmissionState[key] = true;
-              var submittedData = collectQuestionData(qNum);
               questionLastSavedState[key] = {
                 assessorEvaluation: normalizeEvaluationValue(submittedData.assessorEvaluation || ""),
                 assessorNotes: String(submittedData.assessorNotes || "").trim(),
@@ -2602,7 +2721,11 @@ Do you want to proceed?</p>
         });
 
         document.querySelectorAll('input[name^="assessor-eval-"]').forEach(function(input) {
-          input.addEventListener("change", updateAssessorWorkflowState);
+          input.addEventListener("change", function() {
+            var qNum = String(input.name || "").replace(/^assessor-eval-/, "");
+            autofillAssessorComment(qNum, input.value);
+            updateAssessorWorkflowState();
+          });
         });
 
         document.querySelectorAll('textarea[id^="assessor-notes-"]').forEach(function(textarea) {
