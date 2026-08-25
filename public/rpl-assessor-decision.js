@@ -721,8 +721,8 @@ Break the objective into its distinct component parts (typically 2 to 5) and ret
 
 - objectivePart must be a short neutral label for that part of the objective, 10 words or fewer.
 - Each part's status must be LIKELY SUFFICIENT or ADDITIONAL EVIDENCE MAY BE NEEDED, judged for that part alone using the same evidence standards as the overall assessment.
-- When a part is LIKELY SUFFICIENT, evidence must be a short direct quote or close paraphrase (25 words or fewer) of the learner's own wording that meets that part.
-- When a part is ADDITIONAL EVIDENCE MAY BE NEEDED, evidence must be a short quote of any partial learner evidence for that part, or an empty string if none exists.
+- When a part is LIKELY SUFFICIENT, evidence must quote the learner's complete sentence or complete adjacent sentences that meet that part. Include enough surrounding wording to make the evidence clear; never cut a sentence off or add an ellipsis.
+- When a part is ADDITIONAL EVIDENCE MAY BE NEEDED, evidence must quote any complete learner sentence that provides partial evidence for that part, or be an empty string if none exists. Never truncate a sentence.
 - evidence must come only from the learner's attempts. Never place hint content, model answers, or suggested wording in evidence.
 - Each part may only be marked LIKELY SUFFICIENT when the learner's own wording specifically addresses that part. Do not credit the same evidence fragment to more than one distinct part unless it genuinely addresses each part on its own.
 - Treat identifying, recognising or assessing a situation as a different requirement from responding to or managing it. A description of how the learner would respond does not evidence how they would identify or assess the situation, and vice versa.
@@ -736,10 +736,10 @@ Keep the returned JSON short so it can be produced quickly:
 - covered: at most 3 items, each 12 words or fewer.
 - missing: at most 3 items, each 12 words or fewer.
 - assessorRationale: one sentence of 30 words or fewer.
-- objectiveEvidence: at most 5 parts; each objectivePart 10 words or fewer; each evidence quote 25 words or fewer.
+- objectiveEvidence: at most 5 parts; each objectivePart 10 words or fewer; each evidence quote should normally be one or two complete sentences and must not truncate a sentence.
 - Do not restate the question, objective, hint, or the learner's full wording; summarise each point in your own brief phrasing.
 - Do not repeat the same evidence point in multiple covered items when attempts overlap; merge overlapping attempts into single items.
-- Keep the entire JSON response under 300 words.
+- Keep the entire JSON response concise while preserving complete evidence sentences.
 FINAL CONSISTENCY CHECK
 
 Before returning the JSON, verify all of the following:
