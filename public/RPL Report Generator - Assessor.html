@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>RPL Review 1.8</title>
+    <title>RPL Review 1.9</title>
     <style>
       :root {
         color-scheme: light;
@@ -151,7 +151,7 @@
   <body>
     <main>
       <header>
-      <h1>RPL Review 1.8</h1>
+      <h1>RPL Review 1.9</h1>
         <div id="status" class="status">Ready.</div>
       </header>
 
@@ -203,6 +203,7 @@
       const URL_TRANSCRIPT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/41fdc1293b8547b1ac672c8aa1ccf7f8/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=32qfqtKjiupj1eLtp31QEPjPGqGSCj9AOdZ-c3Bdy7Y";
       const ASSESSOR_SUBMIT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/22/workflows/c16eb7b6410046b9b9c42f9ea0906f6e/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=UK5U-3LpQQjjTe3ObOXLGyNNbfDT7lm3dNtGD188FpY";
       const ASSESSOR_TRANSCRIPT_TRACKING_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/19/workflows/399c0d41caab4c9daae2993c83fbb9d3/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=VGdZKlNuFrqreBzpFOK202e9e24_tog96Kuw3ZclkiE";
+      const RPL_REPORT_PAGE_ACCESSED_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/21/workflows/42a410ace5414d7fbd6a76d918fcac04/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=npJn4zBmTH8IS1U7b5nIWuMmrnp6OKHp4iojSedC-So";
       const GET_COMMENTS_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/fae53cfbfdf34e41ad287e99b5e5ae27/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=zKGiLS6UJMScAyuFibK9yFNdn1e8jMlwmZ7nQ97c5OU";
       const UPLOAD_ASSESSOR_TRANSCRIPT_WEBHOOK_URL = "https://default63871d3cd05d49fa86b6420054699f.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/12/workflows/2b76d8819f764937905e232ea561f796/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=cN3ofr5QDcjCKGldo8Dg7fpGGlsnlAui3eQ8VfagXjY";
 
@@ -440,6 +441,41 @@
         const nameParts = cleanValue(identity?.fullName).split(/\s+/).filter(Boolean);
         const titles = new Set(["mr", "mrs", "ms", "miss", "dr", "mx"]);
         return nameParts.find((part) => !titles.has(part.replace(/\./g, "").toLowerCase())) || "";
+      };
+
+      const recordPageAccess = async () => {
+        const student = getStudentContext();
+        const assessor = getUrlAssessorContext();
+        const fullName = cleanValue(student.fullName || fullNameEl.value);
+        const contactId = cleanValue(student.contactId || contactIdEl.value);
+
+        if (!fullName || !contactId || !assessor.assessorName || !assessor.assessorEmail) {
+          log("Page access tracking skipped because the student or assessor identity is incomplete.");
+          return false;
+        }
+
+        const payload = {
+          FullName: fullName,
+          ContactID: contactId,
+          GivenName: cleanValue(student.givenName) || fullName.split(/\s+/).filter(Boolean)[0] || "",
+          AssessorName: assessor.assessorName,
+          AssessorMail: assessor.assessorEmail,
+          OpenedAt: new Date().toISOString(),
+          PageUrl: window.location.href,
+          PageVersion: "RPL Review 1.9",
+          UserAgent: navigator.userAgent,
+        };
+
+        const response = await fetch(RPL_REPORT_PAGE_ACCESSED_WEBHOOK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!response.ok) {
+          throw new Error(`Page access tracking failed (${response.status}) ${response.statusText}`.trim());
+        }
+        log(`Page access recorded for ${payload.AssessorName}.`);
+        return true;
       };
 
       const sendAssessorTranscriptTracking = async (html) => {
@@ -1017,6 +1053,10 @@
       const initialiseAssessorPage = async () => {
         applyUrlStudentContext();
         preloadInputsFromStudentContext();
+
+        recordPageAccess().catch((error) => {
+          log(error?.stack || error?.message || String(error));
+        });
 
         studentPhotoLoadPromise = loadStudentPhotoFromWebhook()
           .then(updatePreviewStudentPhoto)

@@ -474,7 +474,7 @@ test("renders numbered conversation lines and adds full-sentence objective evide
   assert.match(questionHtml, /class="conversation-transcript"/);
   assert.match(questionHtml, /class="conversation-line-number" aria-label="Line 1">1<\/th>/);
   assert.match(questionHtml, /class="conversation-line-number" aria-label="Line 2">2<\/th>/);
-  assert.match(questionHtml, /&quot;I listen carefully and try to fix it\. &lt;script&gt;alert\(&quot;x&quot;\)&lt;\/script&gt; &amp; keep notes\.&quot; \(Line 2\)/);
+  assert.match(questionHtml, /&quot;I listen carefully and try to fix it\. &lt;script&gt;alert\(&quot;x&quot;\)&lt;\/script&gt; &amp; keep notes\.&quot; \(Section 2\)/);
   assert.doesNotMatch(questionHtml, /I listen carefully\.\.\./);
 });
 

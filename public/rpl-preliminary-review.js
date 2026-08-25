@@ -1213,7 +1213,7 @@ Rules:
       if (!evidenceLine) return line;
       const expandedEvidence = expandEvidenceToCompleteSentence(quoteMatch[1], evidenceLine.text);
       const expandedLine = line.replace(quoteMatch[0], `"${expandedEvidence}"`);
-      return `${expandedLine} (Line ${evidenceLine.lineNumber})`;
+      return `${expandedLine} (Section ${evidenceLine.lineNumber})`;
     }).join("\n");
   };
 

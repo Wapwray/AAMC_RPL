@@ -1,0 +1,26 @@
+{
+  "type": "object",
+  "properties": {
+    "FullName": { "type": "string" },
+    "ContactID": { "type": "string" },
+    "GivenName": { "type": "string" },
+    "AssessorName": { "type": "string" },
+    "AssessorMail": { "type": "string" },
+    "OpenedAt": { "type": "string" },
+    "PageUrl": { "type": "string" },
+    "PageVersion": { "type": "string" },
+    "UserAgent": { "type": "string" }
+  },
+  "required": [
+    "FullName",
+    "ContactID",
+    "GivenName",
+    "AssessorName",
+    "AssessorMail",
+    "OpenedAt",
+    "PageUrl",
+    "PageVersion",
+    "UserAgent"
+  ],
+  "additionalProperties": false
+}
