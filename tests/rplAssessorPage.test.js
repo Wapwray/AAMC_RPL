@@ -9,6 +9,8 @@ const generatorPath = path.join(__dirname, "..", "public", "rpl-final-report-gen
 const generator = fs.readFileSync(generatorPath, "utf8");
 const trackingSchemaPath = path.join(__dirname, "..", "docs", "rpl-assessor-transcript-tracking-schema.json");
 const trackingSchema = JSON.parse(fs.readFileSync(trackingSchemaPath, "utf8"));
+const pageAccessSchemaPath = path.join(__dirname, "..", "docs", "rpl-report-page-accessed-schema.json");
+const pageAccessSchema = JSON.parse(fs.readFileSync(pageAccessSchemaPath, "utf8"));
 
 test("assessor page uses a full-width student information section above the draft report", () => {
   const studentInformationIndex = page.indexOf('id="studentInformationTitle"');
@@ -31,8 +33,8 @@ test("assessor page automatically loads comments, generates the report, and hand
   const initialiseBody = page.match(/const initialiseAssessorPage = async \(\) => \{([\s\S]*?)\n      \};/);
 
   assert.ok(initialiseBody);
-  assert.match(page, /<title>RPL Review 1\.8<\/title>/);
-  assert.match(page, /<h1>RPL Review 1\.8<\/h1>/);
+  assert.match(page, /<title>RPL Review 1\.9<\/title>/);
+  assert.match(page, /<h1>RPL Review 1\.9<\/h1>/);
   assert.match(initialiseBody[1], /await loadTranscriptFromUrlContext\(\)/);
   assert.match(initialiseBody[1], /fetchAssessorQuestions\(\{ candidateMetadata: getCandidateMetadata\(\) \}\)/);
   assert.match(initialiseBody[1], /await loadAssessorCommentsFromWebhook\(\)/);
@@ -74,6 +76,32 @@ test("successful question submissions and finalisation are recorded through the 
   ]);
   assert.deepEqual(trackingSchema.required, Object.keys(trackingSchema.properties));
   assert.equal(trackingSchema.additionalProperties, false);
+});
+
+test("assessor page records page access through the isolated tracking flow without delaying startup", () => {
+  const initialiseBody = page.match(/const initialiseAssessorPage = async \(\) => \{([\s\S]*?)\n      \};/);
+  assert.ok(initialiseBody);
+  assert.match(page, /const RPL_REPORT_PAGE_ACCESSED_WEBHOOK_URL = .*workflows\/42a410ace5414d7fbd6a76d918fcac04/);
+  assert.match(initialiseBody[1], /recordPageAccess\(\)\.catch/);
+  assert.doesNotMatch(initialiseBody[1], /await recordPageAccess\(\)/);
+  assert.match(page, /OpenedAt: new Date\(\)\.toISOString\(\)/);
+  assert.match(page, /PageUrl: window\.location\.href/);
+  assert.match(page, /PageVersion: "RPL Review 1\.9"/);
+  assert.match(page, /UserAgent: navigator\.userAgent/);
+  assert.match(page, /Page access tracking skipped because the student or assessor identity is incomplete\./);
+  assert.deepEqual(Object.keys(pageAccessSchema.properties), [
+    "FullName",
+    "ContactID",
+    "GivenName",
+    "AssessorName",
+    "AssessorMail",
+    "OpenedAt",
+    "PageUrl",
+    "PageVersion",
+    "UserAgent",
+  ]);
+  assert.deepEqual(pageAccessSchema.required, Object.keys(pageAccessSchema.properties));
+  assert.equal(pageAccessSchema.additionalProperties, false);
 });
 
 test("assessor page uploads the interview transcript document through the isolated flow", () => {
