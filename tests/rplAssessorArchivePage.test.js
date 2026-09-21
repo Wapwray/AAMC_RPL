@@ -57,7 +57,15 @@ test("archive page remains byte-for-byte while the regular assessor page evolves
     });
   } catch (error) {
     const details = `${error?.message || ""}\n${error?.stderr || ""}`;
-    if (/invalid object name 'origin\/main'/.test(details)) {
+    if (
+      [
+        /invalid object name 'origin\/main(?::[^']*)?'/,
+        /path '.*' exists on disk, but not in 'origin\/main'/,
+        /unknown revision or path not in the working tree/,
+        /ambiguous argument 'origin\/main(?::[^']*)?'/,
+        /bad revision 'origin\/main(?::[^']*)?'/,
+      ].some((pattern) => pattern.test(details))
+    ) {
       t.diagnostic("origin/main is unavailable in this checkout; skipping the historical byte-for-byte comparison.");
     } else {
       throw error;
