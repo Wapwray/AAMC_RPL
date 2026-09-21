@@ -46,12 +46,25 @@ test("archive page appends SharePoint assessor Questions 21 and 22", () => {
   assert.match(archivePage, /return \[\.\.\.retainedStoredQuestions, \.\.\.ARCHIVE_ASSESSOR_QUESTIONS\]/);
 });
 
-test("archive page remains byte-for-byte while the regular assessor page evolves", () => {
+test("archive page remains byte-for-byte while the regular assessor page evolves", (t) => {
   const { execFileSync } = require("node:child_process");
-  const originPage = execFileSync("git", ["show", "origin/main:public/RPL Report Generator - Assessor - Archive.html"], {
-    cwd: path.join(__dirname, ".."),
-    encoding: "utf8",
-  });
-  assert.equal(archivePage.replace(/\r\n/g, "\n"), originPage.replace(/\r\n/g, "\n"));
+  let originPage = null;
+  try {
+    originPage = execFileSync("git", ["show", "origin/main:public/RPL Report Generator - Assessor - Archive.html"], {
+      cwd: path.join(__dirname, ".."),
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch (error) {
+    const details = `${error?.message || ""}\n${error?.stderr || ""}`;
+    if (/invalid object name 'origin\/main'/.test(details)) {
+      t.diagnostic("origin/main is unavailable in this checkout; skipping the historical byte-for-byte comparison.");
+    } else {
+      throw error;
+    }
+  }
+  if (originPage !== null) {
+    assert.equal(archivePage.replace(/\r\n/g, "\n"), originPage.replace(/\r\n/g, "\n"));
+  }
   assert.notEqual(currentPage.replace(/\r\n/g, "\n"), archivePage.replace(/\r\n/g, "\n"));
 });
