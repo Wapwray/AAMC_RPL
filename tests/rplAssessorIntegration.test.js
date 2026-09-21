@@ -187,7 +187,7 @@ test("RPL Emailer displays a waiting state while preparing student storage", () 
 
 test("published app variants expose their current release versions", () => {
   assert.match(livePage, /welcomeVersionBadge">V2\.12</);
-  assert.match(q3Page, /const WELCOME_VERSION = "V3\.5"/);
+  assert.match(q3Page, /const WELCOME_VERSION = "V3\.6"/);
   assert.match(autoTesterPage, /const WELCOME_VERSION = "V2\.12"/);
   assert.match(autoTesterPage, /const RUNTIME_VERSION = "2\.2"/);
 });

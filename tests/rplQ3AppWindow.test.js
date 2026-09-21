@@ -19,7 +19,7 @@ const autoTesterPage = fs.readFileSync(
 const server = fs.readFileSync(path.join(__dirname, "..", "server.js"), "utf8");
 
 test("Q3 loads the interview directly without the intermediate launcher", () => {
-  assert.match(q3Page, /const WELCOME_VERSION = "V3\.5"/);
+  assert.match(q3Page, /const WELCOME_VERSION = "V3\.6"/);
   assert.match(q3Page, /captureLaunchContext\(\);[\s\S]*?removeStudentDetailsFromVisibleUrl\(\);[\s\S]*?fetch\(sourceUrl/);
   assert.doesNotMatch(q3Page, /Open your RPL interview|Open the interview/);
   assert.doesNotMatch(q3Page, /renderAppLauncher|window\.open\(/);
