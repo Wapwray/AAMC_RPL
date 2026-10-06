@@ -41,6 +41,9 @@
       .details dd { margin: 0; overflow-wrap: anywhere; }
       .meetingGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
       .meetingGrid .wide { grid-column: 1 / -1; }
+      .meetingDateTime { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+      .meetingDateTime .field { margin-top: 0; min-width: 0; align-content: start; }
+      .fieldHelp { margin: 0; font-size: 13px; color: #475569; line-height: 1.4; }
       .choiceRow { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 8px; }
       .choiceRow label { display: inline-flex; align-items: center; gap: 8px; font-weight: 500; }
       .choiceRow input { width: auto; }
@@ -53,6 +56,7 @@
         .page { padding: 18px 14px; }
         .meetingGrid { grid-template-columns: 1fr; }
         .meetingGrid .wide { grid-column: auto; }
+        .meetingDateTime { grid-template-columns: 1fr; }
         .details { grid-template-columns: 1fr; }
         .details dd { margin-bottom: 5px; }
       }
@@ -111,13 +115,30 @@
             <label for="meetingSubject">Meeting title</label>
             <input id="meetingSubject" type="text" />
           </div>
-          <div class="field">
-            <label for="meetingDate">Date</label>
-            <input id="meetingDate" type="date" />
-          </div>
-          <div class="field">
-            <label for="meetingTime">Time</label>
-            <input id="meetingTime" type="time" />
+          <div class="meetingDateTime wide">
+            <div class="field">
+              <label for="meetingDate">Date</label>
+              <input id="meetingDate" type="date" />
+            </div>
+            <div class="field">
+              <label for="meetingTime">Time</label>
+              <input id="meetingTime" type="time" />
+            </div>
+            <div class="field">
+              <label for="meetingTimezone">Timezone</label>
+              <select id="meetingTimezone" aria-describedby="meetingTimezoneHelp">
+                <option value="Australia/Sydney" selected>Sydney / Melbourne</option>
+                <option value="Australia/Brisbane">Brisbane (Queensland)</option>
+                <option value="Australia/Adelaide">Adelaide / Broken Hill</option>
+                <option value="Australia/Darwin">Darwin (Northern Territory)</option>
+                <option value="Australia/Perth">Perth (Western Australia)</option>
+                <option value="Australia/Hobart">Hobart (Tasmania)</option>
+                <option value="Australia/Lord_Howe">Lord Howe Island</option>
+                <option value="Australia/Eucla">Eucla</option>
+                <option value="UTC">UTC</option>
+              </select>
+              <p id="meetingTimezoneHelp" class="fieldHelp">Daylight saving is applied automatically for the selected date.</p>
+            </div>
           </div>
           <div class="field">
             <label for="meetingDuration">Duration</label>
@@ -194,7 +215,6 @@
         "https://aamc-rpl-live-ecgua6ceb4fkgfh0.australiaeast-01.azurewebsites.net/RPL%20Report%20Generator%20-%20Assessor.html";
       const GRAPH_ROOT = "https://graph.microsoft.com/v1.0";
       const GRAPH_SCOPES = ["User.Read", "User.ReadBasic.All", "Calendars.ReadWrite", "OnlineMeetings.ReadWrite"];
-      const GRAPH_TIME_ZONE = "E. Australia Standard Time";
 
       let studentRecord = null;
       let assessors = [];
@@ -223,6 +243,7 @@
       const meetingSubject = byId("meetingSubject");
       const meetingDate = byId("meetingDate");
       const meetingTime = byId("meetingTime");
+      const meetingTimezone = byId("meetingTimezone");
       const meetingDuration = byId("meetingDuration");
       const inviteAssessor = byId("inviteAssessor");
       const inviteStudent = byId("inviteStudent");
@@ -326,19 +347,53 @@
         return new Intl.DateTimeFormat("en-AU", { hour: "numeric", minute: "2-digit" }).format(new Date(2000, 0, 1, hour, minute));
       };
 
-      const addMinutes = (dateValue, timeValue, minutes) => {
-        const start = new Date(`${dateValue}T${timeValue}:00+10:00`);
-        const end = new Date(start.getTime() + Number(minutes) * 60000);
-        const parts = new Intl.DateTimeFormat("en-CA", {
-          timeZone: "Australia/Brisbane", year: "numeric", month: "2-digit", day: "2-digit",
+      const resolveMeetingStart = (dateValue, timeValue, timeZone) => {
+        const localText = `${dateValue}T${timeValue}:00`;
+        const localTimestamp = Date.parse(`${localText}Z`);
+        if (!Number.isFinite(localTimestamp)) throw new Error("Please select a valid meeting date and time.");
+        const formatter = new Intl.DateTimeFormat("en-CA", {
+          timeZone, year: "numeric", month: "2-digit", day: "2-digit",
           hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23"
-        }).formatToParts(end).reduce((result, part) => ({ ...result, [part.type]: part.value }), {});
-        return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}`;
+        });
+        const localAt = (timestamp) => {
+          const parts = Object.fromEntries(formatter.formatToParts(new Date(timestamp)).map((part) => [part.type, part.value]));
+          return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}`;
+        };
+        // Sample both sides of a clock change, then verify every possible offset.
+        const matches = new Set();
+        for (const hours of [-36, -12, 12, 36]) {
+          const sample = localTimestamp + hours * 3600000;
+          const offset = Date.parse(`${localAt(sample)}Z`) - sample;
+          const candidate = localTimestamp - offset;
+          if (localAt(candidate) === localText) matches.add(candidate);
+        }
+        if (!matches.size) throw new Error("This local time does not exist because the clocks move forward. Please choose another time.");
+        if (matches.size > 1) throw new Error("This local time occurs twice because the clocks move back. Please choose a time outside the repeated hour.");
+        return new Date([...matches][0]);
+      };
+
+      const buildMeetingSchedule = (dateValue, timeValue, minutes, timeZone) => {
+        const start = resolveMeetingStart(dateValue, timeValue, timeZone);
+        const end = new Date(start.getTime() + Number(minutes) * 60000);
+        // UTC keeps the chosen duration accurate even when the meeting spans a clock change.
+        const graphTime = (instant) => ({ dateTime: instant.toISOString().slice(0, 19), timeZone: "UTC" });
+        return { start: graphTime(start), end: graphTime(end) };
+      };
+
+      const getMeetingTimezoneText = () => {
+        const label = meetingTimezone.selectedOptions[0].textContent;
+        if (!meetingDate.value || !meetingTime.value) return label;
+        try {
+          const start = resolveMeetingStart(meetingDate.value, meetingTime.value, meetingTimezone.value);
+          const offset = new Intl.DateTimeFormat("en-AU", { timeZone: meetingTimezone.value, timeZoneName: "longOffset" })
+            .formatToParts(start).find((part) => part.type === "timeZoneName").value.replace("GMT", "UTC");
+          return `${label} (${offset})`;
+        } catch { return label; }
       };
 
       const hasRequiredMeetingDetails = () => Boolean(
         microsoftAccount && studentRecord && selectedAssessor && getQualification() && meetingSubject.value.trim()
-        && meetingDate.value && meetingTime.value && (inviteAssessor.checked || inviteStudent.checked)
+        && meetingDate.value && meetingTime.value && meetingTimezone.value && (inviteAssessor.checked || inviteStudent.checked)
         && (!inviteStudent.checked || studentRecord.Email) && (!inviteAssessor.checked || getAssessorEmail()) && !meetingCreated
       );
 
@@ -402,7 +457,7 @@
           `<strong>Student email:</strong> ${escapeHtml(studentRecord.Email || "Not available")}<br>`,
           `<strong>Student mobile:</strong> ${escapeHtml(studentRecord.Mobile || "Not available")}<br>`,
           `<strong>Date:</strong> ${escapeHtml(dateText)}<br>`,
-          `<strong>Time:</strong> ${escapeHtml(timeText)}</p>`,
+          `<strong>Time:</strong> ${escapeHtml(timeText)}<br><strong>Timezone:</strong> ${escapeHtml(getMeetingTimezoneText())}</p>`,
           `<p><strong>Microsoft Teams:</strong> ${activeTeamsUrl ? buildLink(activeTeamsUrl, "Join the Microsoft Teams meeting") : "The Teams joining link will be added after meeting creation."}<br>`,
           `<strong>Student report:</strong> ${buildLink(reportUrl, reportLinkText)}</p>`,
           "<p>This meeting is an opportunity for the student and assessor to discuss the RPL assessment and next steps.</p>",
@@ -416,7 +471,7 @@
           `<p>A meeting has been arranged between you, RPL student <strong>${escapeHtml(studentRecord.FullName)}</strong>, and your assessor, <strong>${escapeHtml(assessorName)}</strong>, to discuss your RPL assessment.</p>`,
           `<p><strong>Qualification:</strong> ${escapeHtml(qualification)}<br>`,
           `<strong>Date:</strong> ${escapeHtml(dateText)}<br>`,
-          `<strong>Time:</strong> ${escapeHtml(timeText)}</p>`,
+          `<strong>Time:</strong> ${escapeHtml(timeText)}<br><strong>Timezone:</strong> ${escapeHtml(getMeetingTimezoneText())}</p>`,
           `<p><strong>Microsoft Teams:</strong> ${activeTeamsUrl ? buildLink(activeTeamsUrl, "Join the Microsoft Teams meeting") : "The Teams joining link will be added after meeting creation."}</p>`,
           "<p>This meeting is an opportunity for you and your assessor to discuss your RPL assessment and next steps.</p>",
           "<p>The meeting will be automatically recorded and transcribed. Microsoft Teams will notify all participants when recording begins.</p>",
@@ -436,7 +491,7 @@
           `<p>A meeting has been arranged between RPL student <strong>${escapeHtml(studentRecord.FullName)}</strong> and assessor <strong>${escapeHtml(assessorName)}</strong> to discuss the student's RPL assessment.</p>`,
           `<p><strong>Qualification:</strong> ${escapeHtml(getQualification())}<br>`,
           `<strong>Date:</strong> ${escapeHtml(dateText)}<br>`,
-          `<strong>Time:</strong> ${escapeHtml(timeText)}</p>`,
+          `<strong>Time:</strong> ${escapeHtml(timeText)}<br><strong>Timezone:</strong> ${escapeHtml(getMeetingTimezoneText())}</p>`,
           activeTeamsUrl ? `<p><strong>Microsoft Teams:</strong> ${buildLink(activeTeamsUrl, "Join the Microsoft Teams meeting")}</p>` : "",
           "<p>This meeting is an opportunity for the student and assessor to discuss the RPL assessment and next steps.</p>",
           "<p>The meeting will be automatically recorded and transcribed. Microsoft Teams will notify all participants when recording begins.</p>",
@@ -577,16 +632,15 @@
         let createdEvent = null;
         let invitationsSent = false;
         try {
+          const schedule = buildMeetingSchedule(meetingDate.value, meetingTime.value, meetingDuration.value, meetingTimezone.value);
           const token = await getGraphToken();
-          const startDateTime = `${meetingDate.value}T${meetingTime.value}:00`;
-          const endDateTime = addMinutes(meetingDate.value, meetingTime.value, meetingDuration.value);
           createdEvent = await graphRequest("/me/events", token, {
             method: "POST",
             body: JSON.stringify({
               subject: meetingSubject.value.trim(),
               body: { contentType: "HTML", content: buildSharedMeetingHtml() },
-              start: { dateTime: startDateTime, timeZone: GRAPH_TIME_ZONE },
-              end: { dateTime: endDateTime, timeZone: GRAPH_TIME_ZONE },
+              start: schedule.start,
+              end: schedule.end,
               location: { displayName: "Microsoft Teams Meeting" },
               isOnlineMeeting: true,
               onlineMeetingProvider: "teamsForBusiness",
@@ -777,7 +831,7 @@
         renderMicrosoftAccount();
       });
 
-      [qualificationSelect, meetingSubject, meetingDate, meetingTime, meetingDuration, inviteAssessor, inviteStudent].forEach((element) => {
+      [qualificationSelect, meetingSubject, meetingDate, meetingTime, meetingTimezone, meetingDuration, inviteAssessor, inviteStudent].forEach((element) => {
         element.addEventListener("input", () => updateDrafts());
         element.addEventListener("change", () => updateDrafts());
       });
