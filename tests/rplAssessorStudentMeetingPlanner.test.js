@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const vm = require("node:vm");
 
 const page = fs.readFileSync(
   path.join(__dirname, "..", "public", "RPL Assessor Student Meeting Planner.html"),
@@ -104,5 +105,75 @@ test("direct email drafts contain hyperlinks and the assessor draft includes the
   assert.match(page, /buildLink\(activeTeamsUrl, "Join the Microsoft Teams meeting"\)/);
   assert.match(page, /buildLink\(reportUrl, reportLinkText\)/);
   assert.match(page, /target="_blank" rel="noopener noreferrer"/);
+});
+
+const scheduleHelpers = page.slice(page.indexOf("      const resolveMeetingStart ="), page.indexOf("      const hasRequiredMeetingDetails ="));
+const scheduleContext = vm.createContext({});
+vm.runInContext(`${scheduleHelpers}\nglobalThis.schedule = buildMeetingSchedule;`, scheduleContext);
+const schedule = (...args) => JSON.parse(JSON.stringify(scheduleContext.schedule(...args)));
+
+test("meeting date, time and timezone share a responsive row with Sydney/Melbourne selected", () => {
+  assert.match(page, /class="meetingDateTime wide"[\s\S]*?id="meetingDate"[\s\S]*?id="meetingTime"[\s\S]*?id="meetingTimezone"/);
+  assert.match(page, /<option value="Australia\/Sydney" selected>Sydney \/ Melbourne<\/option>/);
+  assert.match(page, /\.meetingDateTime \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(page, /@media \(max-width: 650px\)[\s\S]*?\.meetingDateTime \{ grid-template-columns: 1fr; \}/);
+  assert.match(page, /meetingTime, meetingTimezone, meetingDuration/);
+});
+
+test("Sydney meetings automatically use standard time in winter and daylight time in summer", () => {
+  assert.deepEqual(schedule("2026-07-15", "09:00", "60", "Australia/Sydney"), {
+    start: { dateTime: "2026-07-14T23:00:00", timeZone: "UTC" },
+    end: { dateTime: "2026-07-15T00:00:00", timeZone: "UTC" }
+  });
+  assert.deepEqual(schedule("2026-10-06", "09:00", "60", "Australia/Sydney"), {
+    start: { dateTime: "2026-10-05T22:00:00", timeZone: "UTC" },
+    end: { dateTime: "2026-10-05T23:00:00", timeZone: "UTC" }
+  });
+});
+
+test("timezone choices handle Queensland, central half-hour offsets and Western Australia", () => {
+  const cases = [
+    ["Australia/Brisbane", "2026-10-05T23:00:00"],
+    ["Australia/Adelaide", "2026-10-05T22:30:00"],
+    ["Australia/Darwin", "2026-10-05T23:30:00"],
+    ["Australia/Perth", "2026-10-06T01:00:00"],
+    ["Australia/Hobart", "2026-10-05T22:00:00"],
+    ["Australia/Lord_Howe", "2026-10-05T22:00:00"],
+    ["Australia/Eucla", "2026-10-06T00:15:00"],
+    ["UTC", "2026-10-06T09:00:00"]
+  ];
+  for (const [zone, expected] of cases) {
+    assert.equal(schedule("2026-10-06", "09:00", "60", zone).start.dateTime, expected, zone);
+  }
+});
+
+test("meeting duration remains sixty minutes across midnight and daylight-saving transitions", () => {
+  for (const [date, time] of [["2026-10-04", "01:30"], ["2026-04-05", "01:30"], ["2026-10-06", "23:30"]]) {
+    const result = schedule(date, time, "60", "Australia/Sydney");
+    assert.equal(Date.parse(`${result.end.dateTime}Z`) - Date.parse(`${result.start.dateTime}Z`), 3600000);
+  }
+  const spring = schedule("2026-10-04", "01:30", "60", "Australia/Sydney");
+  assert.equal(spring.end.dateTime, "2026-10-03T16:30:00"); // 03:30 after the clock jumps.
+  const midnight = schedule("2026-10-06", "23:30", "60", "Australia/Sydney");
+  assert.equal(midnight.end.dateTime, "2026-10-06T13:30:00"); // 00:30 on the following local day.
+});
+
+test("skipped and repeated local times are rejected before a meeting can be created", () => {
+  assert.throws(() => schedule("2026-10-04", "02:30", "60", "Australia/Sydney"), /does not exist/);
+  assert.throws(() => schedule("2026-04-05", "02:30", "60", "Australia/Sydney"), /occurs twice/);
+  assert.throws(() => schedule("2026-10-04", "02:15", "60", "Australia/Lord_Howe"), /does not exist/);
+  assert.match(page, /const schedule = buildMeetingSchedule\([\s\S]*?const token = await getGraphToken\(\)/);
+  assert.match(page, /start: schedule\.start,[\s\S]*?end: schedule\.end/);
+  assert.doesNotMatch(page, /GRAPH_TIME_ZONE|T\$\{timeValue\}:00\+10:00/);
+});
+
+test("shared invitation and both direct email drafts show the selected timezone and date-specific offset", () => {
+  assert.equal((page.match(/<strong>Timezone:<\/strong> \$\{escapeHtml\(getMeetingTimezoneText\(\)\)\}/g) || []).length, 3);
+  scheduleContext.meetingTimezone = { value: "Australia/Sydney", selectedOptions: [{ textContent: "Sydney / Melbourne" }] };
+  scheduleContext.meetingDate = { value: "2026-07-15" };
+  scheduleContext.meetingTime = { value: "09:00" };
+  assert.equal(vm.runInContext("getMeetingTimezoneText()", scheduleContext), "Sydney / Melbourne (UTC+10:00)");
+  scheduleContext.meetingDate.value = "2026-10-06";
+  assert.equal(vm.runInContext("getMeetingTimezoneText()", scheduleContext), "Sydney / Melbourne (UTC+11:00)");
 });
 
