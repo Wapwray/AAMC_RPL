@@ -9,9 +9,9 @@ const page = fs.readFileSync(
   "utf8"
 );
 
-test("meeting planner displays version 1.1", () => {
-  assert.match(page, /<title>RPL Assessor Student Meeting Planner V1\.1<\/title>/);
-  assert.match(page, /<h1>RPL Assessor Student Meeting Planner V1\.1<\/h1>/);
+test("meeting planner displays version 1.2", () => {
+  assert.match(page, /<title>RPL Assessor Student Meeting Planner V1\.2<\/title>/);
+  assert.match(page, /<h1>RPL Assessor Student Meeting Planner V1\.2<\/h1>/);
 });
 
 test("meeting planner reuses the Emailer student, assessor and qualification data sources", () => {
